@@ -13,8 +13,8 @@ Port the mod-playerbots strategy/action/trigger decision engine to tortoise-wow,
 
 | Phase | Lines to port/rewrite | Status |
 |-------|----------------------|--------|
-| Phase 0 — Infrastructure | ~500 | [ ] Not started |
-| Phase 1 — Engine Framework | ~2,400 | [ ] Not started |
+| Phase 0 — Infrastructure | ~500 | [x] Done (7ec62ea) |
+| Phase 1 — Engine Framework | ~2,400 | [~] In progress |
 | Phase 2 — Combat (1 class: Mage) | ~2,000 | [ ] Not started |
 | Phase 3 — Combat (all classes) | ~8,000 | [ ] Not started |
 | Phase 4 — Healing/Buffing/Group | ~3,000 | [ ] Not started |
@@ -66,15 +66,15 @@ src/game/PlayerBots/Engine/
 
 ### Action Items
 
-- [ ] Create `src/game/PlayerBots/Engine/` directory
-- [ ] Write `CommonTypes.h` with forward declarations and type aliases
-- [ ] Write `ServerFacade.h/cpp` — ~4 methods (distance, facing, chase, sendPacket)
-- [ ] Write `PlayerbotAIConfig.h` — struct with ~20 config fields, singleton
-- [ ] Copy `Helpers.h` verbatim from mod-playerbots
-- [ ] Copy `PerfMonitor.h` verbatim (or stub out)
-- [ ] Write `Logging.h` — map `LOG_ERROR`/`LOG_DEBUG` to `sLog`
-- [ ] Write `Timer.h` — `getMSTime()` wrapper
-- [ ] Write minimal `ChatHelper.h/cpp` — route whispers to bot command handler
+- [x] Create `src/game/PlayerBots/Engine/` directory
+- [x] Write `CommonTypes.h` with forward declarations and type aliases
+- [x] Write `ServerFacade.h/cpp` — ~4 methods (distance, facing, chase, sendPacket)
+- [x] Write `PlayerbotAIConfig.h` — struct with ~20 config fields, singleton
+- [x] Copy `Helpers.h` verbatim from mod-playerbots
+- [x] Copy `PerfMonitor.h` verbatim (or stub out)
+- [x] Write `Logging.h` — map `LOG_ERROR`/`LOG_DEBUG` to `sLog`
+- [x] Write `Timer.h` — `getMSTime()` wrapper
+- [x] Write minimal `ChatHelper.h/cpp` — route whispers to bot command handler
 
 ---
 
@@ -350,3 +350,4 @@ src/game/PlayerBots/
 | Date | Change |
 |------|--------|
 | 2026-06-13 | Plan created |
+| 2026-06-13 | Phase 0 complete — adapter layer committed (7ec62ea) |
