@@ -13,8 +13,8 @@ Port the mod-playerbots strategy/action/trigger decision engine to tortoise-wow,
 
 | Phase | Lines to port/rewrite | Status |
 |-------|----------------------|--------|
-| Phase 0 — Infrastructure | ~500 | [x] Done (7ec62ea) |
-| Phase 1 — Engine Framework | ~2,400 | [~] In progress |
+| Phase 0 — Infrastructure | ~500 | [x] Complete (commit 7ec62ea) |
+| Phase 1 — Engine Framework | ~2,400 | [x] Complete (commit e68fea9) |
 | Phase 2 — Combat (1 class: Mage) | ~2,000 | [ ] Not started |
 | Phase 3 — Combat (all classes) | ~8,000 | [ ] Not started |
 | Phase 4 — Healing/Buffing/Group | ~3,000 | [ ] Not started |
@@ -66,12 +66,12 @@ src/game/PlayerBots/Engine/
 
 ### Action Items
 
-- [x] Create `src/game/PlayerBots/Engine/` directory
+- [x] Create `src/game/PlayerBots/Util/` directory
 - [x] Write `CommonTypes.h` with forward declarations and type aliases
 - [x] Write `ServerFacade.h/cpp` — ~4 methods (distance, facing, chase, sendPacket)
-- [x] Write `PlayerbotAIConfig.h` — struct with ~20 config fields, singleton
-- [x] Copy `Helpers.h` verbatim from mod-playerbots
-- [x] Copy `PerfMonitor.h` verbatim (or stub out)
+- [x] Write `PlayerbotAIConfig.h/cpp` — struct with ~20 config fields, singleton
+- [x] Copy `Helpers.h/cpp` from mod-playerbots
+- [x] Copy `PerfMonitor.h/cpp` — adapted for tortoise-wow
 - [x] Write `Logging.h` — map `LOG_ERROR`/`LOG_DEBUG` to `sLog`
 - [x] Write `Timer.h` — `getMSTime()` wrapper
 - [x] Write minimal `ChatHelper.h/cpp` — route whispers to bot command handler
@@ -84,35 +84,38 @@ src/game/PlayerBots/Engine/
 
 ### Tier 0 — Copy verbatim (zero AC dependencies)
 
-- [ ] `Engine/NamedObjectContext.h` (310 lines)
-- [ ] `Engine/NamedObjectContext.cpp` (52 lines) — remove Playerbots.h include
-- [ ] `Engine/Strategy/Strategy.h` (76 lines)
-- [ ] `Engine/Multiplier.h` (23 lines)
-- [ ] `Engine/CustomStrategy.h` (31 lines)
+- [x] `Engine/NamedObjectContext.h` (310 lines)
+- [x] `Engine/NamedObjectContext.cpp` (52 lines) — remove Playerbots.h include
+- [x] `Engine/Strategy/Strategy.h` (76 lines)
+- [x] `Engine/Strategy/Strategy.cpp` (145 lines)
+- [x] `Engine/Multiplier.h` (23 lines)
+- [x] `Engine/Strategy/CustomStrategy.h` (31 lines)
+- [x] `Engine/Strategy/CustomStrategy.cpp`
 
 ### Tier 1 — Minimal changes
 
-- [ ] `Engine/PlayerbotAIAware.h` (20 lines) — rename PlayerbotAI→BotAI, remove AC includes
-- [ ] `Engine/AiObject.h` (444 lines) — replace Common.h→CommonTypes.h, update macros
-- [ ] `Engine/AiObject.cpp` (15 lines) — update method calls to use new facade
+- [x] `Engine/PlayerbotAIAware.h` (15 lines) — use PlayerBotAI type
+- [x] `Engine/AiObject.h` (439 lines) — replace Common.h→CommonTypes.h, update macros
+- [x] `Engine/AiObject.cpp` (19 lines) — update method calls to use new facade
 
 ### Tier 2 — Core types
 
-- [ ] `Engine/WorldPacket/Event.h` (45 lines) — replace AC WorldPacket/ObjectGuid→CommonTypes
-- [ ] `Engine/Action/Action.h` (165 lines) — update includes, replace getMSTime()
-- [ ] `Engine/Action/Action.cpp` (20 lines) — update timer call
-- [ ] `Engine/Trigger/Trigger.h` (83 lines) — update includes
-- [ ] `Engine/Trigger/Trigger.cpp` (46 lines) — update timer/type references
-- [ ] `Engine/Value/Value.h` (419 lines) — port framework, stub concrete AC types
+- [x] `Engine/Event.h` (32 lines) — Event structure for trigger/action communication
+- [x] `Engine/Action/Action.h` (63 lines) — Action base + ActionNode
+- [x] `Engine/Action/Action.cpp` (30 lines) — timer call updates
+- [x] `Engine/Trigger/Trigger.h` (31 lines) — Trigger base with check intervals
+- [x] `Engine/Trigger/Trigger.cpp` (44 lines) — timer/type references
+- [x] `Engine/Value/Value.h` (165 lines) — ported framework (simplified from 419)
+- [x] `Engine/Value/Value.cpp` (75 lines) — concrete value implementations
 
 ### Tier 3 — Engine core
 
-- [ ] `Engine/AiObjectContext.h` (95 lines) — replace AC includes→CommonTypes
-- [ ] `Engine/AiObjectContext.cpp` (148 lines) — update type references
-- [ ] `Engine/Engine.h` (121 lines) — replace Queue→std::priority_queue or port Queue
-- [ ] `Engine/Engine.cpp` (675 lines) — update config, logging, timer, botAI facade, Player types
+- [x] `Engine/AiObjectContext.h` (55 lines) — simplified context (no template inheritance)
+- [x] `Engine/AiObjectContext.cpp` (30 lines) — context initialization
+- [x] `Engine/Engine.h` (65 lines) — main engine with strategy management
+- [x] `Engine/Engine.cpp` (195 lines) — config, logging, timer, botAI facade
 
-### Tier 4 — Wiring (stub for now)
+### Tier 4 — Wiring (deferred)
 
 - [ ] `Engine/BuildSharedStrategyContexts.cpp` — stub, empty
 - [ ] `Engine/BuildSharedActionContexts.cpp` — stub, empty
@@ -123,14 +126,15 @@ src/game/PlayerBots/Engine/
 
 ### Also needed
 
-- [ ] `Bot/Queue.h` + `Queue.cpp` (94 lines) — replace Common.h, config reference
-- [ ] `Bot/PlayerbotAIBase.h` + `PlayerbotAIBase.cpp` — rewrite for tortoise-wow timing
+- [x] `Engine/Queue.h` + `Queue.cpp` (35 lines) — priority action queue
+- [x] `Bot/PlayerbotAIBase.h` + `PlayerbotAIBase.cpp` — AI base wrapping Engine
 
-### Integration with existing tortoise-wow
+### Integration with existing tortoise-wow (TODO - next step)
 
-- Replace the existing `PlayerBotAI` class with a new one that inherits from `PlayerbotAIBase`
-- The new `PlayerBotAI::UpdateAI()` delegates to `Engine::DoNextAction()`
-- `PlayerBotMgr::Update()` already calls `botAI->UpdateAI(diff)` — this hook already exists!
+- [ ] Rewrite existing `PlayerBotAI` to inherit from `PlayerbotAIBase` and delegate to `Engine::DoNextAction()`
+- [ ] Wire `PlayerBotAI::UpdateAI()` to call `engine->Update(diff)`
+- [ ] `PlayerBotMgr::Update()` already calls `botAI->UpdateAI(diff)` — this hook exists!
+- [ ] Register class-specific strategies in `PlayerBotAI::Initialize()`
 
 ---
 
@@ -350,4 +354,13 @@ src/game/PlayerBots/
 | Date | Change |
 |------|--------|
 | 2026-06-13 | Plan created |
-| 2026-06-13 | Phase 0 complete — adapter layer committed (7ec62ea) |
+| 2026-06-13 | Phase 0 complete: Infrastructure adapter layer (commit 7ec62ea) |
+| 2026-06-13 | Phase 1 complete: Engine framework ports, build verified clean (commit e68fea9) |
+| 2026-06-13 | Fixed pre-existing bugs: PCH missing Timer.h, PerfMonitor chrono/lock issues |
+
+## Build Notes
+
+- **Branch:** `playerbot-engine-port` on `avirar/tortoise-wow`
+- **Build command:** `cd build && cmake .. && make -j$(nproc)`
+- **PCH fix required:** Added `../shared/Timer.h` to PCH includes in CMakeLists.txt
+- All 31 PlayerBots files compile cleanly, full project builds to `mangosd` executable
