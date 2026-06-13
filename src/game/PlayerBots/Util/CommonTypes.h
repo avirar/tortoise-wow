@@ -7,6 +7,7 @@
 
 class Player;
 class Unit;
+class PlayerBotAI;
 class WorldObject;
 class Creature;
 class GameObject;

@@ -2,6 +2,7 @@
 #include "Player.h"
 #include "Unit.h"
 #include "MotionMaster.h"
+#include "MovementGenerator.h"
 
 float ServerFacade::GetDistance2d(Unit* unit, WorldObject* wo)
 {

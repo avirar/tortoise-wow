@@ -4,12 +4,12 @@
 #include "CommonTypes.h"
 #include <string>
 
-class PlayerbotAI;
+class PlayerBotAI;
 
 class ChatHelper
 {
 public:
-    ChatHelper(PlayerbotAI* botAI);
+    ChatHelper(PlayerBotAI* botAI);
     ~ChatHelper() = default;
 
     void HandleCommand(std::string const& command, Player* sender);
@@ -18,7 +18,7 @@ public:
     static bool parseableItem(std::string const& command);
 
 private:
-    PlayerbotAI* _botAI;
+    PlayerBotAI* _botAI;
     std::string _name;
 };
 

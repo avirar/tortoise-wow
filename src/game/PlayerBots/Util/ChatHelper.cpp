@@ -2,10 +2,9 @@
 #include "Player.h"
 #include "Chat.h"
 #include "Helpers.h"
+#include "PlayerBotAI.h"
 
-class PlayerbotAI;
-
-ChatHelper::ChatHelper(PlayerbotAI* botAI)
+ChatHelper::ChatHelper(PlayerBotAI* botAI)
     : _botAI(botAI), _name("")
 {
 }
@@ -22,7 +21,7 @@ void ChatHelper::HandleCommand(std::string const& command, Player* sender)
         return;
 
     std::vector<std::string> args;
-    split(args, cmd, ' ');
+    split(args, cmd, " ");
 
     std::string action = args[0];
 

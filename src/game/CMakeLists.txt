@@ -191,6 +191,44 @@ set (game_SRCS
     PacketBroadcast/PlayerBroadcaster.cpp
     PlayerBots/PlayerBotAI.cpp
     PlayerBots/PlayerBotMgr.cpp
+    PlayerBots/Util/CommonTypes.h
+    PlayerBots/Util/ServerFacade.h
+    PlayerBots/Util/ServerFacade.cpp
+    PlayerBots/Util/PlayerbotAIConfig.h
+    PlayerBots/Util/PlayerbotAIConfig.cpp
+    PlayerBots/Util/Helpers.h
+    PlayerBots/Util/Helpers.cpp
+    PlayerBots/Util/PerfMonitor.h
+    PlayerBots/Util/PerfMonitor.cpp
+    PlayerBots/Util/Timer.h
+    PlayerBots/Util/Logging.h
+    PlayerBots/Util/ChatHelper.h
+    PlayerBots/Util/ChatHelper.cpp
+    PlayerBots/Engine/Event.h
+    PlayerBots/Engine/AiObject.cpp
+    PlayerBots/Engine/AiObject.h
+    PlayerBots/Engine/Multiplier.h
+    PlayerBots/Engine/NamedObjectContext.cpp
+    PlayerBots/Engine/NamedObjectContext.h
+    PlayerBots/Engine/PlayerbotAIAware.h
+    PlayerBots/Engine/AiObjectContext.h
+    PlayerBots/Engine/AiObjectContext.cpp
+    PlayerBots/Engine/Engine.h
+    PlayerBots/Engine/Engine.cpp
+    PlayerBots/Engine/Queue.h
+    PlayerBots/Engine/Queue.cpp
+    PlayerBots/Engine/Action/Action.h
+    PlayerBots/Engine/Action/Action.cpp
+    PlayerBots/Engine/Trigger/Trigger.h
+    PlayerBots/Engine/Trigger/Trigger.cpp
+    PlayerBots/Engine/Value/Value.h
+    PlayerBots/Engine/Value/Value.cpp
+    PlayerBots/Engine/Strategy/Strategy.h
+    PlayerBots/Engine/Strategy/Strategy.cpp
+    PlayerBots/Engine/Strategy/CustomStrategy.h
+    PlayerBots/Engine/Strategy/CustomStrategy.cpp
+    PlayerBots/Bot/PlayerbotAIBase.h
+    PlayerBots/Bot/PlayerbotAIBase.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp
@@ -527,6 +565,13 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/OutdoorPvP
   ${CMAKE_CURRENT_SOURCE_DIR}/PacketBroadcast
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Util
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Action
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Trigger
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Value
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Bot
   ${CMAKE_CURRENT_SOURCE_DIR}/Protocol
   ${CMAKE_CURRENT_SOURCE_DIR}/Spells
   ${CMAKE_CURRENT_SOURCE_DIR}/Threat
@@ -641,6 +686,7 @@ else()
       target_precompile_headers(game PRIVATE
       Protocol/WorldSocket.h
       ../shared/Common.h
+      ../shared/Timer.h
 
       Maps/MapManager.h
       ../shared/Log.h

@@ -2,7 +2,7 @@
 #include <algorithm>
 
 PerfMonitorOperation::PerfMonitorOperation(PerformanceData* d, std::string const n, PerformanceStack* s)
-    : data(d), name(n), stack(s), started(std::chrono::high_resolution_clock::now().time_since_epoch())
+    : data(d), name(n), stack(s), started(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()))
 {
     if (stack)
         stack->push_back(name);
@@ -10,10 +10,10 @@ PerfMonitorOperation::PerfMonitorOperation(PerformanceData* d, std::string const
 
 void PerfMonitorOperation::finish()
 {
-    auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
-    uint64_t elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - started).count();
+    auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch());
+    uint64_t elapsed = uint64_t(now.count() - started.count());
 
-    std::lock_guard<std::mutex> lock(data->lock);
+    std::lock_guard<std::mutex> lg(data->lock);
     if (data->count == 0)
     {
         data->minTime = elapsed;
@@ -34,7 +34,7 @@ void PerfMonitorOperation::finish()
 
 PerfMonitorOperation* PerfMonitor::start(PerformanceMetric metric, std::string const name, PerformanceStack* stack)
 {
-    std::lock_guard<std::mutex> lock(lock);
+    std::lock_guard<std::mutex> lg(lock);
     auto& metricMap = data[metric];
     if (!metricMap.count(name))
     {
@@ -54,7 +54,7 @@ void PerfMonitor::PrintStats(bool /*perTick*/, bool /*fullStack*/)
 
 void PerfMonitor::Reset()
 {
-    std::lock_guard<std::mutex> lock(lock);
+    std::lock_guard<std::mutex> lg(lock);
     for (auto& metricPair : data)
     {
         for (auto& namePair : metricPair.second)
