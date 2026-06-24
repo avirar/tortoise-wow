@@ -7,6 +7,8 @@
 #include "CombatStrategy.h"
 #include "MeleeCombatStrategy.h"
 #include "RangedCombatStrategy.h"
+#include "WanderStrategy.h"
+#include "GrindingStrategy.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
     : botAI(botAI),
@@ -28,6 +30,12 @@ void PlayerbotAIBase::Initialize()
 
     NonCombatStrategy* nonCombatStrategy = new NonCombatStrategy(botAI);
     engine->AddStrategy(nonCombatStrategy);
+
+    WanderStrategy* wanderStrategy = new WanderStrategy(botAI);
+    engine->AddStrategy(wanderStrategy);
+
+    GrindingStrategy* grindingStrategy = new GrindingStrategy(botAI);
+    engine->AddStrategy(grindingStrategy);
 
     uint8 botClass = botAI->me->GetClass();
     if (botClass == CLASS_WARRIOR || botClass == CLASS_ROGUE ||

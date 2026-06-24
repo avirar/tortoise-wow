@@ -1553,6 +1553,37 @@ namespace MaNGOS
             NearestHostileUnitCheck(NearestHostileUnitCheck const&);
     };
 
+    class NearestUnfriendlyUnitCheck
+    {
+        public:
+            explicit NearestUnfriendlyUnitCheck(Unit const* source, float dist = 0) : me(source)
+            {
+                m_range = (dist == 0 ? 9999 : dist);
+            }
+            bool operator()(Unit* u)
+            {
+                if (me == u)
+                    return false;
+
+                if (!me->IsWithinDistInMap(u, m_range))
+                    return false;
+
+                if (me->IsFriendlyTo(u))
+                    return false;
+
+                if (!u->IsAlive())
+                    return false;
+
+                m_range = me->GetDistance(u);
+                return true;
+            }
+
+        private:
+            Unit const *me;
+            float m_range;
+            NearestUnfriendlyUnitCheck(NearestUnfriendlyUnitCheck const&);
+    };
+
     class NearestHostileUnitInAggroRangeCheck
     {
         public:

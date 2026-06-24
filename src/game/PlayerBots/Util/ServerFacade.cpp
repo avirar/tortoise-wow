@@ -68,3 +68,11 @@ void ServerFacade::SendPacket(Player* player, WorldPacket* packet)
     if (player && packet && player->GetSession())
         player->GetSession()->SendPacket(packet);
 }
+
+Unit* ServerFacade::SelectNearestHostileTarget(Unit* unit, float range)
+{
+    if (!unit || !unit->IsAlive())
+        return nullptr;
+
+    return unit->SelectNearestUnfriendlyTarget(range);
+}

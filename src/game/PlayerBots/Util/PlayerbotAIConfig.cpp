@@ -37,6 +37,9 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     errorDelay = 5000;
     lootDelay = 1000;
 
+    // Random
+    randomChangeMultiplier = 1;
+
     // Logging
     logInGroupOnly = true;
     logValuesPerTick = false;
@@ -84,6 +87,7 @@ bool PlayerbotAIConfig::Initialize()
     repeatDelay = sConfig.GetIntDefault("PlayerBot.RepeatDelay", repeatDelay);
     errorDelay = sConfig.GetIntDefault("PlayerBot.ErrorDelay", errorDelay);
     lootDelay = sConfig.GetIntDefault("PlayerBot.LootDelay", lootDelay);
+    randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);
     logValuesPerTick = sConfig.GetBoolDefault("PlayerBot.LogValuesPerTick", logValuesPerTick);

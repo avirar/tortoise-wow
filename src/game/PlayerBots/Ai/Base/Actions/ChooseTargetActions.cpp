@@ -22,7 +22,7 @@ bool DpsAssistAction::Execute(Event event)
 {
     Unit* target = nullptr;
 
-    if (bot->GetVictim())
+    if (bot->GetVictim() && bot->GetVictim()->IsAlive() && bot->GetVictim()->IsInWorld())
     {
         target = bot->GetVictim();
         LOG_DEBUG("playerbots", "%s [DpsAssistAction] path1: own victim %s", bot->GetName(), target->GetName());
@@ -123,44 +123,51 @@ bool DpsAssistAction::Execute(Event event)
 
 bool DpsAssistAction::isUseful()
 {
+    // AC: always useful, Execute() handles target selection
+    return true;
+}
+
+AttackAnythingAction::AttackAnythingAction(PlayerBotAI* botAI)
+    : AttackAction(botAI, "attack anything")
+{
+}
+
+bool AttackAnythingAction::Execute(Event /*event*/)
+{
+    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+
+    if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
+        return false;
+
+    // Skip training dummies
+    std::string name = target->GetName();
+    if (name.find("Dummy") != std::string::npos ||
+        name.find("Charge Target") != std::string::npos ||
+        name.find("Melee Target") != std::string::npos ||
+        name.find("Ranged Target") != std::string::npos)
+        return false;
+
+    GetAiObjectContext()->GetValue<Unit*>("current target")->Set(target);
+    return DoAttack(target);
+}
+
+bool AttackAnythingAction::isUseful()
+{
     if (bot->IsInCombat())
-        return true;
+        return false;
 
-    Group* group = bot->GetGroup();
-    if (group)
-    {
-        for (GroupReference* itr = group->GetFirstMember(); itr != nullptr; itr = itr->next())
-        {
-            Player* member = itr->getSource();
-            if (!member || !member->IsInWorld())
-                continue;
+    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+    if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
+        return false;
+        return false;
 
-            if (!member->IsInCombat())
-                continue;
+    return true;
+}
 
-            ObjectGuid memberTargetGuid = member->GetSelectionGuid();
-            if (memberTargetGuid.IsCreature())
-            {
-                Unit* memberTarget = ObjectAccessor::GetUnit(*bot, memberTargetGuid);
-                if (memberTarget && memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
-                    return true;
-            }
-        }
-    }
-
-    Player* master = GetMaster();
-    if (master && master->IsInCombat())
-    {
-        ObjectGuid masterTargetGuid = master->GetSelectionGuid();
-        if (masterTargetGuid.IsCreature())
-        {
-            Unit* masterTarget = ObjectAccessor::GetUnit(*bot, masterTargetGuid);
-            if (masterTarget && masterTarget->IsAlive() && !bot->IsFriendlyTo(masterTarget))
-                return true;
-        }
-    }
-
-    return false;
+bool AttackAnythingAction::isPossible()
+{
+    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+    return target && AttackAction::isPossible();
 }
 
 AggressiveTargetAction::AggressiveTargetAction(PlayerBotAI* botAI)
@@ -170,7 +177,7 @@ AggressiveTargetAction::AggressiveTargetAction(PlayerBotAI* botAI)
 
 bool AggressiveTargetAction::Execute([[maybe_unused]] Event event)
 {
-    Unit*       target = bot->SelectNearestTarget(sPlayerbotAIConfig.sightDistance);
+    Unit*       target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
 
     if (target && target->IsAlive() && target->IsHostileTo(bot))
     {

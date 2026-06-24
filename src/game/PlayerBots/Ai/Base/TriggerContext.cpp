@@ -17,6 +17,8 @@ public:
         creators["medium health"] = &TriggerContext::CreateMediumHealth;
         creators["low mana"] = &TriggerContext::CreateLowMana;
         creators["high mana"] = &TriggerContext::CreateHighMana;
+        creators["often"] = &TriggerContext::CreateOften;
+        creators["no target"] = &TriggerContext::CreateNoTarget;
     }
 
 private:
@@ -30,6 +32,8 @@ private:
     static Trigger* CreateMediumHealth(PlayerBotAI* botAI) { return new MediumHealthTrigger(botAI); }
     static Trigger* CreateLowMana(PlayerBotAI* botAI) { return new LowManaTrigger(botAI); }
     static Trigger* CreateHighMana(PlayerBotAI* botAI) { return new HighManaTrigger(botAI); }
+    static Trigger* CreateOften(PlayerBotAI* botAI) { return new RandomTrigger(botAI, "often", 7); }
+    static Trigger* CreateNoTarget(PlayerBotAI* botAI) { return new NoTargetTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

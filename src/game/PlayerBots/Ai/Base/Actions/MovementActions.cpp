@@ -7,6 +7,8 @@
 #include "Spell.h"
 #include "ServerFacade.h"
 #include "PlayerbotAIConfig.h"
+#include "Logging.h"
+#include <cmath>
 
 MovementAction::MovementAction(PlayerBotAI* botAI, std::string const& name)
     : Action(botAI, name),
@@ -91,4 +93,40 @@ void MovementAction::ClearIdleState()
     lastMoveX = 0;
     lastMoveY = 0;
     lastMoveZ = 0;
+}
+
+bool MoveRandomAction::Execute(Event /*event*/)
+{
+    float distance = sPlayerbotAIConfig.sightDistance;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        float angle = (float)urand(0, 360) * M_PI / 180.0f;
+        float dist = (float)urand(10, (uint32)distance);
+        float x = bot->GetPositionX() + dist * cos(angle);
+        float y = bot->GetPositionY() + dist * sin(angle);
+        float z = bot->GetPositionZ();
+
+        if (MoveTo(x, y, z))
+        {
+            LOG_DEBUG("playerbots", "%s [MoveRandomAction] moved to %.1f, %.1f", bot->GetName(), x, y);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool MoveRandomAction::isUseful()
+{
+    if (bot->IsInCombat())
+        return false;
+
+    if (bot->GetCurrentSpell(CURRENT_CHANNELED_SPELL) != nullptr)
+        return false;
+
+    if (bot->HasUnitState(UNIT_STAT_TAXI_FLIGHT))
+        return false;
+
+    return true;
 }

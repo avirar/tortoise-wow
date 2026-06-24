@@ -236,6 +236,10 @@ set (game_SRCS
     PlayerBots/Ai/Base/Strategy/MeleeCombatStrategy.cpp
     PlayerBots/Ai/Base/Strategy/NonCombatStrategy.h
     PlayerBots/Ai/Base/Strategy/NonCombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/WanderStrategy.h
+    PlayerBots/Ai/Base/Strategy/WanderStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/GrindingStrategy.h
+    PlayerBots/Ai/Base/Strategy/GrindingStrategy.cpp
     PlayerBots/Ai/Base/Strategy/RangedCombatStrategy.h
     PlayerBots/Ai/Base/Strategy/RangedCombatStrategy.cpp
     PlayerBots/Ai/Base/Actions/AttackAction.h

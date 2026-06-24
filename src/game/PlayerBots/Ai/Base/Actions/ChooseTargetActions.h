@@ -28,4 +28,16 @@ public:
     virtual std::string const GetTargetName() { return "aggressive target"; }
 };
 
+class AttackAnythingAction : public AttackAction
+{
+public:
+    AttackAnythingAction(PlayerBotAI* botAI);
+    virtual ~AttackAnythingAction() {}
+
+    virtual bool Execute(Event event) override;
+    virtual bool isUseful();
+    virtual bool isPossible();
+    virtual std::string const GetTargetName() { return "attack anything"; }
+};
+
 #endif

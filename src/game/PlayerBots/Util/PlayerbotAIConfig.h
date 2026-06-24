@@ -51,6 +51,9 @@ public:
     uint32 errorDelay;
     uint32 lootDelay;
 
+    // Random
+    uint32 randomChangeMultiplier;
+
     // Logging
     bool logInGroupOnly;
     bool logValuesPerTick;

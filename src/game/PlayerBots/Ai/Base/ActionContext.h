@@ -10,6 +10,7 @@
 #include "Actions/ReachTargetActions.h"
 #include "Actions/CombatActions.h"
 #include "Actions/NonCombatActions.h"
+#include "Actions/MovementActions.h"
 
 class PlayerBotAI;
 

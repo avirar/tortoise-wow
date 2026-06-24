@@ -20,6 +20,8 @@ public:
         creators["set behind"] = &ActionContext::CreateSetBehindAction;
         creators["enter combat"] = &ActionContext::CreateEnterCombatAction;
         creators["leave combat"] = &ActionContext::CreateLeaveCombatAction;
+        creators["move random"] = &ActionContext::CreateMoveRandomAction;
+        creators["attack anything"] = &ActionContext::CreateAttackAnythingAction;
     }
 
 private:
@@ -36,6 +38,8 @@ private:
     static Action* CreateSetBehindAction(PlayerBotAI* botAI) { return new SetBehindAction(botAI); }
     static Action* CreateEnterCombatAction(PlayerBotAI* botAI) { return new EnterCombatAction(botAI); }
     static Action* CreateLeaveCombatAction(PlayerBotAI* botAI) { return new LeaveCombatAction(botAI); }
+    static Action* CreateMoveRandomAction(PlayerBotAI* botAI) { return new MoveRandomAction(botAI); }
+    static Action* CreateAttackAnythingAction(PlayerBotAI* botAI) { return new AttackAnythingAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

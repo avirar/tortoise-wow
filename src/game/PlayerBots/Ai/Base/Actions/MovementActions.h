@@ -33,4 +33,13 @@ protected:
     float lastMoveZ;
 };
 
+class MoveRandomAction : public MovementAction
+{
+public:
+    MoveRandomAction(PlayerBotAI* botAI) : MovementAction(botAI, "move random") {}
+
+    virtual bool Execute(Event event) override;
+    virtual bool isUseful() override;
+};
+
 #endif

@@ -6,6 +6,7 @@
 
 #include "Trigger/CombatTrigger.h"
 #include "Trigger/HealthTrigger.h"
+#include "Trigger/CombatTrigger.h"
 
 class PlayerBotAI;
 

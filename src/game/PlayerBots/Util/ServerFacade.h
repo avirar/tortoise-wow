@@ -22,6 +22,7 @@ public:
     void SetFacingTo(Player* bot, WorldObject* wo, bool force = false);
     Unit* GetChaseTarget(Unit* target);
     void SendPacket(Player* player, WorldPacket* packet);
+    Unit* SelectNearestHostileTarget(Unit* unit, float range);
 
 private:
     ServerFacade() = default;

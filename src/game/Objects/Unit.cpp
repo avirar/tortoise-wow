@@ -11438,6 +11438,29 @@ Unit* Unit::SelectNearestTarget(float dist) const
     return target;
 }
 
+Unit* Unit::SelectNearestUnfriendlyTarget(float dist) const
+{
+    CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
+    Cell cell(p);
+    cell.SetNoCreate();
+
+    Unit* target = nullptr;
+
+    if (dist == 0.0f || dist > MAX_VISIBILITY_DISTANCE)
+        dist = MAX_VISIBILITY_DISTANCE;
+
+    MaNGOS::NearestUnfriendlyUnitCheck u_check(this, dist);
+    MaNGOS::UnitLastSearcher<MaNGOS::NearestUnfriendlyUnitCheck> searcher(target, u_check);
+
+    TypeContainerVisitor<MaNGOS::UnitLastSearcher<MaNGOS::NearestUnfriendlyUnitCheck>, WorldTypeMapContainer> world_unit_searcher(searcher);
+    TypeContainerVisitor<MaNGOS::UnitLastSearcher<MaNGOS::NearestUnfriendlyUnitCheck>, GridTypeMapContainer> grid_unit_searcher(searcher);
+
+    cell.Visit(p, world_unit_searcher, *GetMap(), *this, dist);
+    cell.Visit(p, grid_unit_searcher, *GetMap(), *this, dist);
+
+    return target;
+}
+
 float Unit::GetMinChaseDistance(Unit* victim) const
 {
     if (m_casterChaseDistance > 1.0f)

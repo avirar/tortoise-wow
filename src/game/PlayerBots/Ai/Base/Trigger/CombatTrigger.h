@@ -47,4 +47,22 @@ public:
     bool IsActive() override;
 };
 
+class RandomTrigger : public Trigger
+{
+public:
+    RandomTrigger(PlayerBotAI* botAI, std::string const& name, int32 probability = 7);
+    bool IsActive() override;
+
+private:
+    int32 probability;
+    uint32 lastCheck;
+};
+
+class NoTargetTrigger : public Trigger
+{
+public:
+    NoTargetTrigger(PlayerBotAI* botAI);
+    bool IsActive() override;
+};
+
 #endif
