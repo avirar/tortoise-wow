@@ -96,8 +96,19 @@ bool DpsAssistAction::Execute(Event event)
 
     if (target && target->IsAlive() && !bot->IsFriendlyTo(target))
     {
-        LOG_DEBUG("playerbots", "%s [DpsAssistAction] attacking %s", bot->GetName(), target->GetName());
         GetAiObjectContext()->GetValue<Unit*>("current target")->Set(target);
+
+        // If target is out of melee range, don't attack yet — let "reach melee" run first
+        float dist = sServerFacade.GetDistance2d(bot, target);
+        if (sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance))
+        {
+            bot->SetTargetGuid(target->GetGUID());
+            LOG_DEBUG("playerbots", "%s [DpsAssistAction] target %s out of range (%.1f), need to reach",
+                      bot->GetName(), target->GetName(), dist);
+            return false;
+        }
+
+        LOG_DEBUG("playerbots", "%s [DpsAssistAction] attacking %s", bot->GetName(), target->GetName());
         return DoAttack(target);
     }
 
@@ -112,7 +123,44 @@ bool DpsAssistAction::Execute(Event event)
 
 bool DpsAssistAction::isUseful()
 {
-    return true;
+    if (bot->IsInCombat())
+        return true;
+
+    Group* group = bot->GetGroup();
+    if (group)
+    {
+        for (GroupReference* itr = group->GetFirstMember(); itr != nullptr; itr = itr->next())
+        {
+            Player* member = itr->getSource();
+            if (!member || !member->IsInWorld())
+                continue;
+
+            if (!member->IsInCombat())
+                continue;
+
+            ObjectGuid memberTargetGuid = member->GetSelectionGuid();
+            if (memberTargetGuid.IsCreature())
+            {
+                Unit* memberTarget = ObjectAccessor::GetUnit(*bot, memberTargetGuid);
+                if (memberTarget && memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
+                    return true;
+            }
+        }
+    }
+
+    Player* master = GetMaster();
+    if (master && master->IsInCombat())
+    {
+        ObjectGuid masterTargetGuid = master->GetSelectionGuid();
+        if (masterTargetGuid.IsCreature())
+        {
+            Unit* masterTarget = ObjectAccessor::GetUnit(*bot, masterTargetGuid);
+            if (masterTarget && masterTarget->IsAlive() && !bot->IsFriendlyTo(masterTarget))
+                return true;
+        }
+    }
+
+    return false;
 }
 
 AggressiveTargetAction::AggressiveTargetAction(PlayerBotAI* botAI)
