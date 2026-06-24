@@ -7,6 +7,7 @@
 
 class PlayerBotAI;
 template <class T> class Value;
+class UntypedValue;
 
 class AiObjectContext
 {
@@ -27,9 +28,9 @@ public:
     }
 
     template <class T>
-    void AddValue(Value<T>* value)
+    void AddValue(Value<T>* value, std::string const& name)
     {
-        valuesT<T>()[value->getName()] = value;
+        valuesT<T>()[name] = value;
     }
 
     template <class T>

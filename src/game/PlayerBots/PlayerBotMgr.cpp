@@ -103,8 +103,8 @@ void PlayerBotMgr::Load()
     }
 
     // 5- Check config/DB
-    if (confMinBots >= m_bots.size() && !m_bots.empty())
-        confMinBots = m_bots.size() - 1;
+    if (confMinBots > m_bots.size() && !m_bots.empty())
+        confMinBots = m_bots.size();
     if (confMaxBots > m_bots.size())
         confMaxBots = m_bots.size();
     if (confMaxBots <= confMinBots)
@@ -263,17 +263,11 @@ Toutes les X minutes, ajoute ou enleve un bot.
 */
 bool PlayerBotMgr::AddOrRemoveBot()
 {
-    uint32 alea = urand(confMinBots, confMaxBots);
-    /*
-    10 --- --- --- --- --- --- --- --- --- --- 20 bots
-                NumActuel
-    [alea ici : remove    ][    ici, add    ]
-    */
-    if (alea > m_stats.onlineCount)
+    if (m_stats.onlineCount < confMinBots)
         return AddRandomBot();
-    else
+    if (m_stats.onlineCount > confMaxBots)
         return DeleteRandomBot();
-
+    return false;
 }
 
 bool PlayerBotMgr::AddBot(PlayerBotAI* ai)

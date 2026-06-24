@@ -12,6 +12,7 @@
 #include "SpellMgr.h"
 #include "Database/DBCStructure.h"
 #include "Database/DatabaseEnv.h"
+#include "PlayerbotAIBase.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
@@ -25,8 +26,31 @@ bool PlayerBotAI::OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess)
     return true;
 }
 
+void PlayerBotAI::Initialize()
+{
+    if (!engine)
+        engine = new PlayerbotAIBase(this);
+    engine->Initialize();
+}
+
+void PlayerBotAI::Reset()
+{
+    if (engine)
+        engine->Reset();
+}
+
+Engine* PlayerBotAI::GetEngine()
+{
+    if (engine)
+        return engine->GetEngine();
+    return nullptr;
+}
+
 void PlayerBotAI::UpdateAI(const uint32 diff)
 {
+    if (!me)
+        return;
+
     if (me->IsBeingTeleportedNear())
     {
         WorldPacket data(MSG_MOVE_TELEPORT_ACK, 10);
@@ -37,10 +61,30 @@ void PlayerBotAI::UpdateAI(const uint32 diff)
     if (me->IsBeingTeleportedFar())
         me->GetSession()->HandleMoveWorldportAckOpcode();
 
-    if (!me || !me->IsInWorld())
+    if (!me->IsInWorld())
         return;
 
-    // Detect manual level changes in case GiveLevel hook missed
+    // Auto-accept group invites
+    if (me->GetGroupInvite())
+    {
+        WorldPacket pkt(CMSG_GROUP_ACCEPT, 0);
+        me->GetSession()->HandleGroupAcceptOpcode(pkt);
+    }
+
+    // Teleport to group leader when joining a group
+    if (Group* group = me->GetGroup())
+    {
+        ObjectGuid leaderGuid = group->GetLeaderGuid();
+        if (leaderGuid && leaderGuid != me->GetObjectGuid())
+        {
+            Player* leader = ObjectAccessor::FindPlayer(leaderGuid);
+            if (leader && !me->IsWithinDistInMap(leader, 50.0f))
+            {
+                me->NearTeleportTo(leader->GetPositionX(), leader->GetPositionY(), leader->GetPositionZ(), leader->GetOrientation());
+            }
+        }
+    }
+
     if (_lastLevel != me->GetLevel())
     {
         _lastLevel = me->GetLevel();
@@ -51,74 +95,8 @@ void PlayerBotAI::UpdateAI(const uint32 diff)
     if (!me->IsAlive())
         return;
 
-    // Ability usage timer
-    if (_abilityTimer > diff)
-        _abilityTimer -= diff;
-    else
-        _abilityTimer = 0;
-
-    // Periodic combat/target check
-    if (_combatCheckTimer <= diff)
-    {
-        _combatCheckTimer = 2000;
-
-        if (me->IsInCombat())
-        {
-            if (Unit* victim = me->GetVictim())
-            {
-                if (!me->CanReachWithMeleeAutoAttack(victim))
-                    me->GetMotionMaster()->MoveChase(victim);
-
-                // Try casting an offensive spell before melee swing
-                if (_abilityTimer == 0)
-                {
-                    if (uint32 spellId = SelectOffensiveSpell(victim))
-                    {
-                        me->CastSpell(victim, spellId, false);
-                        _abilityTimer = urand(2000, 4000);
-                    }
-                    else
-                        me->Attack(victim, true);
-                }
-                else
-                    me->Attack(victim, true);
-            }
-            else
-                me->CombatStop();
-        }
-        else
-        {
-            if (Unit* target = me->SelectNearestTarget(30.0f))
-            {
-                me->Attack(target, true);
-                me->GetMotionMaster()->MoveChase(target);
-            }
-        }
-    }
-    else
-        _combatCheckTimer -= diff;
-
-    // Random wandering while idle
-    if (!me->IsInCombat())
-    {
-        if (_wanderTimer <= diff)
-        {
-            _wanderTimer = urand(8000, 15000);
-
-            float x = me->GetPositionX();
-            float y = me->GetPositionY();
-            float z = me->GetPositionZ();
-            float radius = frand(8.0f, 20.0f);
-
-            if (Map* map = me->GetMap())
-            {
-                if (map->GetWalkRandomPosition(nullptr, x, y, z, radius))
-                    me->GetMotionMaster()->MovePoint(0, x, y, z, MOVE_PATHFINDING);
-            }
-        }
-        else
-            _wanderTimer -= diff;
-    }
+    if (engine)
+        engine->UpdateAI(diff);
 }
 
 void PlayerBotAI::OnPlayerLogin()
@@ -126,6 +104,7 @@ void PlayerBotAI::OnPlayerLogin()
     _lastLevel = me ? me->GetLevel() : 0;
     AutoLearnSpellsForLevel();
     AutoEquipForLevel();
+    Initialize();
 }
 
 void PlayerBotAI::OnLevelUp()
@@ -133,6 +112,8 @@ void PlayerBotAI::OnLevelUp()
     _lastLevel = me ? me->GetLevel() : _lastLevel;
     AutoLearnSpellsForLevel();
     AutoEquipForLevel();
+    if (!engine)
+        Initialize();
 }
 
 void PlayerBotAI::AutoLearnSpellsForLevel()

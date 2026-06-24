@@ -7,38 +7,43 @@
 struct PlayerBotEntry;
 class WorldSession;
 class PlayerBotAI;
+class PlayerbotAIBase;
+class Engine;
 
 PlayerBotAI* CreatePlayerBotAI(std::string ainame);
 
 class PlayerBotAI: public PlayerAI
 {
     public:
-        explicit PlayerBotAI(Player* pPlayer = nullptr) : PlayerAI(pPlayer), botEntry(nullptr), _wanderTimer(0), _combatCheckTimer(0) {}
-        virtual ~PlayerBotAI() {}
+        explicit PlayerBotAI(Player* pPlayer = nullptr) : PlayerAI(pPlayer), botEntry(nullptr), _lastLevel(0), engine(nullptr) {}
+        virtual ~PlayerBotAI() { delete engine; }
         void Remove() override;
 
         virtual bool OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess);
         virtual void OnBotEntryLoad(PlayerBotEntry* entry) {}
-        virtual void OnPacketReceived(WorldPacket const* /*packet*/) {} // server has sent a packet to this session
-        virtual void SendFakePacket(uint16 /*opcode*/) {} // ai has scheduled delayed response to opcode
-        virtual void UpdateAI(const uint32 /*diff*/) override; // Handle delayed teleports
+        virtual void OnPacketReceived(WorldPacket const* /*packet*/) {}
+        virtual void SendFakePacket(uint16 /*opcode*/) {}
+        virtual void UpdateAI(const uint32 diff) override;
         virtual void OnPlayerLogin();
         virtual void OnLevelUp();
-        virtual void BeforeAddToMap(Player* player) {} // me=nullptr at call
-        // Helpers
+        virtual void BeforeAddToMap(Player* player) {}
+
+        void Initialize();
+        void Reset();
+        Engine* GetEngine();
+        uint32 SelectOffensiveSpell(Unit* target) const;
+
         bool SpawnNewPlayer(WorldSession* sess, uint8 _class, uint32 _race, uint32 mapId, uint32 instanceId, float dx, float dy, float dz, float o);
         PlayerBotEntry* botEntry;
     protected:
-        uint32 _wanderTimer;
-        uint32 _combatCheckTimer;
-        uint32 _abilityTimer;
-        uint8 _lastLevel = 0;
+        uint8 _lastLevel;
         void AutoLearnSpellsForLevel();
-        uint32 SelectOffensiveSpell(Unit* target) const;
         void AutoEquipForLevel();
-        uint32 _gearMaxDiff = 9; // default similar to sample
+        uint32 _gearMaxDiff = 9;
         uint32 GetHighestKnownSpell(uint32 spellId) const;
         bool TargetHasAuraFromChain(Unit* target, uint32 spellId) const;
+
+        PlayerbotAIBase* engine;
 };
 
 class PlayerCreatorAI: public PlayerBotAI
