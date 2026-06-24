@@ -2,8 +2,10 @@
 #define _PLAYERBOT_TRIGGER_H
 
 #include <string>
+#include <vector>
 #include "AiObject.h"
 #include "Event.h"
+#include "Action/Action.h"
 
 class PlayerBotAI;
 class Unit;
@@ -16,6 +18,8 @@ public:
 
     virtual Event Check();
     virtual bool IsActive();
+    virtual void Reset() {}
+    virtual std::vector<NextAction> getHandlers() { return {}; }
 
     Unit* GetTarget();
 

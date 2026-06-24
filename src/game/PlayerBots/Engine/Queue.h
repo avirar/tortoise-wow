@@ -1,29 +1,33 @@
 #ifndef _PLAYERBOT_QUEUE_H
 #define _PLAYERBOT_QUEUE_H
 
-#include <vector>
+#include <list>
 #include <string>
 #include "Action/Action.h"
 
-struct NextAction;
+class ActionBasket;
 
 class ActionQueue
 {
 public:
-    ActionQueue() : maxSize(500) {}
+    ActionQueue() = default;
+    ~ActionQueue() { Clear(); }
 
-    void Add(NextAction const& action);
+    void Push(ActionBasket* action);
+    ActionNode* Pop();
+    ActionBasket* Peek();
+    uint32 Size() { return actions.size(); }
+    void RemoveExpired();
     void Clear();
 
-    std::vector<NextAction> const& GetQueue() const { return queue; }
-    bool Empty() const { return queue.empty(); }
-    size_t Size() const { return queue.size(); }
-
-    void SetMaxSize(uint32 size) { maxSize = size; }
+    bool Empty() const { return actions.empty(); }
 
 private:
-    std::vector<NextAction> queue;
-    uint32 maxSize;
+    void updateExistingBasket(ActionBasket* existing, ActionBasket* newBasket);
+    ActionBasket* findHighestRelevanceBasket() const;
+    ActionNode* extractAndDeleteBasket(ActionBasket* basket);
+
+    std::list<ActionBasket*> actions;
 };
 
 #endif

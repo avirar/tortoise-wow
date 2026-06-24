@@ -9,6 +9,7 @@ class WorldSession;
 class PlayerBotAI;
 class PlayerbotAIBase;
 class Engine;
+class AiObjectContext;
 
 PlayerBotAI* CreatePlayerBotAI(std::string ainame);
 
@@ -31,6 +32,7 @@ class PlayerBotAI: public PlayerAI
         void Initialize();
         void Reset();
         Engine* GetEngine();
+        AiObjectContext* GetAiObjectContext();
         uint32 SelectOffensiveSpell(Unit* target) const;
 
         bool SpawnNewPlayer(WorldSession* sess, uint8 _class, uint32 _race, uint32 mapId, uint32 instanceId, float dx, float dy, float dz, float o);

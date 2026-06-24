@@ -337,7 +337,7 @@ void getGamePath()
 #ifdef _WIN32
     strcpy(input_path, "Data\\");
 #else
-    strcpy(input_path, "Data/");
+    strcpy(input_path, "data/");
 #endif
 }
 

@@ -7,30 +7,31 @@
 #include "AiObjectContext.h"
 #include "Queue.h"
 #include "Strategy/Strategy.h"
-
-class PlayerbotAI;
+#include "NamedObjectContext.h"
+#include "PlayerBotAI.h"
 class Unit;
+class TriggerNode;
+class Multiplier;
 
 class Engine
 {
 public:
     Engine(PlayerBotAI* botAI);
-    virtual ~Engine() {}
+    virtual ~Engine() { Reset(); delete context; }
 
     void Init();
     void Update(uint32 diff);
     void Reset();
 
     bool DoNextAction();
-    void ProcessActions();
     void ProcessTriggers();
+    void PushDefaultActions();
 
     void AddStrategy(Strategy* strategy);
     void RemoveStrategy(Strategy* strategy);
     void RemoveStrategy(uint32 type);
 
     bool HasStrategy(uint32 type) const;
-    bool HasAction(std::string const& name) const;
     bool HasStrategy(std::string const& name) const;
 
     void SetEnabled(bool enable);
@@ -39,24 +40,32 @@ public:
     ActionQueue& GetQueue() { return queue; }
     AiObjectContext* GetContext() { return context; }
 
-    void ProcessEvent(Event const& event);
+    std::map<std::string, Strategy*> const& GetStrategies() const { return strategies; }
 
-    std::vector<Strategy*> const& GetStrategies() const { return strategies; }
+protected:
+    ActionNode* CreateActionNode(std::string const& name);
+    Action* InitializeAction(ActionNode* actionNode);
+    bool MultiplyAndPush(std::vector<NextAction> actions, float forceRelevance, bool skipPrerequisites, Event event);
+    void PushAgain(ActionNode* actionNode, float relevance, Event event);
+    void LogAction(char const* format, ...);
+
+    std::vector<TriggerNode*> triggers;
+    std::vector<Multiplier*> multipliers;
+    NamedObjectFactoryList<ActionNode> actionNodeFactories;
 
 private:
-    void SortQueue();
-
     PlayerBotAI* botAI;
     AiObjectContext* context;
     ActionQueue queue;
-    std::vector<Strategy*> strategies;
+    std::map<std::string, Strategy*> strategies;
     std::map<uint32, std::vector<Strategy*>> strategiesByType;
-    std::map<std::string, Strategy*> strategyMap;
     bool enabled;
     uint32 lastActionTime;
     uint32 lastTriggerTime;
     uint32 actionInterval;
     uint32 triggerInterval;
+    float lastRelevance;
+    std::string lastAction;
 };
 
 #endif

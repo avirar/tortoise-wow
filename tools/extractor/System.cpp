@@ -1016,7 +1016,7 @@ void LoadCommonMPQFiles()
     int count = sizeof(CONF_mpq_list) / sizeof(char*);
     for (int i = 0; i < count; ++i)
     {
-        sprintf(filename, "%s/Data/%s", input_path, CONF_mpq_list[i]);
+        sprintf(filename, "%s/data/%s", input_path, CONF_mpq_list[i]);
         if (ResolveMPQFilename(filename))
             new MPQArchive(filename);
     }

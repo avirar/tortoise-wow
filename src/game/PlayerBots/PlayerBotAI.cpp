@@ -1,4 +1,5 @@
 #include "PlayerBotAI.h"
+#include "Logging.h"
 #include "Player.h"
 #include "DBCStores.h"
 #include "Log.h"
@@ -28,6 +29,7 @@ bool PlayerBotAI::OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess)
 
 void PlayerBotAI::Initialize()
 {
+    LOG_DEBUG("playerbots", "[PlayerBotAI::Initialize] me=%p, botAI=%p", (void*)me, (void*)this);
     if (!engine)
         engine = new PlayerbotAIBase(this);
     engine->Initialize();
@@ -46,10 +48,18 @@ Engine* PlayerBotAI::GetEngine()
     return nullptr;
 }
 
+AiObjectContext* PlayerBotAI::GetAiObjectContext()
+{
+    Engine* eng = GetEngine();
+    return eng ? eng->GetContext() : nullptr;
+}
+
 void PlayerBotAI::UpdateAI(const uint32 diff)
 {
     if (!me)
         return;
+
+    LOG_DEBUG("playerbots", "[PlayerBotAI::UpdateAI] me=%p, diff=%u", (void*)me, diff);
 
     if (me->IsBeingTeleportedNear())
     {

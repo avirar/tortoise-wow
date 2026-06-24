@@ -3,14 +3,16 @@
 #include "PerfMonitor.h"
 #include "Timer.h"
 
-Action::Action(PlayerBotAI* botAI, std::string const& name, int32 repeatInterval)
+Action::Action(PlayerBotAI* botAI, std::string const& name)
     : AiNamedObject(botAI, name),
-      repeatInterval(repeatInterval == 1 ? 1 : (repeatInterval < 100 ? repeatInterval * 1000 : repeatInterval)),
+      verbose(false),
+      relevance(0.0f),
+      repeatInterval(1),
       lastRepeatTime(0)
 {
 }
 
-bool Action::Execute([[maybe_unused]] Event const& event)
+bool Action::Execute([[maybe_unused]] Event event)
 {
     return false;
 }
@@ -27,4 +29,14 @@ bool Action::needRepeat(uint32 now)
     }
 
     return false;
+}
+
+ActionBasket::ActionBasket(ActionNode* act, float rel, bool skipPrereq, Event evt)
+    : action(act), relevance(rel), skipPrerequisites(skipPrereq), event(evt), created(getMSTime())
+{
+}
+
+bool ActionBasket::isExpired(uint32_t msecs)
+{
+    return getMSTime() - created >= msecs;
 }

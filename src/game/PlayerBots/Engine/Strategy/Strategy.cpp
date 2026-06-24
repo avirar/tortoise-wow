@@ -1,4 +1,5 @@
 #include "Strategy.h"
+#include "Trigger/TriggerNode.h"
 
 class ActionNodeFactoryInternal : public NamedObjectFactory<ActionNode>
 {
@@ -133,6 +134,14 @@ private:
 Strategy::Strategy(PlayerBotAI* botAI) : PlayerbotAIAware(botAI)
 {
     actionNodeFactories.Add(new ActionNodeFactoryInternal());
+}
+
+void Strategy::InitTriggers([[maybe_unused]] std::vector<TriggerNode*>& triggers)
+{
+}
+
+void Strategy::InitMultipliers([[maybe_unused]] std::vector<Multiplier*>& multipliers)
+{
 }
 
 ActionNode* Strategy::GetAction(std::string const& name) { return actionNodeFactories.GetContextObject(name, botAI); }

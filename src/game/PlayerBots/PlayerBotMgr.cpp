@@ -12,6 +12,8 @@
 #include "Player.h"
 #include "PlayerBotAI.h"
 #include "Anticheat.h"
+#include "Log.h"
+#include "Logging.h"
 
 PlayerBotMgr sPlayerBotMgr;
 
@@ -171,9 +173,15 @@ void PlayerBotMgr::OnPlayerInWorld(Player* player)
 {
     if (PlayerBotEntry* e = player->GetSession()->GetBot())
     {
+        LOG_DEBUG("playerbots", "[OnPlayerInWorld] Setting AI for bot '%s'", player->GetName());
         player->setAI(e->ai);
         e->ai->SetPlayer(player);
         e->ai->OnPlayerLogin();
+        LOG_DEBUG("playerbots", "[OnPlayerInWorld] AI initialized for bot '%s'", player->GetName());
+    }
+    else
+    {
+        LOG_DEBUG("playerbots", "[OnPlayerInWorld] No bot entry for player '%s'", player->GetName());
     }
 }
 

@@ -221,6 +221,7 @@ set (game_SRCS
     PlayerBots/Engine/Action/Action.cpp
     PlayerBots/Engine/Trigger/Trigger.h
     PlayerBots/Engine/Trigger/Trigger.cpp
+    PlayerBots/Engine/Trigger/TriggerNode.h
     PlayerBots/Engine/Value/Value.h
     PlayerBots/Engine/Value/Value.cpp
     PlayerBots/Engine/Strategy/Strategy.h
@@ -229,6 +230,64 @@ set (game_SRCS
     PlayerBots/Engine/Strategy/CustomStrategy.cpp
     PlayerBots/Bot/PlayerbotAIBase.h
     PlayerBots/Bot/PlayerbotAIBase.cpp
+    PlayerBots/Ai/Base/Strategy/CombatStrategy.h
+    PlayerBots/Ai/Base/Strategy/CombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/MeleeCombatStrategy.h
+    PlayerBots/Ai/Base/Strategy/MeleeCombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/NonCombatStrategy.h
+    PlayerBots/Ai/Base/Strategy/NonCombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/RangedCombatStrategy.h
+    PlayerBots/Ai/Base/Strategy/RangedCombatStrategy.cpp
+    PlayerBots/Ai/Base/Actions/AttackAction.h
+    PlayerBots/Ai/Base/Actions/AttackAction.cpp
+    PlayerBots/Ai/Base/Actions/CastSpellAction.h
+    PlayerBots/Ai/Base/Actions/CastSpellAction.cpp
+    PlayerBots/Ai/Base/Actions/ChooseTargetActions.h
+    PlayerBots/Ai/Base/Actions/ChooseTargetActions.cpp
+    PlayerBots/Ai/Base/Actions/CombatActions.h
+    PlayerBots/Ai/Base/Actions/CombatActions.cpp
+    PlayerBots/Ai/Base/Actions/FollowActions.h
+    PlayerBots/Ai/Base/Actions/FollowActions.cpp
+    PlayerBots/Ai/Base/Actions/MovementActions.h
+    PlayerBots/Ai/Base/Actions/MovementActions.cpp
+    PlayerBots/Ai/Base/Actions/NonCombatActions.h
+    PlayerBots/Ai/Base/Actions/NonCombatActions.cpp
+    PlayerBots/Ai/Base/Actions/ReachTargetActions.h
+    PlayerBots/Ai/Base/Actions/ReachTargetActions.cpp
+    PlayerBots/Ai/Base/Trigger/CombatTrigger.h
+    PlayerBots/Ai/Base/Trigger/CombatTrigger.cpp
+    PlayerBots/Ai/Base/Trigger/HealthTrigger.h
+    PlayerBots/Ai/Base/Trigger/HealthTrigger.cpp
+    PlayerBots/Ai/Base/Value/CurrentTargetValue.h
+    PlayerBots/Ai/Base/Value/CurrentTargetValue.cpp
+    PlayerBots/Ai/Base/Value/DpsTargetValue.h
+    PlayerBots/Ai/Base/Value/DpsTargetValue.cpp
+    PlayerBots/Ai/Base/Value/GroupLeaderValue.h
+    PlayerBots/Ai/Base/Value/GroupLeaderValue.cpp
+    PlayerBots/Ai/Base/Value/MasterTargetValue.h
+    PlayerBots/Ai/Base/Value/MasterTargetValue.cpp
+    PlayerBots/Ai/Base/BaseAiObjectContext.h
+    PlayerBots/Ai/Base/BaseAiObjectContext.cpp
+    PlayerBots/Ai/Base/Trigger/CombatTrigger.cpp
+    PlayerBots/Ai/Base/Trigger/CombatTrigger.h
+    PlayerBots/Ai/Base/Trigger/HealthTrigger.cpp
+    PlayerBots/Ai/Base/Trigger/HealthTrigger.h
+    PlayerBots/Ai/Base/Value/DpsTargetValue.cpp
+    PlayerBots/Ai/Base/Value/DpsTargetValue.h
+    PlayerBots/Ai/Base/Value/CurrentTargetValue.cpp
+    PlayerBots/Ai/Base/Value/CurrentTargetValue.h
+    PlayerBots/Ai/Base/Value/MasterTargetValue.cpp
+    PlayerBots/Ai/Base/Value/MasterTargetValue.h
+    PlayerBots/Ai/Base/Value/GroupLeaderValue.cpp
+    PlayerBots/Ai/Base/Value/GroupLeaderValue.h
+    PlayerBots/Ai/Base/BaseAiObjectContext.cpp
+    PlayerBots/Ai/Base/BaseAiObjectContext.h
+    PlayerBots/Ai/Base/ActionContext.h
+    PlayerBots/Ai/Base/ActionContext.cpp
+    PlayerBots/Ai/Base/TriggerContext.h
+    PlayerBots/Ai/Base/TriggerContext.cpp
+    PlayerBots/Ai/Base/Value/InCombatValue.h
+    PlayerBots/Ai/Base/Value/InCombatValue.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp
@@ -572,6 +631,11 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Value
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/Strategy
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Bot
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Actions
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Trigger
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Value
   ${CMAKE_CURRENT_SOURCE_DIR}/Protocol
   ${CMAKE_CURRENT_SOURCE_DIR}/Spells
   ${CMAKE_CURRENT_SOURCE_DIR}/Threat

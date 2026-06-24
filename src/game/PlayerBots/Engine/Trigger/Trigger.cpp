@@ -1,6 +1,7 @@
 #include "Trigger.h"
 
 #include "Event.h"
+#include "Action/Action.h"
 
 Trigger::Trigger(PlayerBotAI* botAI, std::string const& name, int32 checkInterval)
     : AiNamedObject(botAI, name),

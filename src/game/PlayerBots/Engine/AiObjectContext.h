@@ -5,9 +5,13 @@
 #include <vector>
 #include <string>
 
+#include "NamedObjectContext.h"
+
 class PlayerBotAI;
 template <class T> class Value;
 class UntypedValue;
+class Action;
+class Trigger;
 
 class AiObjectContext
 {
@@ -18,38 +22,48 @@ public:
     virtual void Init(PlayerBotAI* botAI);
     virtual void Reset();
 
+    UntypedValue* GetUntypedValue(std::string const& name);
+    Action* GetAction(std::string const& name);
+    Trigger* GetTrigger(std::string const& name);
+
     template <class T>
     Value<T>* GetValue(std::string const& name)
     {
-        typename std::map<std::string, Value<T>*>::iterator it = valuesT<T>().find(name);
-        if (it != valuesT<T>().end())
-            return it->second;
-        return nullptr;
+        return dynamic_cast<Value<T>*>(GetUntypedValue(name));
     }
 
     template <class T>
     void AddValue(Value<T>* value, std::string const& name)
     {
-        valuesT<T>()[name] = value;
+        values[name] = value;
     }
 
     template <class T>
     void RemoveValue(std::string const& name)
     {
-        valuesT<T>().erase(name);
-    }
-
-    template <class T>
-    std::map<std::string, Value<T>*> &valuesT()
-    {
-        static std::map<std::string, Value<T>*> m;
-        return m;
+        std::map<std::string, UntypedValue*>::iterator it = values.find(name);
+        if (it != values.end())
+        {
+            delete it->second;
+            values.erase(it);
+        }
     }
 
     std::string const Format();
 
-    std::map<std::string, void*> values;
+    static void BuildAllSharedContexts();
+
+    std::map<std::string, UntypedValue*> values;
     std::vector<std::string> performanceStack;
+
+protected:
+    NamedObjectContextList<Action> actionContexts;
+    NamedObjectContextList<Trigger> triggerContexts;
+
+private:
+    PlayerBotAI* botAI;
+    static SharedNamedObjectContextList<Action> sharedActionContexts;
+    static SharedNamedObjectContextList<Trigger> sharedTriggerContexts;
 };
 
 #endif

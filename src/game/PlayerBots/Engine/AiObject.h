@@ -9,6 +9,12 @@ class ChatHelper;
 class Player;
 class PlayerBotAI;
 
+#define AI_VALUE(type, name) GetAiObjectContext()->GetValue<type>(name)->Get()
+#define AI_VALUE2(type, name, param) GetAiObjectContext()->GetValue<type>(name, param)->Get()
+#define AI_VALUE_LAZY(type, name) GetAiObjectContext()->GetValue<type>(name)->LazyGet()
+#define AI_VALUE2_LAZY(type, name, param) GetAiObjectContext()->GetValue<type>(name, param)->LazyGet()
+#define AI_VALUE_REF(type, name) GetAiObjectContext()->GetValue<type>(name)->RefGet()
+
 class AiObject : public PlayerbotAIAware
 {
 public:
@@ -17,7 +23,7 @@ public:
 protected:
     Player* bot;
     Player* GetMaster();
-    AiObjectContext* context;
+    AiObjectContext* GetAiObjectContext();
     ChatHelper* chat;
 };
 

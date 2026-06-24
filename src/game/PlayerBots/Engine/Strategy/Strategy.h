@@ -19,7 +19,7 @@ enum StrategyType : uint32
     STRATEGY_TYPE_MELEE = 64
 };
 
-static float ACTION_IDLE = 0.0f;
+static float ACTION_IDLE = 0.001f;
 static float ACTION_BG = 1.0f;
 static float ACTION_DEFAULT = 5.0f;
 static float ACTION_NORMAL = 10.0f;
@@ -33,6 +33,8 @@ static float ACTION_MEDIUM_HEAL = 20.0f;
 static float ACTION_CRITICAL_HEAL = 30.0f;
 static float ACTION_EMERGENCY = 90.0f;
 
+class TriggerNode;
+
 class Strategy : public PlayerbotAIAware
 {
 public:
@@ -40,11 +42,11 @@ public:
     virtual ~Strategy() {}
 
     virtual std::vector<NextAction> getDefaultActions() { return {}; }
-    virtual void InitTriggers() {}
-    virtual void InitMultipliers([[maybe_unused]] std::vector<Multiplier*>& multipliers) {}
+    virtual void InitTriggers(std::vector<TriggerNode*>& triggers);
+    virtual void InitMultipliers(std::vector<Multiplier*>& multipliers);
     virtual std::string const getName() = 0;
     virtual uint32 GetType() const { return STRATEGY_TYPE_GENERIC; }
-    virtual ActionNode* GetAction(std::string const& name);
+    ActionNode* GetAction(std::string const& name);
     void Update() {}
     void Reset() {}
 

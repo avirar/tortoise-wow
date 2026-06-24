@@ -47,7 +47,7 @@ Unit* UnitCalculatedValue::Get()
     if (checkInterval < 2)
     {
         PerfMonitorOperation* pmo = sPerfMonitor.start(
-            PERF_MON_VALUE, this->getName(), this->context ? &this->context->performanceStack : nullptr);
+            PERF_MON_VALUE, this->getName(), GetAiObjectContext() ? &GetAiObjectContext()->performanceStack : nullptr);
         value = Calculate();
         if (pmo)
             pmo->finish();
@@ -59,7 +59,7 @@ Unit* UnitCalculatedValue::Get()
         {
             lastCheckTime = now;
             PerfMonitorOperation* pmo = sPerfMonitor.start(
-                PERF_MON_VALUE, this->getName(), this->context ? &this->context->performanceStack : nullptr);
+                PERF_MON_VALUE, this->getName(), GetAiObjectContext() ? &GetAiObjectContext()->performanceStack : nullptr);
             value = Calculate();
             if (pmo)
                 pmo->finish();

@@ -1,11 +1,17 @@
 #include "Engine.h"
 
+#include <cstdarg>
+#include <unordered_map>
+
 #include "PerfMonitor.h"
 #include "Timer.h"
 #include "Logging.h"
+#include "Log.h"
 #include "PlayerbotAIConfig.h"
+#include "PlayerBotAI.h"
 
 #include "Trigger/Trigger.h"
+#include "Trigger/TriggerNode.h"
 #include "Action/Action.h"
 
 Engine::Engine(PlayerBotAI* botAI)
@@ -15,37 +21,38 @@ Engine::Engine(PlayerBotAI* botAI)
       lastActionTime(0),
       lastTriggerTime(0),
       actionInterval(100),
-      triggerInterval(100)
+      triggerInterval(100),
+      lastRelevance(0.0f)
 {
 }
 
 void Engine::Init()
 {
-    context = new AiObjectContext();
+    if (!context)
+        context = new AiObjectContext();
     context->Init(botAI);
+
+    for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
+    {
+        Strategy* strategy = i->second;
+        if (!strategy)
+            continue;
+
+        strategy->InitTriggers(triggers);
+        strategy->InitMultipliers(multipliers);
+        for (auto const& iter : strategy->actionNodeFactories.creators)
+        {
+            actionNodeFactories.creators[iter.first] = iter.second;
+        }
+    }
 }
 
-void Engine::Update(uint32 diff)
+void Engine::Update(uint32 /*diff*/)
 {
     if (!enabled)
         return;
 
-    uint32 now = getMSTime();
-
-    if (!lastTriggerTime || now - lastTriggerTime >= triggerInterval)
-    {
-        lastTriggerTime = now;
-        ProcessTriggers();
-    }
-
-    if (!lastActionTime || now - lastActionTime >= actionInterval)
-    {
-        lastActionTime = now;
-        ProcessActions();
-    }
-
-    if (DoNextAction())
-        lastActionTime = getMSTime();
+    DoNextAction();
 }
 
 void Engine::Reset()
@@ -53,60 +60,267 @@ void Engine::Reset()
     queue.Clear();
     lastActionTime = 0;
     lastTriggerTime = 0;
+    lastRelevance = 0.0f;
+    lastAction.clear();
 
     if (context)
         context->Reset();
 
-    for (std::vector<Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
+    for (std::vector<TriggerNode*>::iterator i = triggers.begin(); i != triggers.end(); ++i)
     {
-        (*i)->Reset();
+        delete *i;
+    }
+    triggers.clear();
+
+    for (std::vector<Multiplier*>::iterator i = multipliers.begin(); i != multipliers.end(); ++i)
+    {
+        delete *i;
+    }
+    multipliers.clear();
+
+    for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
+    {
+        Strategy* strategy = i->second;
+        if (strategy)
+            strategy->Reset();
     }
 }
 
 bool Engine::DoNextAction()
 {
-    if (queue.Empty())
-        return false;
+    LOG_DEBUG("playerbots", "[Engine::DoNextAction] botAI=%p, me=%p", (void*)botAI, (void*)(botAI->me));
+    LogAction("--- AI Tick ---");
 
-    std::vector<NextAction> const& q = queue.GetQueue();
-    if (q.empty())
-        return false;
+    bool actionExecuted = false;
+    ActionBasket* basket = nullptr;
 
-    NextAction next = q[0];
-    queue.Clear();
+    ProcessTriggers();
+    PushDefaultActions();
 
-    Strategy* strategy = strategyMap[next.actionName];
-    if (!strategy)
-        return false;
+    LOG_DEBUG("playerbots", "[DoNextAction] queue size=%u", queue.Size());
 
-    ActionNode* actionNode = strategy->GetAction(next.actionName);
-    if (!actionNode)
-        return false;
+    uint32 iterations = 0;
+    uint32 iterationsPerTick = queue.Size() * 2;
+    if (iterationsPerTick < 1)
+        iterationsPerTick = 1;
 
-    return true;
-}
-
-void Engine::ProcessActions()
-{
-    // Process actions from strategies
-    for (std::vector<Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
+    while (++iterations <= iterationsPerTick)
     {
-        Strategy* strategy = *i;
-        std::vector<NextAction> actions = strategy->getDefaultActions();
-
-        for (std::vector<NextAction>::iterator j = actions.begin(); j != actions.end(); ++j)
+        basket = queue.Peek();
+        if (!basket)
         {
-            queue.Add(*j);
+            LOG_DEBUG("playerbots", "%s [DoNextAction] queue empty after %u iterations", botAI->me->GetName(), iterations);
+            break;
         }
+
+        float relevance = basket->getRelevance();
+        bool skipPrerequisites = basket->isSkipPrerequisites();
+
+        Event event = basket->getEvent();
+        ActionNode* actionNode = queue.Pop();
+        if (!actionNode)
+            break;
+
+        Action* action = InitializeAction(actionNode);
+
+        if (!action)
+        {
+            LogAction("A:%s - UNKNOWN", actionNode->getName().c_str());
+        }
+        else if (action->isUseful())
+        {
+            for (std::vector<Multiplier*>::iterator mi = multipliers.begin(); mi != multipliers.end(); ++mi)
+            {
+                relevance *= (*mi)->GetValue(action);
+                action->setRelevance(relevance);
+
+                if (relevance <= 0)
+                {
+                    LogAction("Multiplier %s made action %s useless", (*mi)->getName().c_str(), action->getName().c_str());
+                    break;
+                }
+            }
+
+            if (action->isPossible() && relevance > 0)
+            {
+                if (!skipPrerequisites)
+                {
+                    LogAction("A:%s - PREREQ", action->getName().c_str());
+
+                    if (MultiplyAndPush(actionNode->getPrerequisites(), relevance + 0.002f, false, event))
+                    {
+                        PushAgain(actionNode, relevance + 0.001f, event);
+                        continue;
+                    }
+                }
+
+                actionExecuted = action->Execute(event);
+
+                if (actionExecuted)
+                {
+                    LogAction("A:%s - OK", action->getName().c_str());
+                    MultiplyAndPush(actionNode->getContinuers(), relevance, false, event);
+                    lastRelevance = relevance;
+                    delete actionNode;
+                    break;
+                }
+                else
+                {
+                    LogAction("A:%s - FAILED", action->getName().c_str());
+                    MultiplyAndPush(actionNode->getAlternatives(), relevance + 0.003f, false, event);
+                }
+            }
+            else
+            {
+                LogAction("A:%s - IMPOSSIBLE", action->getName().c_str());
+                MultiplyAndPush(actionNode->getAlternatives(), relevance + 0.003f, false, event);
+            }
+        }
+        else
+        {
+            LogAction("A:%s - USELESS", action->getName().c_str());
+            lastRelevance = relevance;
+        }
+
+        delete actionNode;
     }
 
-    SortQueue();
+    if (!actionExecuted)
+        LogAction("no actions executed");
+
+    queue.RemoveExpired();
+
+    return actionExecuted;
 }
 
 void Engine::ProcessTriggers()
 {
-    // Process triggers from strategies
-    // Triggers will add actions to the queue
+    std::unordered_map<Trigger*, Event> fires;
+    uint32 now = getMSTime();
+
+    for (std::vector<TriggerNode*>::iterator i = triggers.begin(); i != triggers.end(); ++i)
+    {
+        TriggerNode* node = *i;
+        if (!node)
+            continue;
+
+        Trigger* trigger = node->getTrigger();
+        if (!trigger)
+        {
+            trigger = context ? context->GetTrigger(node->getName()) : nullptr;
+            node->setTrigger(trigger);
+        }
+
+        if (!trigger)
+            continue;
+
+        if (fires.find(trigger) != fires.end())
+            continue;
+
+        if (trigger->needCheck(now))
+        {
+            Event evt = trigger->Check();
+            if (!evt.IsEmpty())
+            {
+                fires[trigger] = evt;
+                LogAction("T:%s", trigger->getName().c_str());
+            }
+        }
+    }
+
+    for (std::vector<TriggerNode*>::iterator i = triggers.begin(); i != triggers.end(); ++i)
+    {
+        TriggerNode* node = *i;
+        Trigger* trigger = node->getTrigger();
+        if (fires.find(trigger) == fires.end())
+            continue;
+
+        Event evt = fires[trigger];
+        MultiplyAndPush(node->getHandlers(), 0.0f, false, evt);
+    }
+
+    for (std::vector<TriggerNode*>::iterator i = triggers.begin(); i != triggers.end(); ++i)
+    {
+        if (Trigger* trigger = (*i)->getTrigger())
+            trigger->Reset();
+    }
+}
+
+void Engine::PushDefaultActions()
+{
+    for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
+    {
+        Strategy* strategy = i->second;
+        if (!strategy)
+            continue;
+
+        std::vector<NextAction> actions = strategy->getDefaultActions();
+        Event emptyEvent;
+        MultiplyAndPush(actions, 0.0f, false, emptyEvent);
+    }
+}
+
+ActionNode* Engine::CreateActionNode(std::string const& name)
+{
+    ActionNode* node = actionNodeFactories.GetContextObject(name, botAI);
+    if (node)
+        return node;
+
+    return new ActionNode(name, {}, {}, {});
+}
+
+Action* Engine::InitializeAction(ActionNode* actionNode)
+{
+    Action* action = actionNode->getAction();
+    if (!action)
+    {
+        action = context ? context->GetAction(actionNode->getName()) : nullptr;
+        actionNode->setAction(action);
+        if (!action)
+            LOG_DEBUG("playerbots", "%s [InitializeAction] FAILED to find action '%s', ctx=%p", botAI->me->GetName(), actionNode->getName().c_str(), (void*)context);
+    }
+
+    return action;
+}
+
+bool Engine::MultiplyAndPush(std::vector<NextAction> actions, float forceRelevance, bool skipPrerequisites, Event event)
+{
+    bool pushed = false;
+
+    for (std::vector<NextAction>::iterator ai = actions.begin(); ai != actions.end(); ++ai)
+    {
+        ActionNode* action = CreateActionNode(ai->getName());
+        if (!action)
+            continue;
+
+        InitializeAction(action);
+
+        float k = ai->getRelevance();
+        if (forceRelevance > 0.0f)
+            k = forceRelevance;
+
+        if (k >= 0)
+        {
+            LogAction("PUSH:%s - %f", action->getName().c_str(), k);
+            queue.Push(new ActionBasket(action, k, skipPrerequisites, event));
+            pushed = true;
+        }
+        else
+        {
+            delete action;
+        }
+    }
+
+    return pushed;
+}
+
+void Engine::PushAgain(ActionNode* actionNode, float relevance, Event event)
+{
+    std::vector<NextAction> nextAction;
+    nextAction.push_back(NextAction(actionNode->getName(), relevance));
+
+    MultiplyAndPush(nextAction, relevance, true, event);
+    delete actionNode;
 }
 
 void Engine::AddStrategy(Strategy* strategy)
@@ -114,8 +328,7 @@ void Engine::AddStrategy(Strategy* strategy)
     if (!strategy)
         return;
 
-    strategies.push_back(strategy);
-    strategyMap[strategy->getName()] = strategy;
+    strategies[strategy->getName()] = strategy;
     strategiesByType[strategy->GetType()].push_back(strategy);
 }
 
@@ -124,16 +337,7 @@ void Engine::RemoveStrategy(Strategy* strategy)
     if (!strategy)
         return;
 
-    for (std::vector<Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
-    {
-        if (*i == strategy)
-        {
-            strategies.erase(i);
-            break;
-        }
-    }
-
-    strategyMap.erase(strategy->getName());
+    strategies.erase(strategy->getName());
 
     for (std::map<uint32, std::vector<Strategy*> >::iterator i = strategiesByType.begin(); i != strategiesByType.end(); ++i)
     {
@@ -155,39 +359,25 @@ void Engine::RemoveStrategy(uint32 type)
     {
         for (std::vector<Strategy*>::iterator j = i->second.begin(); j != i->second.end(); ++j)
         {
-            strategyMap.erase((*j)->getName());
+            strategies.erase((*j)->getName());
         }
-
-        for (std::vector<Strategy*>::iterator j = i->second.begin(); j != i->second.end(); ++j)
-        {
-            for (std::vector<Strategy*>::iterator k = strategies.begin(); k != strategies.end(); ++k)
-            {
-                if (*k == *j)
-                {
-                    strategies.erase(k);
-                    break;
-                }
-            }
-        }
-
         i->second.clear();
     }
 }
 
 bool Engine::HasStrategy(uint32 type) const
 {
-    std::map<uint32, std::vector<Strategy*> >::const_iterator i = strategiesByType.find(type);
-    return i != strategiesByType.end() && !i->second.empty();
-}
-
-bool Engine::HasAction([[maybe_unused]] std::string const& name) const
-{
-    return strategyMap.find(name) != strategyMap.end();
+    for (std::map<std::string, Strategy*>::const_iterator i = strategies.begin(); i != strategies.end(); ++i)
+    {
+        if (i->second->GetType() & type)
+            return true;
+    }
+    return false;
 }
 
 bool Engine::HasStrategy(std::string const& name) const
 {
-    return strategyMap.find(name) != strategyMap.end();
+    return strategies.find(name) != strategies.end();
 }
 
 void Engine::SetEnabled(bool enable)
@@ -195,41 +385,25 @@ void Engine::SetEnabled(bool enable)
     enabled = enable;
 }
 
-void Engine::ProcessEvent([[maybe_unused]] Event const& event)
+void Engine::LogAction(char const* format, ...)
 {
-    // Process external events
-}
-
-void Engine::SortQueue()
-{
-    // Sort queue by priority (highest first)
-    std::vector<NextAction> const& q = queue.GetQueue();
-    if (q.size() <= 1)
+    if (!botAI || !botAI->me)
         return;
 
-    // Simple insertion sort by priority
-    std::vector<NextAction> sorted;
-    sorted.reserve(q.size());
+    char buf[1024];
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buf, sizeof(buf), format, ap);
+    va_end(ap);
 
-    for (std::vector<NextAction>::const_iterator i = q.begin(); i != q.end(); ++i)
+    lastAction += "|";
+    lastAction += buf;
+    if (lastAction.size() > 512)
     {
-        bool inserted = false;
-        for (size_t j = 0; j < sorted.size(); ++j)
-        {
-            if (i->priority > sorted[j].priority)
-            {
-                sorted.insert(sorted.begin() + j, *i);
-                inserted = true;
-                break;
-            }
-        }
-        if (!inserted)
-            sorted.push_back(*i);
+        lastAction = lastAction.substr(512);
+        size_t pos = lastAction.find("|");
+        lastAction = (pos == std::string::npos ? "" : lastAction.substr(pos));
     }
 
-    queue.Clear();
-    for (std::vector<NextAction>::iterator i = sorted.begin(); i != sorted.end(); ++i)
-    {
-        queue.Add(*i);
-    }
+    LOG_DEBUG("playerbots", "%s %s", botAI->me->GetName(), buf);
 }

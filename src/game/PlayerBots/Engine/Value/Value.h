@@ -25,24 +25,25 @@ public:
 };
 
 template <class T>
-class Value
+class Value : public UntypedValue
 {
 public:
+    Value(PlayerBotAI* botAI, std::string const& name) : UntypedValue(botAI, name) {}
     virtual ~Value() {}
     virtual T Get() = 0;
     virtual T LazyGet() = 0;
     virtual T& RefGet() = 0;
-    virtual void Reset() {}
+    virtual void Reset() override {}
     virtual void Set(T value) = 0;
     operator T() { return Get(); }
 };
 
 template <class T>
-class CalculatedValue : public UntypedValue, public Value<T>
+class CalculatedValue : public Value<T>
 {
 public:
     CalculatedValue(PlayerBotAI* botAI, std::string const& name = "value", uint32 checkInterval = 1)
-        : UntypedValue(botAI, name),
+        : Value<T>(botAI, name),
           checkInterval(checkInterval == 1 ? 1 : (checkInterval < 100 ? checkInterval * 1000 : checkInterval)),
           lastCheckTime(0)
     {
@@ -106,11 +107,11 @@ protected:
 };
 
 template <class T>
-class ManualSetValue : public UntypedValue, public Value<T>
+class ManualSetValue : public Value<T>
 {
 public:
     ManualSetValue(PlayerBotAI* botAI, T defaultValue, std::string const& name = "value")
-        : UntypedValue(botAI, name), value(defaultValue), defaultValue(defaultValue)
+        : Value<T>(botAI, name), value(defaultValue), defaultValue(defaultValue)
     {
     }
 
