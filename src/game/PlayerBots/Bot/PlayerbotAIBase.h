@@ -36,11 +36,19 @@ public:
     // Engine state switching (called from actions, matches AC pattern)
     void ChangeEngine(BotState state);
 
+    // Thread yielding (AC PlayerbotAIBase pattern)
+    bool CanUpdateAI() { return nextAICheckDelay == 0; }
+    void SetNextCheckDelay(uint32 delay) { nextAICheckDelay = delay; }
+    void IncreaseNextCheckDelay(uint32 delay) { nextAICheckDelay += delay; }
+    void YieldThread(uint32 delay);
+    bool IsActive();
+
     PlayerBotAI* botAI;
     AiObjectContext* sharedContext;
     Engine* engines[BOT_STATE_MAX];
     BotState currentState;
     bool enabled;
+    uint32 nextAICheckDelay;
 };
 
 #endif

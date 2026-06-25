@@ -145,13 +145,20 @@ AttackAnythingAction::AttackAnythingAction(PlayerBotAI* botAI)
 
 bool AttackAnythingAction::Execute(Event /*event*/)
 {
-    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+    Unit* target = sServerFacade.SelectNearestSafeTarget(bot, sPlayerbotAIConfig.sightDistance);
 
     if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
     {
-        LOG_DEBUG("playerbots", "%s [AttackAnything::Execute] SelectNearestHostileTarget returned nil, pos=(%.1f,%.1f)",
+        LOG_DEBUG("playerbots", "%s [AttackAnything::Execute] SelectNearestSafeTarget returned nil, pos=(%.1f,%.1f)",
             bot->GetName(), bot->GetPositionX(), bot->GetPositionY());
         return false;
+    }
+
+    // Double-check tap at execution time (race condition: tap set between isUseful and Execute)
+    if (Creature* c = target->ToCreature())
+    {
+        if (c->HasLootRecipient() && !c->IsTappedBy(bot))
+            return false;  // tapped by someone else, skip
     }
 
     LOG_DEBUG("playerbots", "%s [AttackAnything::Execute] found target entry=%u '%s' dist=%.1f reaction=%d",
@@ -175,7 +182,7 @@ bool AttackAnythingAction::isUseful()
     // Don't block on IsInCombat() — bot may just have dropped its target
     // and is waiting for server to clear combat flag. Engine state controls
     // whether "attack anything" should be active (via trigger nodes).
-    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+    Unit* target = sServerFacade.SelectNearestSafeTarget(bot, sPlayerbotAIConfig.sightDistance);
     if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
     {
         // Debug: scan nearby creatures every 30s when no target found
@@ -194,7 +201,7 @@ bool AttackAnythingAction::isUseful()
 
 bool AttackAnythingAction::isPossible()
 {
-    Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+    Unit* target = sServerFacade.SelectNearestSafeTarget(bot, sPlayerbotAIConfig.sightDistance);
     return target && AttackAction::isPossible();
 }
 

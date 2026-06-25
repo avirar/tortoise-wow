@@ -25,6 +25,12 @@ public:
     Unit* SelectNearestHostileTarget(Unit* unit, float range);
     void DebugNearbyCreatures(Unit* unit, float range, const char* caller);
 
+    // Check how many group members are already targeting this unit (AC GrindTargetValue pattern)
+    uint32 GetTargetingPlayerCount(Player* bot, Unit* target);
+
+    // Find nearest hostile target that no other group member is targeting (AC pattern)
+    Unit* SelectNearestSafeTarget(Player* bot, float range);
+
 private:
     ServerFacade() = default;
     ~ServerFacade() = default;

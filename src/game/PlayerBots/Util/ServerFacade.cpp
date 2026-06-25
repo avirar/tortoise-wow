@@ -6,9 +6,55 @@
 #include "MovementGenerator.h"
 #include "Maps/GridNotifiers.h"
 #include "Maps/MapManager.h"
+#include "Maps/Map.h"
 #include "Maps/CellImpl.h"
+#include "Group.h"
+#include "PlayerBotAI.h"
+#include "AiObjectContext.h"
+#include "Value/Value.h"
 #include "Logging.h"
 #include "Log.h"
+
+// Collects nearby unfriendly units for target selection
+struct NearbyUnfriendlyCollector
+{
+    Unit const* me;
+    float range;
+    std::vector<Unit*> candidates;
+
+    NearbyUnfriendlyCollector()
+        : me(nullptr), range(0) {}
+
+    void Init(Unit const* m, float r)
+    {
+        me = m;
+        range = r;
+        candidates.clear();
+    }
+
+    void Visit(PlayerMapType &m)
+    {
+        for (PlayerMapType::iterator itr = m.begin(); itr != m.end(); ++itr)
+        {
+            Player* pl = itr->getSource();
+            if (pl && pl != me->ToPlayer() && pl->IsAlive() && !me->IsFriendlyTo(pl) && me->GetDistance2d(pl) <= range)
+                candidates.push_back(pl);
+        }
+    }
+
+    void Visit(CreatureMapType &m)
+    {
+        for (CreatureMapType::iterator itr = m.begin(); itr != m.end(); ++itr)
+        {
+            Creature* cre = itr->getSource();
+            if (cre && cre != me->ToUnit() && cre->IsAlive() && !me->IsFriendlyTo(cre) && me->GetDistance2d(cre) <= range)
+                candidates.push_back(cre);
+        }
+    }
+
+    template<class NOT_INTERESTED> void Visit(GridRefManager<NOT_INTERESTED> &) {}
+    template<class NOT_INTERESTED> void Visit(NOT_INTERESTED &) {}
+};
 
 struct NearbyCreatureDebugger
 {
@@ -194,4 +240,105 @@ void ServerFacade::DebugNearbyCreatures(Unit* unit, float range, const char* cal
         unit->GetName(), caller, unit->GetPositionX(), unit->GetPositionY(), unit->GetPositionZ(),
         map->GetId(), range,
         debugger.totalScanned, debugger.passed, debugger.rejectedDistance, debugger.rejectedFriendly, debugger.rejectedDead, debugger.rejectedSelf);
+}
+
+// AC GrindTargetValue::GetTargetingPlayerCount() pattern
+// Count how many group members (including bots) are already targeting this unit
+uint32 ServerFacade::GetTargetingPlayerCount(Player* bot, Unit* target)
+{
+    if (!bot || !target)
+        return 0;
+
+    Group* group = bot->GetGroup();
+    if (!group)
+        return 0;
+
+    uint32 count = 0;
+    Group::MemberSlotList const& groupSlot = group->GetMemberSlots();
+    for (Group::member_citerator itr = groupSlot.begin(); itr != groupSlot.end(); ++itr)
+    {
+        Player* member = ObjectAccessor::FindPlayer(itr->guid);
+        if (!member || !member->IsAlive() || member == bot)
+            continue;
+
+        // Check if this member is a bot with "current target" set to our target
+        PlayerAI* memberAI = member->AI();
+        PlayerBotAI* botAI = dynamic_cast<PlayerBotAI*>(memberAI);
+        if (botAI)
+        {
+            AiObjectContext* ctx = botAI->GetAiObjectContext();
+            if (ctx)
+            {
+                Unit* memberTarget = ctx->GetValue<Unit*>("current target")->Get();
+                if (memberTarget == target)
+                    ++count;
+            }
+        }
+        else if (member->GetSelectionGuid() == ObjectGuid(target->GetGUID()))
+        {
+            // Real player targeting this unit
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
+{
+    if (!bot || !bot->IsAlive())
+        return nullptr;
+
+    Map* map = bot->GetMap();
+    if (!map || map->IsDungeon())
+        return nullptr;
+
+    NearbyUnfriendlyCollector collector;
+    collector.Init(bot, range);
+
+    CellPair p(MaNGOS::ComputeCellPair(bot->GetPositionX(), bot->GetPositionY()));
+    Cell cell(p);
+    cell.SetNoCreate();
+
+    TypeContainerVisitor<NearbyUnfriendlyCollector, WorldTypeMapContainer> world_vis(collector);
+    TypeContainerVisitor<NearbyUnfriendlyCollector, GridTypeMapContainer> grid_vis(collector);
+
+    cell.Visit(p, world_vis, *map, *bot, range);
+    cell.Visit(p, grid_vis, *map, *bot, range);
+
+    // AC GrindTargetValue pattern: skip targets already being targeted by group members
+    Unit* bestTarget = nullptr;
+    float bestDist = range;
+    for (Unit* candidate : collector.candidates)
+    {
+        if (!candidate || !candidate->IsAlive() || bot->IsFriendlyTo(candidate))
+            continue;
+
+        // AC pattern: skip if another group member is already targeting this
+        if (GetTargetingPlayerCount(bot, candidate) > 0)
+            continue;
+
+        // AC pattern: skip creatures that don't give XP (critters, trainers, etc.)
+        if (!bot->IsHonorOrXPTarget(candidate))
+            continue;
+
+        // Skip creatures tapped by someone else (server authority)
+        if (Creature* c = candidate->ToCreature())
+        {
+            if (c->GetVictim() && c->GetVictim() != bot)
+                continue;  // already attacking someone else
+
+            if (c->HasLootRecipient() && !c->IsTappedBy(bot))
+                continue;  // tapped by outsider
+        }
+
+        float dist = GetDistance2d(bot, candidate);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            bestTarget = candidate;
+        }
+    }
+
+    return bestTarget;
 }

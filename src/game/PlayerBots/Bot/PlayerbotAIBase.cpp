@@ -8,12 +8,14 @@
 #include "RangedCombatStrategy.h"
 #include "WanderStrategy.h"
 #include "GrindingStrategy.h"
+#include "PlayerbotAIConfig.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
     : botAI(botAI),
       sharedContext(nullptr),
       currentState(BOT_STATE_NON_COMBAT),
-      enabled(true)
+      enabled(true),
+      nextAICheckDelay(0)
 {
     sLog.outString("[3ENGINE] PlayerbotAIBase constructor: botAI=%p", (void*)botAI);
     for (uint8 i = 0; i < BOT_STATE_MAX; ++i)
@@ -87,6 +89,15 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!enabled || !botAI)
         return;
 
+    // AC pattern: decrement delay and skip if not ready
+    if (nextAICheckDelay > diff)
+        nextAICheckDelay -= diff;
+    else
+        nextAICheckDelay = 0;
+
+    if (!CanUpdateAI())
+        return;
+
     Player* bot = GetBot();
     if (!bot || !bot->IsInWorld())
         return;
@@ -95,6 +106,7 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!bot->IsAlive())
     {
         ChangeEngine(BOT_STATE_DEAD);
+        YieldThread(sPlayerbotAIConfig.reactDelay);
         return;
     }
 
@@ -112,8 +124,12 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!currentEngine)
         return;
 
-    LOG_DEBUG("playerbots", "[PlayerbotAIBase::UpdateAI] calling engine->Update");
+    LOG_DEBUG("playerbots", "%s --- AI Tick --- pos=(%.1f,%.1f) state=%u", 
+        bot->GetName(), bot->GetPositionX(), bot->GetPositionY(), currentState);
     currentEngine->Update(diff);
+
+    // AC pattern: yield after processing to stagger bot ticks
+    YieldThread(sPlayerbotAIConfig.reactDelay);
 }
 
 void PlayerbotAIBase::Reset()
@@ -153,4 +169,20 @@ void PlayerbotAIBase::SetEnabled(bool enable)
         if (engines[i])
             engines[i]->SetEnabled(enable);
     }
+}
+
+// AC pattern: yield thread with per-bot offset to stagger updates
+void PlayerbotAIBase::YieldThread(uint32 delay)
+{
+    if (nextAICheckDelay < delay)
+    {
+        // Adding a deterministic per-bot slight offset (0–200 ms) to stagger updates and prevent cpu spikes
+        uint32 offset = botAI && botAI->me ? (botAI->me->GetGUIDLow() % 201) : 0;
+        nextAICheckDelay = delay + offset;
+    }
+}
+
+bool PlayerbotAIBase::IsActive()
+{
+    return nextAICheckDelay < sPlayerbotAIConfig.maxWaitForMove;
 }

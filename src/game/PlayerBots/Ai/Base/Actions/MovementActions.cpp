@@ -109,11 +109,13 @@ bool MoveRandomAction::Execute(Event /*event*/)
 
         if (MoveTo(x, y, z))
         {
-            LOG_DEBUG("playerbots", "%s [MoveRandomAction] moved to %.1f, %.1f", bot->GetName(), x, y);
+            LOG_DEBUG("playerbots", "%s [MoveRandomAction] pos=(%.1f,%.1f) -> dest=(%.1f,%.1f) dist=%.1f", 
+                bot->GetName(), bot->GetPositionX(), bot->GetPositionY(), x, y, dist);
             return true;
         }
     }
 
+    LOG_DEBUG("playerbots", "%s [MoveRandomAction] failed to find valid destination", bot->GetName());
     return false;
 }
 

@@ -71,10 +71,21 @@ bool InvalidTargetTrigger::IsActive()
 
     // AC InvalidTargetValue::Calculate() checks: dead, different map, not visible, friendly, etc.
     // Tortoise adaptation: IsVisible() → IsInWorld() (tortoise lacks IsVisible())
-    return target->GetMapId() != bot->GetMapId() ||
-           !target->IsInWorld() ||
-           !target->IsAlive() ||
-           target->IsFriendlyTo(bot);
+    if (target->GetMapId() != bot->GetMapId() ||
+        !target->IsInWorld() ||
+        !target->IsAlive() ||
+        target->IsFriendlyTo(bot))
+        return true;
+
+    // Check if target is tapped by someone else (server authority)
+    // If creature has a loot recipient that's not us, drop it and find another
+    if (Creature* c = target->ToCreature())
+    {
+        if (c->HasLootRecipient() && !c->IsTappedBy(bot))
+            return true;  // tapped by outsider, invalid target
+    }
+
+    return false;
 }
 
 NotFacingTargetTrigger::NotFacingTargetTrigger(PlayerBotAI* botAI)
