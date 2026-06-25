@@ -68,23 +68,17 @@ InvalidTargetTrigger::InvalidTargetTrigger(PlayerBotAI* botAI)
 
 bool InvalidTargetTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
+    // Check "current target" context value (AC pattern: AI_VALUE2(bool, "invalid target", "current target"))
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     if (!target)
         return true;
 
-    if (!target->IsAlive())
-        return true;
-
-    if (!target->IsInWorld())
-        return true;
-
-    if (bot->IsFriendlyTo(target))
-        return true;
-
-    return false;
+    // AC InvalidTargetValue::Calculate() checks: dead, different map, not visible, friendly, etc.
+    // Tortoise adaptation: IsVisible() → IsInWorld() (tortoise lacks IsVisible())
+    return target->GetMapId() != bot->GetMapId() ||
+           !target->IsInWorld() ||
+           !target->IsAlive() ||
+           target->IsFriendlyTo(bot);
 }
 
 NotFacingTargetTrigger::NotFacingTargetTrigger(PlayerBotAI* botAI)
@@ -148,6 +142,8 @@ NoTargetTrigger::NoTargetTrigger(PlayerBotAI* botAI)
 
 bool NoTargetTrigger::IsActive()
 {
+    // AC pattern: only checks if "current target" is null
+    // Dead/stale targets are handled by InvalidTargetTrigger → DropTargetAction
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     return !target;
 }
