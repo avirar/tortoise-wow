@@ -69,10 +69,16 @@ DropTargetAction::DropTargetAction(PlayerBotAI* botAI)
 
 bool DropTargetAction::Execute([[maybe_unused]] Event event)
 {
-    GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
+    Value<Unit*>* targetVal = GetAiObjectContext()->GetValue<Unit*>("current target");
+    if (targetVal)
+        targetVal->Set(nullptr);
+
+    bot->SetSelectionGuid(ObjectGuid());
 
     if (bot->IsInCombat())
         bot->CombatStop();
+
+    bot->AttackStop();
 
     lastDropTime = getMSTime();
     return true;

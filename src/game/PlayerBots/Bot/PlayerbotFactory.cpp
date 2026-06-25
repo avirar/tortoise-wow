@@ -22,22 +22,28 @@ void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPref
     uint32 created = 0;
     for (uint32 i = 0; i < count; ++i)
     {
+        sLog.outString("[FACTORY] Starting bot #%u of %u...", i, count);
         uint32 accountId = CreateBotAccount(i, accountPrefix);
         if (!accountId)
         {
             sLog.outError("Playerbot Factory: Failed to create account #%u, skipping", i);
             continue;
         }
+        sLog.outString("[FACTORY] Account #%u created (id=%u)", i, accountId);
 
+        sLog.outString("[FACTORY] Creating character for account %u...", accountId);
         uint32 charGuid = CreateBotCharacter(accountId);
         if (!charGuid)
         {
             sLog.outError("Playerbot Factory: Failed to create character for account %u", accountId);
             continue;
         }
+        sLog.outString("[FACTORY] Character created (guid=%u)", charGuid);
 
+        sLog.outString("[FACTORY] Registering bot in playerbot table...");
         RegisterInPlayerbotTable(charGuid, 100, "PlayerBotAI");
         ++created;
+        sLog.outString("[FACTORY] Bot #%u registered, total=%u", i, created);
 
         if (created % 5 == 0)
             sLog.outString(">> Playerbot Factory: %u/%u bots created", created, count);
@@ -75,14 +81,18 @@ uint32 PlayerbotFactory::CreateBotAccount(uint32 index, std::string const& prefi
 
 uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
 {
+    sLog.outString("[FACTORY] CreateBotCharacter: generating GUID");
     uint32 guid = sObjectMgr.GeneratePlayerLowGuid();
+    sLog.outString("[FACTORY] CreateBotCharacter: GUID=%u", guid);
 
+    sLog.outString("[FACTORY] CreateBotCharacter: generating name");
     std::string name = GenerateName();
     if (name.empty())
     {
         sLog.outError("Playerbot Factory: Could not generate unique name");
         return 0;
     }
+    sLog.outString("[FACTORY] CreateBotCharacter: name='%s'", name.c_str());
 
     uint8 race = RACE_HUMAN;
     uint8 class_ = CLASS_WARRIOR;
@@ -93,9 +103,11 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
     uint8 hairColor = urand(0, 5);
     uint8 facialHair = urand(0, 5);
 
+    sLog.outString("[FACTORY] CreateBotCharacter: creating WorldSession");
     WorldSession* sess = new WorldSession(accountId, nullptr, SEC_PLAYER, 0, LOCALE_enUS, "<FACTORY>", 0);
-
+    sLog.outString("[FACTORY] CreateBotCharacter: creating Player");
     Player* newChar = new Player(sess);
+    sLog.outString("[FACTORY] CreateBotCharacter: calling Player::Create");
     if (!newChar->Create(guid, name, race, class_, gender, skin, face, hairStyle, hairColor, facialHair))
     {
         sLog.outError("Playerbot Factory: Player::Create failed for guid %u", guid);
@@ -103,9 +115,11 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
         delete sess;
         return 0;
     }
+    sLog.outString("[FACTORY] CreateBotCharacter: Player::Create done");
 
     newChar->SetCinematic(1);
 
+    sLog.outString("[FACTORY] CreateBotCharacter: calling SaveToDB");
     if (!newChar->SaveToDB(true, false))
     {
         sLog.outError("Playerbot Factory: SaveToDB failed for guid %u", guid);
@@ -113,9 +127,12 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
         delete sess;
         return 0;
     }
+    sLog.outString("[FACTORY] CreateBotCharacter: SaveToDB done");
 
+    sLog.outString("[FACTORY] CreateBotCharacter: deleting Player/Session");
     delete newChar;
     delete sess;
+    sLog.outString("[FACTORY] CreateBotCharacter: deleting done, loading cache");
 
     sObjectMgr.LoadPlayerCacheData(guid);
 

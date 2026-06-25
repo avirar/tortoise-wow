@@ -1,6 +1,7 @@
 #include "ActionContext.h"
 
 #include "PlayerBotAI.h"
+#include "Actions/LootAction.h"
 
 class ActionContext : public NamedObjectContext<Action>
 {
@@ -22,6 +23,12 @@ public:
         creators["leave combat"] = &ActionContext::CreateLeaveCombatAction;
         creators["move random"] = &ActionContext::CreateMoveRandomAction;
         creators["attack anything"] = &ActionContext::CreateAttackAnythingAction;
+        creators["loot"] = &ActionContext::CreateLootAction;
+        creators["open loot"] = &ActionContext::CreateOpenLootAction;
+        creators["store loot"] = &ActionContext::CreateStoreLootAction;
+        creators["equip upgrades"] = &ActionContext::CreateEquipUpgradesAction;
+        creators["add all loot"] = &ActionContext::CreateAddAllLootAction;
+        creators["move to loot"] = &ActionContext::CreateMoveToLootAction;
     }
 
 private:
@@ -40,6 +47,12 @@ private:
     static Action* CreateLeaveCombatAction(PlayerBotAI* botAI) { return new LeaveCombatAction(botAI); }
     static Action* CreateMoveRandomAction(PlayerBotAI* botAI) { return new MoveRandomAction(botAI); }
     static Action* CreateAttackAnythingAction(PlayerBotAI* botAI) { return new AttackAnythingAction(botAI); }
+    static Action* CreateLootAction(PlayerBotAI* botAI) { return new LootAction(botAI); }
+    static Action* CreateOpenLootAction(PlayerBotAI* botAI) { return new OpenLootAction(botAI); }
+    static Action* CreateStoreLootAction(PlayerBotAI* botAI) { return new StoreLootAction(botAI); }
+    static Action* CreateEquipUpgradesAction(PlayerBotAI* botAI) { return new EquipUpgradesAction(botAI); }
+    static Action* CreateAddAllLootAction(PlayerBotAI* botAI) { return new AddAllLootAction(botAI); }
+    static Action* CreateMoveToLootAction(PlayerBotAI* botAI) { return new MoveToLootAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

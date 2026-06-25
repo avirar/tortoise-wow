@@ -294,6 +294,24 @@ set (game_SRCS
     PlayerBots/Ai/Base/TriggerContext.cpp
     PlayerBots/Ai/Base/Value/InCombatValue.h
     PlayerBots/Ai/Base/Value/InCombatValue.cpp
+    PlayerBots/Mgr/Item/StatsCollector.h
+    PlayerBots/Mgr/Item/StatsCollector.cpp
+    PlayerBots/Mgr/Item/StatsWeightCalculator.h
+    PlayerBots/Mgr/Item/StatsWeightCalculator.cpp
+    PlayerBots/Mgr/Item/LootObjectStack.h
+    PlayerBots/Mgr/Item/LootObjectStack.cpp
+    PlayerBots/Ai/Base/Value/ItemUsageValue.h
+    PlayerBots/Ai/Base/Value/ItemUsageValue.cpp
+    PlayerBots/Ai/Base/Value/LootStrategyValue.h
+    PlayerBots/Ai/Base/Value/LootStrategyValue.cpp
+    PlayerBots/Ai/Base/Value/AvailableLootValue.h
+    PlayerBots/Ai/Base/Value/AvailableLootValue.cpp
+    PlayerBots/Ai/Base/Trigger/LootTriggers.h
+    PlayerBots/Ai/Base/Trigger/LootTriggers.cpp
+    PlayerBots/Ai/Base/Actions/LootAction.h
+    PlayerBots/Ai/Base/Actions/LootAction.cpp
+    PlayerBots/Ai/Base/Strategy/LootNonCombatStrategy.h
+    PlayerBots/Ai/Base/Strategy/LootNonCombatStrategy.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp

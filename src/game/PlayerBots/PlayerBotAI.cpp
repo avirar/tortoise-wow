@@ -29,10 +29,16 @@ bool PlayerBotAI::OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess)
 
 void PlayerBotAI::Initialize()
 {
-    LOG_DEBUG("playerbots", "[PlayerBotAI::Initialize] me=%p, botAI=%p", (void*)me, (void*)this);
+    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() START, me=%p, this=%p", (void*)me, (void*)this);
     if (!engine)
+    {
+        sLog.outString("[3ENGINE] PlayerBotAI::Initialize() creating PlayerbotAIBase");
         engine = new PlayerbotAIBase(this);
+        sLog.outString("[3ENGINE] PlayerBotAI::Initialize() PlayerbotAIBase created");
+    }
+    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() calling engine->Initialize()");
     engine->Initialize();
+    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() DONE");
 }
 
 void PlayerBotAI::Reset()
@@ -44,7 +50,7 @@ void PlayerBotAI::Reset()
 Engine* PlayerBotAI::GetEngine()
 {
     if (engine)
-        return engine->GetEngine();
+        return engine->GetCurrentEngine();
     return nullptr;
 }
 

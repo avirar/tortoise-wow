@@ -5,6 +5,8 @@
 #include "ObjectAccessor.h"
 #include "PlayerbotAIConfig.h"
 #include "Timer.h"
+#include "AiObjectContext.h"
+#include "Value/Value.h"
 
 EnemyOutOfMeleeTrigger::EnemyOutOfMeleeTrigger(PlayerBotAI* botAI)
     : Trigger(botAI, "enemy out of melee")
@@ -146,9 +148,6 @@ NoTargetTrigger::NoTargetTrigger(PlayerBotAI* botAI)
 
 bool NoTargetTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     return !target;
 }

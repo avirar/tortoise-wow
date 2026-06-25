@@ -6,8 +6,9 @@
 #include "Trigger/Trigger.h"
 
 class PlayerBotAI;
+class AiObjectContext;
 
-void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI);
+void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context);
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts);
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts);
 

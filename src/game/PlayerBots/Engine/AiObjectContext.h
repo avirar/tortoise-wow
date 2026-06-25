@@ -20,6 +20,7 @@ public:
     virtual ~AiObjectContext() {}
 
     virtual void Init(PlayerBotAI* botAI);
+    bool IsInitialized() const { return botAI != nullptr; }
     virtual void Reset();
 
     UntypedValue* GetUntypedValue(std::string const& name);

@@ -14,9 +14,9 @@
 #include "Trigger/TriggerNode.h"
 #include "Action/Action.h"
 
-Engine::Engine(PlayerBotAI* botAI)
+Engine::Engine(PlayerBotAI* botAI, AiObjectContext* ctx)
     : botAI(botAI),
-      context(nullptr),
+      context(ctx),
       enabled(true),
       lastActionTime(0),
       lastTriggerTime(0),
@@ -24,13 +24,15 @@ Engine::Engine(PlayerBotAI* botAI)
       triggerInterval(100),
       lastRelevance(0.0f)
 {
+    sLog.outString("[3ENGINE] Engine constructor: botAI=%p", (void*)botAI);
 }
 
 void Engine::Init()
 {
-    if (!context)
-        context = new AiObjectContext();
-    context->Init(botAI);
+    sLog.outString("[3ENGINE] Engine::Init() START, context=%p", (void*)context);
+    if (context && !context->IsInitialized())
+        context->Init(botAI);
+    sLog.outString("[3ENGINE] Engine::Init() context->Init() done");
 
     for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
     {

@@ -62,6 +62,7 @@ void PlayerBotMgr::LoadConfig()
 
 void PlayerBotMgr::Load()
 {
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() START");
     // 1- clean
     DeleteAll();
     m_bots.clear();
@@ -69,23 +70,30 @@ void PlayerBotMgr::Load()
     totalChance = 0;
 
     // 2- Configuration
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() calling LoadConfig()");
     LoadConfig();
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u", confFactoryEnabled, confFactoryBotCount);
 
     // 3- Load usable account ID
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
     QueryResult *result = LoginDatabase.PQuery("SELECT MAX(id) FROM account");
     if (!result)
     {
         sLog.outError("Playerbot: unable to load max account id.");
         return;
     }
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() querying Fetch()");
     Field *fields = result->Fetch();
     _maxAccountId = fields[0].GetUInt32() + 10000;
+    sLog.outString("[3ENGINE] PlayerBotMgr::Load() maxAccountId=%u", _maxAccountId);
     delete result;
 
     // 3.5- Generate bots via factory if enabled
     if (confFactoryEnabled)
     {
+        sLog.outString("[3ENGINE] PlayerBotMgr::Load() calling GenerateBots(%u, '%s')", confFactoryBotCount, confFactoryAccountPrefix.c_str());
         PlayerbotFactory::GenerateBots(confFactoryBotCount, confFactoryAccountPrefix);
+        sLog.outString("[3ENGINE] PlayerBotMgr::Load() GenerateBots() done");
     }
 
     // 4- LoadFromDB

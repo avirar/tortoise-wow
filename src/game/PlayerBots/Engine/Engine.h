@@ -16,8 +16,8 @@ class Multiplier;
 class Engine
 {
 public:
-    Engine(PlayerBotAI* botAI);
-    virtual ~Engine() { Reset(); delete context; }
+    Engine(PlayerBotAI* botAI, AiObjectContext* ctx);
+    virtual ~Engine() { Reset(); }
 
     void Init();
     void Update(uint32 diff);

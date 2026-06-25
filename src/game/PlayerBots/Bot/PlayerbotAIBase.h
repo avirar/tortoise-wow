@@ -3,7 +3,16 @@
 
 #include "PlayerBotAI.h"
 #include "Engine/Engine.h"
+#include "Engine/AiObjectContext.h"
 #include "Engine/Strategy/CustomStrategy.h"
+
+enum BotState
+{
+    BOT_STATE_COMBAT = 0,
+    BOT_STATE_NON_COMBAT = 1,
+    BOT_STATE_DEAD = 2,
+    BOT_STATE_MAX
+};
 
 class PlayerbotAIBase
 {
@@ -17,16 +26,21 @@ public:
 
     PlayerBotAI* GetBotAI() const { return botAI; }
     Player* GetBot() const { return botAI ? botAI->me : nullptr; }
-    Engine* GetEngine() { return engine; }
+    Engine* GetEngine(BotState state) { return state < BOT_STATE_MAX ? engines[state] : nullptr; }
+    Engine* GetCurrentEngine() { return currentState < BOT_STATE_MAX ? engines[currentState] : nullptr; }
+    BotState GetState() const { return currentState; }
 
     void SetEnabled(bool enable);
     bool IsEnabled() const { return enabled; }
 
 protected:
+    void ChangeEngine(BotState state);
+
     PlayerBotAI* botAI;
-    Engine* engine;
+    AiObjectContext* sharedContext;
+    Engine* engines[BOT_STATE_MAX];
+    BotState currentState;
     bool enabled;
-    uint32 lastUpdate;
 };
 
 #endif
