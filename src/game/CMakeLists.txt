@@ -270,6 +270,8 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/CurrentTargetValue.cpp
     PlayerBots/Ai/Base/Value/DpsTargetValue.h
     PlayerBots/Ai/Base/Value/DpsTargetValue.cpp
+    PlayerBots/Ai/Base/Value/GrindTargetValue.h
+    PlayerBots/Ai/Base/Value/GrindTargetValue.cpp
     PlayerBots/Ai/Base/Value/GroupLeaderValue.h
     PlayerBots/Ai/Base/Value/GroupLeaderValue.cpp
     PlayerBots/Ai/Base/Value/MasterTargetValue.h

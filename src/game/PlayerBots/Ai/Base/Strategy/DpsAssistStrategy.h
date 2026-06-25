@@ -9,6 +9,7 @@ class DpsAssistStrategy : public Strategy
 {
 public:
     DpsAssistStrategy(PlayerBotAI* botAI);
+    std::vector<NextAction> getDefaultActions() override;
     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
     std::string const getName() override { return "dps assist"; }
 };

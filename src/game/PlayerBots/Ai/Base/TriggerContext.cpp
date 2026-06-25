@@ -22,6 +22,7 @@ public:
         creators["often"] = &TriggerContext::CreateOften;
         creators["no target"] = &TriggerContext::CreateNoTarget;
         creators["not dps target active"] = &TriggerContext::CreateNotDpsTargetActive;
+        creators["has target"] = &TriggerContext::CreateHasTarget;
         creators["loot available"] = &TriggerContext::CreateLootAvailable;
         creators["far from loot target"] = &TriggerContext::CreateFarFromLoot;
         creators["can loot"] = &TriggerContext::CreateCanLoot;
@@ -42,6 +43,7 @@ private:
     static Trigger* CreateOften(PlayerBotAI* botAI) { return new RandomTrigger(botAI, "often", 7); }
     static Trigger* CreateNoTarget(PlayerBotAI* botAI) { return new NoTargetTrigger(botAI); }
     static Trigger* CreateNotDpsTargetActive(PlayerBotAI* botAI) { return new NotDpsTargetActiveTrigger(botAI); }
+    static Trigger* CreateHasTarget(PlayerBotAI* botAI) { return new HasTargetTrigger(botAI); }
     static Trigger* CreateLootAvailable(PlayerBotAI* botAI) { return new LootAvailableTrigger(botAI); }
     static Trigger* CreateFarFromLoot(PlayerBotAI* botAI) { return new FarFromLootTrigger(botAI); }
     static Trigger* CreateCanLoot(PlayerBotAI* botAI) { return new CanLootTrigger(botAI); }

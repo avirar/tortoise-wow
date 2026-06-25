@@ -72,4 +72,11 @@ public:
     bool IsActive() override;
 };
 
+class HasTargetTrigger : public Trigger
+{
+public:
+    HasTargetTrigger(PlayerBotAI* botAI);
+    bool IsActive() override;
+};
+
 #endif

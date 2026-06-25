@@ -9,35 +9,27 @@ class Unit;
 class DpsAssistAction : public AttackAction
 {
 public:
-    DpsAssistAction(PlayerBotAI* botAI);
-    virtual ~DpsAssistAction() {}
-
-    virtual bool Execute(Event event) override;
-    virtual bool isUseful();
-    virtual std::string const GetTargetName() { return "dps target"; }
+    DpsAssistAction(PlayerBotAI* botAI) : AttackAction(botAI, "dps assist") {}
+    bool isUseful() override;
+    std::string const GetTargetName() override { return "dps target"; }
 };
 
 class AggressiveTargetAction : public AttackAction
 {
 public:
-    AggressiveTargetAction(PlayerBotAI* botAI);
-    virtual ~AggressiveTargetAction() {}
-
-    virtual bool Execute(Event event) override;
-    virtual bool isUseful();
-    virtual std::string const GetTargetName() { return "aggressive target"; }
+    AggressiveTargetAction(PlayerBotAI* botAI) : AttackAction(botAI, "aggressive target") {}
+    bool isUseful() override;
+    std::string const GetTargetName() override { return "aggressive target"; }
 };
 
 class AttackAnythingAction : public AttackAction
 {
 public:
-    AttackAnythingAction(PlayerBotAI* botAI);
-    virtual ~AttackAnythingAction() {}
-
-    virtual bool Execute(Event event) override;
-    virtual bool isUseful();
-    virtual bool isPossible();
-    virtual std::string const GetTargetName() { return "attack anything"; }
+    AttackAnythingAction(PlayerBotAI* botAI) : AttackAction(botAI, "attack anything") {}
+    bool Execute(Event event) override;
+    bool isUseful() override;
+    bool isPossible() override;
+    std::string const GetTargetName() override { return "grind target"; }
 };
 
 #endif
