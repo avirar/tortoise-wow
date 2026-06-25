@@ -12,7 +12,8 @@ DpsTargetValue::DpsTargetValue(PlayerBotAI* botAI)
 
 Unit* DpsTargetValue::Calculate()
 {
-    if (bot->IsInCombat() && bot->GetVictim())
+    // If bot has a victim (being attacked by or attacking), keep it
+    if (bot->GetVictim() && bot->GetVictim()->IsAlive())
         return bot->GetVictim();
 
     Group* group = bot->GetGroup();
@@ -56,7 +57,8 @@ Unit* DpsTargetValue::Calculate()
             return masterTarget;
     }
 
-    Unit* nearest = bot->SelectNearestTarget(sPlayerbotAIConfig.sightDistance);
+    // Solo fallback: scan nearby unfriendly (neutral + hostile) units
+    Unit* nearest = bot->SelectNearestUnfriendlyTarget(sPlayerbotAIConfig.sightDistance);
     if (nearest && nearest->IsAlive() && !bot->IsFriendlyTo(nearest))
         return nearest;
 

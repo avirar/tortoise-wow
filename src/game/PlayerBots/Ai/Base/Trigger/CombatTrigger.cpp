@@ -151,19 +151,21 @@ bool NoTargetTrigger::IsActive()
     return !target;
 }
 
-DpsTrigger::DpsTrigger(PlayerBotAI* botAI)
-    : Trigger(botAI, "dps")
+NotDpsTargetActiveTrigger::NotDpsTargetActiveTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "not dps target active")
 {
 }
 
-bool DpsTrigger::IsActive()
+bool NotDpsTargetActiveTrigger::IsActive()
 {
-    // Fire when bot has a valid alive target
-    // This keeps the bot attacking in NON_COMBAT (solo grind)
+    // AC pattern: fire when dps target exists and differs from current target
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
-    if (!target || !target->IsAlive() || !target->IsInWorld())
-        return false;
-    if (bot->IsFriendlyTo(target))
-        return false;
-    return true;
+    if (target && target->IsAlive())
+    {
+        // If current target is an enemy player, don't switch
+        // (skip this check for vanilla, no enemy player target value)
+    }
+
+    Unit* dps = GetAiObjectContext()->GetValue<Unit*>("dps target")->Get();
+    return dps && target != dps;
 }

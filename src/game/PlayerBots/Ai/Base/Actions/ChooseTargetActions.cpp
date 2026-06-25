@@ -96,11 +96,11 @@ bool DpsAssistAction::Execute(Event event)
             if (!target)
             {
                 // Also try unfriendly (neutral) search
-                Unit* unfriendly = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+                target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
                 LOG_DEBUG("playerbots", "%s [DpsAssistAction] path4b: SelectNearestHostileTarget=%p (entry=%u '%s')",
-                    bot->GetName(), (void*)unfriendly,
-                    unfriendly ? unfriendly->GetEntry() : 0u,
-                    unfriendly ? unfriendly->GetName() : "(nil)");
+                    bot->GetName(), (void*)target,
+                    target ? target->GetEntry() : 0u,
+                    target ? target->GetName() : "(nil)");
             }
         }
     }
@@ -108,18 +108,7 @@ bool DpsAssistAction::Execute(Event event)
     if (target && target->IsAlive() && !bot->IsFriendlyTo(target))
     {
         GetAiObjectContext()->GetValue<Unit*>("current target")->Set(target);
-
-        // If target is out of melee range, don't attack yet — let "reach melee" run first
-        float dist = sServerFacade.GetDistance2d(bot, target);
-        if (sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance))
-        {
-            bot->SetTargetGuid(target->GetGUID());
-            LOG_DEBUG("playerbots", "%s [DpsAssistAction] target %s out of range (%.1f), need to reach",
-                      bot->GetName(), target->GetName(), dist);
-            return false;
-        }
-
-        LOG_DEBUG("playerbots", "%s [DpsAssistAction] attacking %s", bot->GetName(), target->GetName());
+        // DoAttack() handles both in-range (attack) and out-of-range (chase)
         return DoAttack(target);
     }
 

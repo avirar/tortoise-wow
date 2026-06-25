@@ -21,7 +21,7 @@ public:
         creators["high mana"] = &TriggerContext::CreateHighMana;
         creators["often"] = &TriggerContext::CreateOften;
         creators["no target"] = &TriggerContext::CreateNoTarget;
-        creators["dps"] = &TriggerContext::CreateDps;
+        creators["not dps target active"] = &TriggerContext::CreateNotDpsTargetActive;
         creators["loot available"] = &TriggerContext::CreateLootAvailable;
         creators["far from loot target"] = &TriggerContext::CreateFarFromLoot;
         creators["can loot"] = &TriggerContext::CreateCanLoot;
@@ -41,7 +41,7 @@ private:
     static Trigger* CreateHighMana(PlayerBotAI* botAI) { return new HighManaTrigger(botAI); }
     static Trigger* CreateOften(PlayerBotAI* botAI) { return new RandomTrigger(botAI, "often", 7); }
     static Trigger* CreateNoTarget(PlayerBotAI* botAI) { return new NoTargetTrigger(botAI); }
-    static Trigger* CreateDps(PlayerBotAI* botAI) { return new DpsTrigger(botAI); }
+    static Trigger* CreateNotDpsTargetActive(PlayerBotAI* botAI) { return new NotDpsTargetActiveTrigger(botAI); }
     static Trigger* CreateLootAvailable(PlayerBotAI* botAI) { return new LootAvailableTrigger(botAI); }
     static Trigger* CreateFarFromLoot(PlayerBotAI* botAI) { return new FarFromLootTrigger(botAI); }
     static Trigger* CreateCanLoot(PlayerBotAI* botAI) { return new CanLootTrigger(botAI); }

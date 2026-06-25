@@ -234,6 +234,8 @@ set (game_SRCS
     PlayerBots/Bot/PlayerbotAIBase.cpp
     PlayerBots/Ai/Base/Strategy/CombatStrategy.h
     PlayerBots/Ai/Base/Strategy/CombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/DpsAssistStrategy.h
+    PlayerBots/Ai/Base/Strategy/DpsAssistStrategy.cpp
     PlayerBots/Ai/Base/Strategy/MeleeCombatStrategy.h
     PlayerBots/Ai/Base/Strategy/MeleeCombatStrategy.cpp
     PlayerBots/Ai/Base/Strategy/NonCombatStrategy.h

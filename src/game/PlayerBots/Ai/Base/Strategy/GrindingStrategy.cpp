@@ -20,8 +20,6 @@ void GrindingStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     LOG_DEBUG("playerbots", "[GrindingStrategy::InitTriggers] before: %u triggers", triggers.size());
     // Clear stale dead targets (matches CombatStrategy pattern)
     triggers.push_back(new TriggerNode("invalid target", { NextAction("drop target", 99.0f) }));
-    // Attack current target (solo bot: keep attacking what we have)
-    triggers.push_back(new TriggerNode("dps", { NextAction("attack", 5.0f) }));
     // Find new target when none held
     triggers.push_back(new TriggerNode("no target", { NextAction("attack anything", 4.0f) }));
     triggers.push_back(new TriggerNode("loot available", { NextAction("loot", 6.0f) }));
