@@ -23,6 +23,7 @@ public:
     Unit* GetChaseTarget(Unit* target);
     void SendPacket(Player* player, WorldPacket* packet);
     Unit* SelectNearestHostileTarget(Unit* unit, float range);
+    void DebugNearbyCreatures(Unit* unit, float range, const char* caller);
 
 private:
     ServerFacade() = default;

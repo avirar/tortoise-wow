@@ -112,6 +112,10 @@ class PlayerBotMgr
         bool confDebug;
         bool forceLogoutDelay;
 
+        bool confFactoryEnabled;
+        uint32 confFactoryBotCount;
+        std::string confFactoryAccountPrefix;
+
         bool enable;
 };
 

@@ -11,6 +11,7 @@
 #include "Chat.h"
 #include "Player.h"
 #include "PlayerBotAI.h"
+#include "Bot/PlayerbotFactory.h"
 #include "Anticheat.h"
 #include "Log.h"
 #include "Logging.h"
@@ -53,6 +54,10 @@ void PlayerBotMgr::LoadConfig()
     forceLogoutDelay = sConfig.GetBoolDefault("PlayerBot.ForceLogoutDelay", true);
     if (!forceLogoutDelay)
         m_tempBots.clear();
+
+    confFactoryEnabled = sConfig.GetBoolDefault("PlayerBot.FactoryEnabled", true);
+    confFactoryBotCount = sConfig.GetIntDefault("PlayerBot.FactoryBotCount", 10);
+    confFactoryAccountPrefix = sConfig.GetStringDefault("PlayerBot.FactoryAccountPrefix", "botacc");
 }
 
 void PlayerBotMgr::Load()
@@ -76,6 +81,12 @@ void PlayerBotMgr::Load()
     Field *fields = result->Fetch();
     _maxAccountId = fields[0].GetUInt32() + 10000;
     delete result;
+
+    // 3.5- Generate bots via factory if enabled
+    if (confFactoryEnabled)
+    {
+        PlayerbotFactory::GenerateBots(confFactoryBotCount, confFactoryAccountPrefix);
+    }
 
     // 4- LoadFromDB
     result = CharacterDatabase.PQuery("SELECT char_guid, chance, ai FROM playerbot");

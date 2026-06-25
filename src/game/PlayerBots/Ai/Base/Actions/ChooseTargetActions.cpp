@@ -12,6 +12,8 @@
 #include "ObjectAccessor.h"
 #include "Logging.h"
 #include "Log.h"
+#include "Timer.h"
+#include <map>
 
 DpsAssistAction::DpsAssistAction(PlayerBotAI* botAI)
     : AttackAction(botAI, "dps assist")
@@ -89,8 +91,17 @@ bool DpsAssistAction::Execute(Event event)
         if (!target)
         {
             target = bot->SelectNearestTarget(sPlayerbotAIConfig.sightDistance);
-            LOG_DEBUG("playerbots", "%s [DpsAssistAction] path4: SelectNearestTarget=%p",
-                      bot->GetName(), (void*)target);
+            LOG_DEBUG("playerbots", "%s [DpsAssistAction] path4: SelectNearestTarget=%p pos=(%.1f,%.1f)",
+                      bot->GetName(), (void*)target, bot->GetPositionX(), bot->GetPositionY());
+            if (!target)
+            {
+                // Also try unfriendly (neutral) search
+                Unit* unfriendly = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
+                LOG_DEBUG("playerbots", "%s [DpsAssistAction] path4b: SelectNearestHostileTarget=%p (entry=%u '%s')",
+                    bot->GetName(), (void*)unfriendly,
+                    unfriendly ? unfriendly->GetEntry() : 0u,
+                    unfriendly ? unfriendly->GetName() : "(nil)");
+            }
         }
     }
 
@@ -137,7 +148,15 @@ bool AttackAnythingAction::Execute(Event /*event*/)
     Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
 
     if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
+    {
+        LOG_DEBUG("playerbots", "%s [AttackAnything::Execute] SelectNearestHostileTarget returned nil, pos=(%.1f,%.1f)",
+            bot->GetName(), bot->GetPositionX(), bot->GetPositionY());
         return false;
+    }
+
+    LOG_DEBUG("playerbots", "%s [AttackAnything::Execute] found target entry=%u '%s' dist=%.1f reaction=%d",
+        bot->GetName(), target->GetEntry(), target->GetName(),
+        sServerFacade.GetDistance2d(bot, target), (int)bot->GetReactionTo(target));
 
     // Skip training dummies
     std::string name = target->GetName();
@@ -158,8 +177,17 @@ bool AttackAnythingAction::isUseful()
 
     Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
     if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
+    {
+        // Debug: scan nearby creatures every 30s when no target found
+        static std::map<std::string, uint32> lastDebugTime;
+        uint32 now = getMSTime();
+        if (lastDebugTime.find(bot->GetName()) == lastDebugTime.end() || now - lastDebugTime[bot->GetName()] > 30000)
+        {
+            lastDebugTime[bot->GetName()] = now;
+            sServerFacade.DebugNearbyCreatures(bot, sPlayerbotAIConfig.sightDistance, "AttackAnything::isUseful");
+        }
         return false;
-        return false;
+    }
 
     return true;
 }

@@ -191,6 +191,8 @@ set (game_SRCS
     PacketBroadcast/PlayerBroadcaster.cpp
     PlayerBots/PlayerBotAI.cpp
     PlayerBots/PlayerBotMgr.cpp
+    PlayerBots/Bot/PlayerbotFactory.cpp
+    PlayerBots/Bot/PlayerbotFactory.h
     PlayerBots/Util/CommonTypes.h
     PlayerBots/Util/ServerFacade.h
     PlayerBots/Util/ServerFacade.cpp
