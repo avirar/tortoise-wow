@@ -2266,8 +2266,6 @@ void LoadPlayerEggLoot();
 	sObjectMgr.LoadPlayerPhaseFromDb();
     sLog.outString("Caching player pets...");
 	sCharacterDatabaseCache.LoadAll();
-    sLog.outString("Loading player bot manager...");
-	sPlayerBotMgr.Load();
     sLog.outString("Loading faction change reputations...");
 	sObjectMgr.LoadFactionChangeReputations();
     sLog.outString("Loading faction change spells...");
@@ -2315,6 +2313,9 @@ void LoadPlayerEggLoot();
     m_broadcaster =
         std::make_unique<MovementBroadcaster>(sWorld.getConfig(CONFIG_UINT32_PACKET_BCAST_THREADS),
                                               std::chrono::milliseconds(sWorld.getConfig(CONFIG_UINT32_PACKET_BCAST_FREQUENCY)));
+
+    sLog.outString("Loading player bot manager...");
+	sPlayerBotMgr.Load();
 
     m_ChannelBroadcaster = std::make_unique<ChannelBroadcaster>();
     m_charDbWorkerThread.reset(new std::thread(&charactersDatabaseWorkerThread));
