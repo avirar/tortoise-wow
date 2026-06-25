@@ -65,4 +65,11 @@ public:
     bool IsActive() override;
 };
 
+class DpsTrigger : public Trigger
+{
+public:
+    DpsTrigger(PlayerBotAI* botAI);
+    bool IsActive() override;
+};
+
 #endif

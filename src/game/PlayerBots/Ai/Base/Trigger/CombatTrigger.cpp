@@ -150,3 +150,20 @@ bool NoTargetTrigger::IsActive()
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     return !target;
 }
+
+DpsTrigger::DpsTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "dps")
+{
+}
+
+bool DpsTrigger::IsActive()
+{
+    // Fire when bot has a valid alive target
+    // This keeps the bot attacking in NON_COMBAT (solo grind)
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
+        return false;
+    if (bot->IsFriendlyTo(target))
+        return false;
+    return true;
+}
