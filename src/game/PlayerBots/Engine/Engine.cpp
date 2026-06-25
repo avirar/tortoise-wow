@@ -30,9 +30,13 @@ Engine::Engine(PlayerBotAI* botAI, AiObjectContext* ctx)
 void Engine::Init()
 {
     sLog.outString("[3ENGINE] Engine::Init() START, context=%p", (void*)context);
+    // Reset engine-local state first (AC pattern) — does NOT touch shared context
+    Reset();
+
+    // Context is shared across all 3 engines, initialized in PlayerbotAIBase::Initialize()
+    // Guard kept for safety but should always be already initialized
     if (context && !context->IsInitialized())
         context->Init(botAI);
-    sLog.outString("[3ENGINE] Engine::Init() context->Init() done");
 
     for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); ++i)
     {
@@ -65,8 +69,8 @@ void Engine::Reset()
     lastRelevance = 0.0f;
     lastAction.clear();
 
-    if (context)
-        context->Reset();
+    // DO NOT call context->Reset() — context is shared across all 3 engines (AC pattern)
+    // Resetting shared context would wipe "current target" etc. for other engines
 
     for (std::vector<TriggerNode*>::iterator i = triggers.begin(); i != triggers.end(); ++i)
     {

@@ -34,64 +34,49 @@ void PlayerbotAIBase::Initialize()
 {
     sLog.outString("[3ENGINE] Initialize() START");
 
-    // Create shared context (one for all engines, matches AC pattern)
+    // Create shared context (ONE for all engines, matches AC pattern)
+    // AC: aiObjectContext = AiFactory::createAiObjectContext(bot, this);
     sLog.outString("[3ENGINE] Creating shared AiObjectContext");
     sharedContext = new AiObjectContext();
     sharedContext->Init(botAI);
     sLog.outString("[3ENGINE] Shared AiObjectContext created and initialized");
 
-    // Non-combat engine
+    // Non-combat engine: NonCombatStrategy + WanderStrategy + GrindingStrategy
     sLog.outString("[3ENGINE] Creating NON_COMBAT engine");
     engines[BOT_STATE_NON_COMBAT] = new Engine(botAI, sharedContext);
+    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new NonCombatStrategy(botAI));
+    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new WanderStrategy(botAI));
+    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new GrindingStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->Init();
-    sLog.outString("[3ENGINE] NON_COMBAT engine Init() done");
+    sLog.outString("[3ENGINE] NON_COMBAT engine done");
 
-    NonCombatStrategy* nonCombatStrategy = new NonCombatStrategy(botAI);
-    engines[BOT_STATE_NON_COMBAT]->AddStrategy(nonCombatStrategy);
-
-    WanderStrategy* wanderStrategy = new WanderStrategy(botAI);
-    engines[BOT_STATE_NON_COMBAT]->AddStrategy(wanderStrategy);
-
-    GrindingStrategy* grindingStrategy = new GrindingStrategy(botAI);
-    engines[BOT_STATE_NON_COMBAT]->AddStrategy(grindingStrategy);
-
-    engines[BOT_STATE_NON_COMBAT]->Init();
-    sLog.outString("[3ENGINE] NON_COMBAT engine second Init() done");
-
-    // Combat engine
+    // Combat engine: class-based strategy selection
     sLog.outString("[3ENGINE] Creating COMBAT engine");
     engines[BOT_STATE_COMBAT] = new Engine(botAI, sharedContext);
-    engines[BOT_STATE_COMBAT]->Init();
-    sLog.outString("[3ENGINE] COMBAT engine Init() done");
-
     uint8 botClass = botAI->me->GetClass();
     if (botClass == CLASS_WARRIOR || botClass == CLASS_ROGUE ||
         botClass == CLASS_PALADIN || botClass == CLASS_DRUID)
     {
-        MeleeCombatStrategy* meleeStrategy = new MeleeCombatStrategy(botAI);
-        engines[BOT_STATE_COMBAT]->AddStrategy(meleeStrategy);
+        engines[BOT_STATE_COMBAT]->AddStrategy(new MeleeCombatStrategy(botAI));
     }
     else if (botClass == CLASS_MAGE || botClass == CLASS_PRIEST ||
               botClass == CLASS_WARLOCK || botClass == CLASS_HUNTER ||
               botClass == CLASS_SHAMAN)
     {
-        RangedCombatStrategy* rangedStrategy = new RangedCombatStrategy(botAI);
-        engines[BOT_STATE_COMBAT]->AddStrategy(rangedStrategy);
+        engines[BOT_STATE_COMBAT]->AddStrategy(new RangedCombatStrategy(botAI));
     }
     else
     {
-        CombatStrategy* combatStrategy = new CombatStrategy(botAI);
-        engines[BOT_STATE_COMBAT]->AddStrategy(combatStrategy);
+        engines[BOT_STATE_COMBAT]->AddStrategy(new CombatStrategy(botAI));
     }
-
     engines[BOT_STATE_COMBAT]->Init();
-    sLog.outString("[3ENGINE] COMBAT engine second Init() done");
+    sLog.outString("[3ENGINE] COMBAT engine done");
 
     // Dead engine (minimal for now)
     sLog.outString("[3ENGINE] Creating DEAD engine");
     engines[BOT_STATE_DEAD] = new Engine(botAI, sharedContext);
     engines[BOT_STATE_DEAD]->Init();
-    sLog.outString("[3ENGINE] DEAD engine Init() done");
+    sLog.outString("[3ENGINE] DEAD engine done");
 
     currentState = BOT_STATE_NON_COMBAT;
     sLog.outString("[3ENGINE] Initialize() DONE");
