@@ -16,6 +16,7 @@
 #include "Value/AvailableLootValue.h"
 #include "Value/SelfTargetValue.h"
 #include "Value/StatsValues.h"
+#include "Value/LastMovementValue.h"
 
 void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context)
 {
@@ -42,4 +43,5 @@ void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context
     context->AddValue(new ManaValue(botAI), "mana");
     context->AddValue(new HasManaValue(botAI), "has mana");
     context->AddValue(new IsDeadValue(botAI), "dead");
+    context->AddValue(new LastMovementValue(botAI), "last movement");
 }

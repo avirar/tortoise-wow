@@ -47,6 +47,9 @@ class PlayerBotAI: public PlayerAI
         void AutoEquipForLevel();
         void EquipBags();
         void GiveFoodDrink();
+
+    public:
+        bool CanMove();
         uint32 _gearMaxDiff = 9;
         uint32 GetHighestKnownSpell(uint32 spellId) const;
         bool TargetHasAuraFromChain(Unit* target, uint32 spellId) const;

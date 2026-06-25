@@ -674,6 +674,24 @@ void PlayerBotAI::GiveFoodDrink()
     LOG_DEBUG("playerbots", "%s GiveFoodDrink: gave 5x food (entry %u) and 5x drink (entry %u)", me->GetName(), foodEntry, drinkEntry);
 }
 
+// AC pattern: check if bot can move (not stunned, confused, fleeing, etc.)
+bool PlayerBotAI::CanMove()
+{
+    if (!me)
+        return false;
+
+    // AC: most common checks: confused, stunned, fleeing
+    if (me->HasUnitState(UNIT_STAT_CONFUSED) || me->HasUnitState(UNIT_STAT_STUNNED) ||
+        me->HasUnitState(UNIT_STAT_FLEEING))
+        return false;
+
+    // Death state (w/o spirit release)
+    if (me->IsDead() && !me->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+        return false;
+
+    return true;
+}
+
 void PlayerBotAI::Remove()
 {
     me->setAI(nullptr);

@@ -314,8 +314,11 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/SelfTargetValue.cpp
     PlayerBots/Ai/Base/Value/StatsValues.h
     PlayerBots/Ai/Base/Value/StatsValues.cpp
+    PlayerBots/Ai/Base/Value/LastMovementValue.h
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.h
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/WaitForAttackStrategy.h
+    PlayerBots/Ai/Base/Strategy/WaitForAttackStrategy.cpp
     PlayerBots/Ai/Base/Trigger/LootTriggers.h
     PlayerBots/Ai/Base/Trigger/LootTriggers.cpp
     PlayerBots/Ai/Base/Actions/LootAction.h

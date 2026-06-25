@@ -7,8 +7,11 @@
 #include "PlayerbotAIConfig.h"
 #include "AiObjectContext.h"
 #include "Value.h"
+#include "Value/LastMovementValue.h"
 #include "Timer.h"
 #include "Mgr/Item/LootObjectStack.h"
+#include "Strategy/WaitForAttackStrategy.h"
+#include "Logging.h"
 
 AttackAction::AttackAction(PlayerBotAI* botAI, std::string const& name)
     : MovementAction(botAI, name)
@@ -47,13 +50,33 @@ bool AttackAction::DoAttack(Unit* target)
     if (lootStack)
         lootStack->Add(target->GetGUID());
 
-    bot->Attack(target, bot->CanReachWithMeleeAutoAttack(target) || true);
+    // AC pattern: clear wander movement if combat priority is higher
+    LastMovement& lastMovement = GetAiObjectContext()->GetValue<LastMovement&>("last movement")->Get();
+    if (lastMovement.priority < MovementPriority::MOVEMENT_COMBAT && bot->IsMoving())
+    {
+        lastMovement.clear();
+        bot->GetMotionMaster()->Clear(false);
+        bot->StopMoving();
+    }
 
+    // AC pattern: set facing to target if bot can move and not facing
+    if (botAI->CanMove() && !bot->HasInArc(target, M_PI_F))
+        sServerFacade.SetFacingTo(bot, target);
+
+    // AC pattern: check WaitForAttack before attacking
+    // For solo bots, ShouldWait always returns false (attack immediately)
+    if (!WaitForAttackStrategy::ShouldWait(botAI))
+        bot->Attack(target, bot->CanReachWithMeleeAutoAttack(target) || true);
+
+    // Move to target if too far for melee
     float dist = sServerFacade.GetDistance2d(bot, target);
     if (sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance))
     {
         bot->GetMotionMaster()->MoveChase(target);
     }
+
+    LOG_DEBUG("playerbots", "%s [AttackAction] attacking '%s' (entry %u, dist %.1f)",
+        bot->GetName(), target->GetName(), target->GetEntry(), dist);
 
     return true;
 }
