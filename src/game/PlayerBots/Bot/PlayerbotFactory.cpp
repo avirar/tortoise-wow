@@ -2,6 +2,7 @@
 
 #include "AccountMgr.h"
 #include "Database/DatabaseEnv.h"
+#include "Database/DBCStores.h"
 #include "Log.h"
 #include "Logging.h"
 #include "ObjectMgr.h"
@@ -11,12 +12,43 @@
 #include "Util.h"
 #include "World.h"
 
+std::vector<std::pair<uint8, uint8>> PlayerbotFactory::s_validRaceClass;
+
+void PlayerbotFactory::LoadValidRaceClassCombinations()
+{
+    if (!s_validRaceClass.empty())
+        return; // already loaded
+
+    // Use sObjectMgr.GetPlayerInfo() to check valid race/class combinations
+    // This matches what Player::Create() uses internally
+    for (uint8 race = 1; race < MAX_RACES; ++race)
+    {
+        for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
+        {
+            if (sObjectMgr.GetPlayerInfo(race, cls))
+            {
+                s_validRaceClass.push_back(std::make_pair(race, cls));
+            }
+        }
+    }
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Loaded %u valid race/class combinations", (uint32)s_validRaceClass.size());
+}
+
 void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPrefix)
 {
     if (count == 0)
         return;
 
     CleanupOldBots(accountPrefix);
+
+    // Load valid race/class combinations from playercreateinfo
+    LoadValidRaceClassCombinations();
+    if (s_validRaceClass.empty())
+    {
+        sLog.outError("Playerbot Factory: No valid race/class combinations found");
+        return;
+    }
 
     LOG_DEBUG("playerbots", ">> Playerbot Factory: Generating %u bot accounts and characters...", count);
 
@@ -95,9 +127,18 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
     }
     LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: name='%s'", name.c_str());
 
-    uint8 race = RACE_HUMAN;
-    uint8 class_ = CLASS_WARRIOR;
+    // Pick random valid race/class combination
+    uint32 comboIdx = urand(0, (uint32)s_validRaceClass.size() - 1);
+    uint8 race = s_validRaceClass[comboIdx].first;
+    uint8 class_ = s_validRaceClass[comboIdx].second;
     uint8 gender = urand(0, 1) ? GENDER_MALE : GENDER_FEMALE;
+
+    // Get race/class names for logging
+    ChrRacesEntry const* rEntry = sChrRacesStore.LookupEntry(race);
+    ChrClassesEntry const* cEntry = sChrClassesStore.LookupEntry(class_);
+    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: race=%u (%s) class=%u (%s) gender=%u",
+        race, rEntry ? rEntry->name[0] : "?", class_, cEntry ? cEntry->name[0] : "?", gender);
+
     uint8 skin = urand(0, 5);
     uint8 face = urand(0, 5);
     uint8 hairStyle = urand(0, 5);

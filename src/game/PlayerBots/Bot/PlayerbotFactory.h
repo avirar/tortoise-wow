@@ -2,6 +2,7 @@
 #define _PLAYERBOT_FACTORY_H
 
 #include "Common.h"
+#include <vector>
 
 class PlayerbotFactory
 {
@@ -15,6 +16,10 @@ private:
     static bool IsNameTaken(std::string const& name);
     static void RegisterInPlayerbotTable(uint32 charGuid, uint32 chance, std::string const& aiName);
     static void CleanupOldBots(std::string const& prefix);
+
+    // Load valid race/class combinations from playercreateinfo
+    static void LoadValidRaceClassCombinations();
+    static std::vector<std::pair<uint8, uint8>> s_validRaceClass;
 };
 
 #endif
