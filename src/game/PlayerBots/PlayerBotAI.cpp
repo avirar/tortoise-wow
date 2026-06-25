@@ -135,6 +135,7 @@ void PlayerBotAI::OnPlayerLogin()
     AutoLearnSpellsForLevel();
     AutoEquipForLevel();
     EquipBags();
+    GiveFoodDrink();
     Initialize();
     LOG_DEBUG("playerbots", "%s OnPlayerLogin() DONE", me ? me->GetName() : "null");
 }
@@ -650,6 +651,27 @@ void PlayerBotAI::EquipBags()
         else
             LOG_DEBUG("playerbots", "%s EquipBags: EquipNewItem failed slot %u dest=%u", me->GetName(), slot, dest);
     }
+}
+
+// AC pattern: give food/drink items for sustenance
+void PlayerBotAI::GiveFoodDrink()
+{
+    if (!me)
+        return;
+
+    // Food: entry 733 (Westfall Stew, +20 hp/5s), spellcategory_1 = 11
+    // Drink: entry 159 (Refreshing Spring Water, +10 mana/5s), spellcategory_1 = 59
+    uint32 foodEntry = 733;
+    uint32 drinkEntry = 159;
+
+    // Give 5 stacks of each
+    for (uint32 count = 0; count < 5; ++count)
+    {
+        me->AddItem(foodEntry, 1);
+        me->AddItem(drinkEntry, 1);
+    }
+
+    LOG_DEBUG("playerbots", "%s GiveFoodDrink: gave 5x food (entry %u) and 5x drink (entry %u)", me->GetName(), foodEntry, drinkEntry);
 }
 
 void PlayerBotAI::Remove()
