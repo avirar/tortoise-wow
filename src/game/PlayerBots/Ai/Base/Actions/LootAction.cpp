@@ -70,7 +70,7 @@ bool OpenLootAction::Execute([[maybe_unused]] Event event)
     {
         if (creature->HasFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE))
         {
-            bot->SendLoot(creature->GetEntry(), LOOT_CORPSE);
+            bot->SendLoot(creature->GetObjectGuid(), LOOT_CORPSE);
             LOG_DEBUG("playerbots", "OpenLoot: %s looting creature entry %u", bot->GetName(), creature->GetEntry());
             return true;
         }
@@ -90,7 +90,11 @@ bool StoreLootAction::Execute(Event event)
 {
     ObjectGuid lootGuid = bot->GetLootGuid();
     if (!lootGuid)
+    {
+        LOG_DEBUG("playerbots", "%s [StoreLootAction] no lootGuid", bot->GetName());
         return false;
+    }
+    LOG_DEBUG("playerbots", "%s [StoreLootAction] lootGuid=%s", bot->GetName(), lootGuid.GetString().c_str());
 
     Map* map = bot->GetMap();
     Creature* creature = map->GetCreature(lootGuid);
@@ -108,7 +112,12 @@ bool StoreLootAction::Execute(Event event)
         loot = &go->loot;
 
     if (!loot || loot->empty())
+    {
+        LOG_DEBUG("playerbots", "%s [StoreLootAction] loot empty or null", bot->GetName());
         return false;
+    }
+
+    LOG_DEBUG("playerbots", "%s [StoreLootAction] loot has %u items, gold=%u", bot->GetName(), (uint32)loot->items.size(), loot->gold);
 
     LootStrategy* lootStrategy = GetAiObjectContext()->GetValue<LootStrategy*>("loot strategy")->Get();
 
@@ -125,10 +134,16 @@ bool StoreLootAction::Execute(Event event)
 
         ItemPrototype const* proto = sObjectMgr.GetItemPrototype(iter->itemid);
         if (!proto)
+        {
+            LOG_DEBUG("playerbots", "%s [StoreLootAction] no proto for item %u", bot->GetName(), iter->itemid);
             continue;
+        }
 
         if (lootStrategy && !lootStrategy->CanLoot(proto))
+        {
+            LOG_DEBUG("playerbots", "%s [StoreLootAction] skipped item %u '%s' (quality=%u)", bot->GetName(), iter->itemid, proto->Name1, proto->Quality);
             continue;
+        }
 
         uint8 bagSpace = GetAiObjectContext()->GetValue<uint8>("bag space")->Get();
         if (bagSpace > 85)

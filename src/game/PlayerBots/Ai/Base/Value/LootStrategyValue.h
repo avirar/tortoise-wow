@@ -41,7 +41,7 @@ class LootStrategyValue : public ManualSetValue<LootStrategy*>
 {
 public:
     LootStrategyValue(PlayerBotAI* botAI, std::string const name = "loot strategy")
-        : ManualSetValue<LootStrategy*>(botAI, normal_, name) {}
+        : ManualSetValue<LootStrategy*>(botAI, all_, name) {}  // AC: bots loot everything by default
     virtual ~LootStrategyValue() {}
 
     std::string const Save() override { return value ? value->GetName() : "?"; }

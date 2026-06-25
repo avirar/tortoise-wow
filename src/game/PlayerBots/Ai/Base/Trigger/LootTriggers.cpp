@@ -6,6 +6,8 @@
 #include "GameObject.h"
 #include "Mgr/Item/LootObjectStack.h"
 #include "SharedDefines.h"
+#include "Logging.h"
+#include "Log.h"
 
 bool LootAvailableTrigger::IsActive()
 {
@@ -49,4 +51,18 @@ bool CanLootTrigger::IsActive()
         return false;
 
     return bot->GetDistance2d(wo) <= INTERACTION_DISTANCE - 2.0f;
+}
+
+bool LootOpenTrigger::IsActive()
+{
+    // AC WorldPacketHandlerStrategy pattern: "loot response" fires when server
+    // sends SMSG_LOOT_RESPONSE after opening a loot frame.
+    // We approximate this by checking if the bot has an active loot GUID.
+    ObjectGuid lootGuid = bot->GetLootGuid();
+    if (!lootGuid.IsEmpty())
+    {
+        LOG_DEBUG("playerbots", "%s [LootOpenTrigger] lootGuid=%s", bot->GetName(), lootGuid.GetString().c_str());
+        return true;
+    }
+    return false;
 }

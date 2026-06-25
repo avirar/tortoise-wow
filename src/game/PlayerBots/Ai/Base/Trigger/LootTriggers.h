@@ -26,4 +26,11 @@ public:
     bool IsActive() override;
 };
 
+class LootOpenTrigger : public Trigger
+{
+public:
+    LootOpenTrigger(PlayerBotAI* botAI) : Trigger(botAI, "loot open") {}
+    bool IsActive() override;
+};
+
 #endif

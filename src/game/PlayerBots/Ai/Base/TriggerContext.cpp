@@ -23,6 +23,7 @@ public:
         creators["loot available"] = &TriggerContext::CreateLootAvailable;
         creators["far from loot target"] = &TriggerContext::CreateFarFromLoot;
         creators["can loot"] = &TriggerContext::CreateCanLoot;
+        creators["loot open"] = &TriggerContext::CreateLootOpen;
     }
 
 private:
@@ -41,6 +42,7 @@ private:
     static Trigger* CreateLootAvailable(PlayerBotAI* botAI) { return new LootAvailableTrigger(botAI); }
     static Trigger* CreateFarFromLoot(PlayerBotAI* botAI) { return new FarFromLootTrigger(botAI); }
     static Trigger* CreateCanLoot(PlayerBotAI* botAI) { return new CanLootTrigger(botAI); }
+    static Trigger* CreateLootOpen(PlayerBotAI* botAI) { return new LootOpenTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

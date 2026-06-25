@@ -8,6 +8,7 @@
 #include "RangedCombatStrategy.h"
 #include "WanderStrategy.h"
 #include "GrindingStrategy.h"
+#include "LootNonCombatStrategy.h"
 #include "PlayerbotAIConfig.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
@@ -49,6 +50,7 @@ void PlayerbotAIBase::Initialize()
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new NonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new WanderStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new GrindingStrategy(botAI));
+    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new LootNonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->Init();
     sLog.outString("[3ENGINE] NON_COMBAT engine done");
 
