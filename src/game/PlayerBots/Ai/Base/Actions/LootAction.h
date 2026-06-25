@@ -24,8 +24,11 @@ public:
 class StoreLootAction : public Action
 {
 public:
-    StoreLootAction(PlayerBotAI* botAI) : Action(botAI, "store loot") {}
+    StoreLootAction(PlayerBotAI* botAI) : Action(botAI, "store loot"), lastStoredGuid(ObjectGuid()) {}
     bool Execute(Event event) override;
+
+private:
+    ObjectGuid lastStoredGuid;  // one-shot: prevent re-processing same lootGuid
 };
 
 class EquipUpgradesAction : public Action

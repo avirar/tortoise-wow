@@ -73,11 +73,7 @@ bool LootOpenTrigger::IsActive()
     // AC WorldPacketHandlerStrategy pattern: "loot response" fires when server
     // sends SMSG_LOOT_RESPONSE after opening a loot frame.
     // We approximate this by checking if the bot has an active loot GUID.
+    // StoreLootAction uses one-shot tracking (lastStoredGuid) to fire only once.
     ObjectGuid lootGuid = bot->GetLootGuid();
-    if (!lootGuid.IsEmpty())
-    {
-        LOG_DEBUG("playerbots", "%s [LootOpenTrigger] lootGuid=%s", bot->GetName(), lootGuid.GetString().c_str());
-        return true;
-    }
-    return false;
+    return !lootGuid.IsEmpty();
 }
