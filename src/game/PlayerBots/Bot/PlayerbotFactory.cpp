@@ -187,17 +187,27 @@ std::string PlayerbotFactory::GenerateName()
     static const char* startSyl[] = {
         "Ar", "Bel", "Cor", "Dal", "El", "Fal", "Gor", "Hal", "Ir", "Jor",
         "Kael", "Lor", "Mor", "Nor", "Or", "Par", "Quel", "Ran", "Sil", "Tor",
-        "Ul", "Var", "Wyn", "Xan", "Yor", "Zel"
+        "Ul", "Var", "Wyn", "Xan", "Yor", "Zel",
+        "Ael", "Bor", "Cen", "Dra", "Eri", "Fen", "Gri", "Hav", "Ith", "Kar",
+        "Lyn", "Mav", "Ner", "Oth", "Pyr", "Ryn", "Sol", "Thal", "Vex", "Zyr",
+        "Ald", "Bri", "Cyr", "Dun", "Eld", "Fyr", "Gla", "Hyr", "Irn", "Kor",
+        "Lum", "Myn", "Nol", "Orr", "Pul", "Rav", "Syl", "Thun", "Vyr", "Zol"
     };
     static const uint32 startCount = sizeof(startSyl) / sizeof(startSyl[0]);
 
     static const char* endSyl[] = {
         "an", "ar", "as", "dor", "drin", "eth", "gar", "il", "ion", "is",
-        "mar", "on", "or", "ric", "ros", "thas", "vin", "wyn", "yk", "us"
+        "mar", "on", "or", "ric", "ros", "thas", "vin", "wyn", "yk", "us",
+        "ael", "bor", "cen", "dra", "eri", "fen", "gri", "hav", "ith", "kar",
+        "lyn", "mav", "ner", "oth", "pyr", "ryn", "sol", "thal", "vex", "zyr",
+        "ald", "bri", "cyr", "dun", "eld", "fyr", "gla", "hyr", "irn", "kor",
+        "lum", "myn", "nol", "orr", "pul", "rav", "syl", "thun", "vyr", "zol",
+        "ain", "ael", "dor", "eth", "gar", "iel", "ion", "ius", "mar", "orn",
+        "oth", "ren", "rin", "sar", "tor", "urn", "var", "wen", "yon", "zar"
     };
     static const uint32 endCount = sizeof(endSyl) / sizeof(endSyl[0]);
 
-    for (uint32 attempt = 0; attempt < 50; ++attempt)
+    for (uint32 attempt = 0; attempt < 500; ++attempt)
     {
         std::string name = startSyl[urand(0, startCount - 1)];
         name += endSyl[urand(0, endCount - 1)];
