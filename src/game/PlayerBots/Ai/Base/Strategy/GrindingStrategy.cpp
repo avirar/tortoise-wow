@@ -12,7 +12,7 @@ GrindingStrategy::GrindingStrategy(PlayerBotAI* botAI)
 
 std::vector<NextAction> GrindingStrategy::getDefaultActions()
 {
-    return std::vector<NextAction>();
+    return std::vector<NextAction>{ NextAction("drink", 4.2f), NextAction("food", 4.1f) };
 }
 
 void GrindingStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
@@ -26,5 +26,8 @@ void GrindingStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     triggers.push_back(new TriggerNode("far from loot target", { NextAction("move to loot", 7.0f) }));
     triggers.push_back(new TriggerNode("can loot", { NextAction("open loot", 8.0f) }));
     triggers.push_back(new TriggerNode("often", { NextAction("add all loot", 5.0f) }));
+    // Food/drink (AC UseFoodStrategy pattern)
+    triggers.push_back(new TriggerNode("low health", { NextAction("food", 3.0f) }));
+    triggers.push_back(new TriggerNode("low mana", { NextAction("drink", 3.0f) }));
     LOG_DEBUG("playerbots", "[GrindingStrategy::InitTriggers] after: %u triggers", triggers.size());
 }

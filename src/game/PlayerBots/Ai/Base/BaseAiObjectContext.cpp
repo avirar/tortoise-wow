@@ -14,6 +14,8 @@
 #include "Value/ItemUsageValue.h"
 #include "Value/LootStrategyValue.h"
 #include "Value/AvailableLootValue.h"
+#include "Value/SelfTargetValue.h"
+#include "Value/StatsValues.h"
 
 void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context)
 {
@@ -35,4 +37,9 @@ void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context
     context->AddValue(new HasAvailableLootValue(botAI), "has available loot");
     context->AddValue(new CanLootValue(botAI), "can loot");
     context->AddValue(new BagSpaceValue(botAI), "bag space");
+    context->AddValue(new SelfTargetValue(botAI), "self target");
+    context->AddValue(new HealthValue(botAI), "health");
+    context->AddValue(new ManaValue(botAI), "mana");
+    context->AddValue(new HasManaValue(botAI), "has mana");
+    context->AddValue(new IsDeadValue(botAI), "dead");
 }

@@ -29,6 +29,8 @@ public:
         creators["equip upgrades"] = &ActionContext::CreateEquipUpgradesAction;
         creators["add all loot"] = &ActionContext::CreateAddAllLootAction;
         creators["move to loot"] = &ActionContext::CreateMoveToLootAction;
+        creators["food"] = &ActionContext::CreateEatAction;
+        creators["drink"] = &ActionContext::CreateDrinkAction;
     }
 
 private:
@@ -53,6 +55,8 @@ private:
     static Action* CreateEquipUpgradesAction(PlayerBotAI* botAI) { return new EquipUpgradesAction(botAI); }
     static Action* CreateAddAllLootAction(PlayerBotAI* botAI) { return new AddAllLootAction(botAI); }
     static Action* CreateMoveToLootAction(PlayerBotAI* botAI) { return new MoveToLootAction(botAI); }
+    static Action* CreateEatAction(PlayerBotAI* botAI) { return new EatAction(botAI); }
+    static Action* CreateDrinkAction(PlayerBotAI* botAI) { return new DrinkAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

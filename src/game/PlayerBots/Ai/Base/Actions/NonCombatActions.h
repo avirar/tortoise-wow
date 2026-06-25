@@ -11,19 +11,33 @@ class SetFacingAction : public Action
 {
 public:
     SetFacingAction(PlayerBotAI* botAI);
-    virtual ~SetFacingAction() {}
-
-    virtual bool Execute(Event event) override;
+    bool Execute(Event event) override;
 };
 
 class SetBehindAction : public MovementAction
 {
 public:
     SetBehindAction(PlayerBotAI* botAI);
-    virtual ~SetBehindAction() {}
+    bool Execute(Event event) override;
+    bool isUseful() override;
+};
 
-    virtual bool Execute(Event event) override;
-    virtual bool isUseful();
+class EatAction : public Action
+{
+public:
+    EatAction(PlayerBotAI* botAI);
+    bool Execute(Event event) override;
+    bool isUseful() override;
+    bool isPossible() override;
+};
+
+class DrinkAction : public Action
+{
+public:
+    DrinkAction(PlayerBotAI* botAI);
+    bool Execute(Event event) override;
+    bool isUseful() override;
+    bool isPossible() override;
 };
 
 #endif

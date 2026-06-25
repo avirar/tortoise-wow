@@ -2,74 +2,178 @@
 
 #include "PlayerBotAI.h"
 #include "Player.h"
-#include "Unit.h"
+#include "Item.h"
+#include "ItemPrototype.h"
 #include "ServerFacade.h"
 #include "AiObjectContext.h"
-#include "Value.h"
+#include "Value/Value.h"
+#include "ObjectMgr.h"
+#include "Logging.h"
+#include "SharedDefines.h"
+#include "PlayerbotAIConfig.h"
 
-SetFacingAction::SetFacingAction(PlayerBotAI* botAI)
-    : Action(botAI, "set facing")
+// SetFacingAction
+SetFacingAction::SetFacingAction(PlayerBotAI* botAI) : Action(botAI, "set facing") {}
+
+bool SetFacingAction::Execute(Event /*event*/)
 {
-}
-
-bool SetFacingAction::Execute([[maybe_unused]] Event event)
-{
-    Value<Unit*>* targetValue = GetAiObjectContext()->GetValue<Unit*>("current target");
-    if (!targetValue)
-        return false;
-
-    Unit* target = targetValue->Get();
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     if (!target || !target->IsAlive())
         return false;
 
-    bot->SetFacingToObject(target);
+    sServerFacade.SetFacingTo(bot, target);
     return true;
 }
 
-SetBehindAction::SetBehindAction(PlayerBotAI* botAI)
-    : MovementAction(botAI, "set behind")
-{
-}
+// SetBehindAction
+SetBehindAction::SetBehindAction(PlayerBotAI* botAI) : MovementAction(botAI, "set behind") {}
 
-bool SetBehindAction::Execute([[maybe_unused]] Event event)
+bool SetBehindAction::Execute(Event /*event*/)
 {
-    Value<Unit*>* targetValue = GetAiObjectContext()->GetValue<Unit*>("current target");
-    if (!targetValue)
-        return false;
-
-    Unit* target = targetValue->Get();
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     if (!target || !target->IsAlive())
         return false;
 
-    float x, y, z;
-    float targetO = target->GetOrientation();
-    float dist = 3.0f;
-
-    x = target->GetPositionX() - cos(targetO) * dist;
-    y = target->GetPositionY() - sin(targetO) * dist;
-    z = target->GetPositionZ();
+    float angle = target->GetAngle(bot) - M_PI;
+    float dist = 5.0f;
+    float x = target->GetPositionX() + dist * cos(angle);
+    float y = target->GetPositionY() + dist * sin(angle);
+    float z = target->GetPositionZ();
 
     return MoveTo(x, y, z);
 }
 
 bool SetBehindAction::isUseful()
 {
-    Value<Unit*>* targetValue = GetAiObjectContext()->GetValue<Unit*>("current target");
-    if (!targetValue)
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    return target && target->IsAlive();
+}
+
+// EatAction: find food item in inventory and use it
+EatAction::EatAction(PlayerBotAI* botAI) : Action(botAI, "food") {}
+
+bool EatAction::Execute(Event /*event*/)
+{
+    if (bot->IsInCombat() || bot->IsMounted())
         return false;
 
-    Unit* target = targetValue->Get();
-    if (!target || !target->IsAlive())
+    // Find food item in inventory (CONSUMABLE/FOOD subclass)
+    Item* foodItem = nullptr;
+    for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+    {
+        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+        if (!item)
+            continue;
+
+        ItemPrototype const* proto = item->GetProto();
+        if (proto && proto->Class == ITEM_CLASS_CONSUMABLE && proto->SubClass == ITEM_SUBCLASS_FOOD)
+        {
+            foodItem = item;
+            break;
+        }
+    }
+
+    if (!foodItem)
+    {
+        LOG_DEBUG("playerbots", "%s [EatAction] no food item found", bot->GetName());
+        return false;
+    }
+
+    // Sit down before eating
+    bot->SetStandState(UNIT_STAND_STATE_SIT);
+
+    // Build and send CMSG_USE_ITEM packet
+    WorldPacket packet(CMSG_USE_ITEM);
+    packet << (uint8)foodItem->GetBagSlot() << (uint8)foodItem->GetSlot() << (uint8)1;
+
+    bot->GetSession()->HandleUseItemOpcode(packet);
+
+    // Set delay for eating duration (~18 seconds to full health)
+    float hp = bot->GetHealthPercent();
+    botAI->SetNextCheckDelay(static_cast<uint32>(18000.0f * (100 - hp) / 100.0f));
+
+    LOG_DEBUG("playerbots", "%s [EatAction] using item %u '%s'", bot->GetName(), foodItem->GetEntry(), foodItem->GetProto()->Name1);
+    return true;
+}
+
+bool EatAction::isUseful()
+{
+    if (!bot || bot->IsInCombat() || bot->IsMounted())
         return false;
 
-    float botO = bot->GetOrientation();
-    float targetO = target->GetOrientation();
+    // Check health percentage
+    uint8 health = GetAiObjectContext()->GetValue<uint8>("health")->Get();
+    return health < sPlayerbotAIConfig.lowHealth;
+}
 
-    float angle = abs(botO - targetO);
-    while (angle > M_PI)
-        angle -= M_PI * 2;
-    while (angle < -M_PI)
-        angle += M_PI * 2;
+bool EatAction::isPossible()
+{
+    return !bot->IsInCombat() && !bot->IsMounted();
+}
 
-    return abs(angle) > M_PI / 2.0f;
+// DrinkAction: find drink item in inventory and use it
+DrinkAction::DrinkAction(PlayerBotAI* botAI) : Action(botAI, "drink") {}
+
+bool DrinkAction::Execute(Event /*event*/)
+{
+    if (bot->IsInCombat() || bot->IsMounted())
+        return false;
+
+    // Find drink item in inventory (CONSUMABLE/POTION or ELIXIR subclass)
+    Item* drinkItem = nullptr;
+    for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+    {
+        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+        if (!item)
+            continue;
+
+        ItemPrototype const* proto = item->GetProto();
+        if (proto && proto->Class == ITEM_CLASS_CONSUMABLE &&
+            (proto->SubClass == ITEM_SUBCLASS_POTION || proto->SubClass == ITEM_SUBCLASS_ELIXIR || proto->SubClass == ITEM_SUBCLASS_FLASK))
+        {
+            drinkItem = item;
+            break;
+        }
+    }
+
+    if (!drinkItem)
+    {
+        LOG_DEBUG("playerbots", "%s [DrinkAction] no drink item found", bot->GetName());
+        return false;
+    }
+
+    // Sit down before drinking
+    bot->SetStandState(UNIT_STAND_STATE_SIT);
+
+    // Build and send CMSG_USE_ITEM packet
+    WorldPacket packet(CMSG_USE_ITEM);
+    packet << (uint8)drinkItem->GetBagSlot() << (uint8)drinkItem->GetSlot() << (uint8)1;
+
+    bot->GetSession()->HandleUseItemOpcode(packet);
+
+    // Set delay for drinking duration (~18 seconds to full mana)
+    float mp = bot->GetPowerPercent(POWER_MANA);
+    botAI->SetNextCheckDelay(static_cast<uint32>(18000.0f * (100 - mp) / 100.0f));
+
+    LOG_DEBUG("playerbots", "%s [DrinkAction] using item %u '%s'", bot->GetName(), drinkItem->GetEntry(), drinkItem->GetProto()->Name1);
+    return true;
+}
+
+bool DrinkAction::isUseful()
+{
+    if (!bot || bot->IsInCombat() || bot->IsMounted())
+        return false;
+
+    // Check if bot has mana and mana is low
+    bool hasMana = GetAiObjectContext()->GetValue<bool>("has mana")->Get();
+    if (!hasMana)
+        return false;
+
+    uint8 mana = GetAiObjectContext()->GetValue<uint8>("mana")->Get();
+    return mana < sPlayerbotAIConfig.lowMana;
+}
+
+bool DrinkAction::isPossible()
+{
+    return !bot->IsInCombat() && !bot->IsMounted();
 }
