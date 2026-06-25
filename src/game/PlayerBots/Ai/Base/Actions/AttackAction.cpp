@@ -60,7 +60,7 @@ bool AttackAction::DoAttack(Unit* target)
 
 Unit* AttackAction::GetTarget()
 {
-    Value<Unit*>* targetValue = GetAiObjectContext()->GetValue<Unit*>("current target");
+    Value<Unit*>* targetValue = GetAiObjectContext()->GetValue<Unit*>(GetTargetName());
     if (targetValue)
     {
         Unit* target = targetValue->Get();
