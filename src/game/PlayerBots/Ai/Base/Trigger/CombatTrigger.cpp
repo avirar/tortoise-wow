@@ -7,6 +7,7 @@
 #include "Timer.h"
 #include "AiObjectContext.h"
 #include "Value/Value.h"
+#include "ServerFacade.h"
 
 EnemyOutOfMeleeTrigger::EnemyOutOfMeleeTrigger(PlayerBotAI* botAI)
     : Trigger(botAI, "enemy out of melee")
@@ -84,6 +85,11 @@ bool InvalidTargetTrigger::IsActive()
         if (c->HasLootRecipient() && !c->IsTappedBy(bot))
             return true;  // tapped by outsider, invalid target
     }
+
+    // Check if target is too far to be useful (beyond sight distance)
+    float dist = sServerFacade.GetDistance2d(bot, target);
+    if (dist > sPlayerbotAIConfig.sightDistance)
+        return true;  // target too far, likely despawned or moved away
 
     return false;
 }
