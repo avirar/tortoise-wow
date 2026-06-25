@@ -8,6 +8,7 @@
 #include "Value/LootStrategyValue.h"
 #include "Value/ItemUsageValue.h"
 #include "Value/AvailableLootValue.h"
+#include "PlayerbotAIConfig.h"
 #include "AiObjectContext.h"
 #include "ObjectMgr.h"
 #include "ObjectAccessor.h"
@@ -60,6 +61,10 @@ bool OpenLootAction::Execute([[maybe_unused]] Event event)
     if (creature && creature->IsAlive())
         return false;
 
+    // Skip if loot is already open (prevents repeated SendLoot calls)
+    if (!bot->GetLootGuid().IsEmpty())
+        return false;
+
     if (bot->IsMounted())
     {
         bot->Unmount(false);
@@ -68,10 +73,20 @@ bool OpenLootAction::Execute([[maybe_unused]] Event event)
 
     if (creature)
     {
+        // Check tap before opening loot (only tapped bot should loot)
+        if (creature->HasLootRecipient() && !creature->IsTappedBy(bot))
+        {
+            LOG_DEBUG("playerbots", "OpenLoot: %s skipping, not tapped (recipient=%s)", bot->GetName(),
+                creature->GetLootRecipient() ? creature->GetLootRecipient()->GetName() : "none");
+            GetAiObjectContext()->GetValue<LootObject>("loot target")->Set(LootObject());
+            return false;
+        }
+
         if (creature->HasFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE))
         {
             bot->SendLoot(creature->GetObjectGuid(), LOOT_CORPSE);
             LOG_DEBUG("playerbots", "OpenLoot: %s looting creature entry %u", bot->GetName(), creature->GetEntry());
+            botAI->SetNextCheckDelay(sPlayerbotAIConfig.lootDelay);
             return true;
         }
         return false;
@@ -105,6 +120,19 @@ bool StoreLootAction::Execute(Event event)
     if (!lootTarget)
         return false;
 
+    // Only the loot recipient (tapper) should store items
+    // This prevents multiple bots from fighting over the same loot
+    if (creature)
+    {
+        if (!creature->HasLootRecipient() || !creature->IsTappedBy(bot))
+        {
+            LOG_DEBUG("playerbots", "%s [StoreLootAction] not tapped, skipping", bot->GetName());
+            bot->SetLootGuid(ObjectGuid());  // clear so LootOpenTrigger stops firing
+            GetAiObjectContext()->GetValue<LootObject>("loot target")->Set(LootObject()); // clear so CanLootTrigger stops firing
+            return false;
+        }
+    }
+
     Loot* loot = nullptr;
     if (creature)
         loot = &creature->loot;
@@ -123,14 +151,14 @@ bool StoreLootAction::Execute(Event event)
 
     if (loot->gold > 0)
     {
-        WorldPacket* pkt = new WorldPacket(CMSG_LOOT_MONEY, 0);
-        bot->GetSession()->QueuePacket(pkt);
+        WorldPacket pkt(CMSG_LOOT_MONEY, 0);
+        bot->GetSession()->HandleLootMoneyOpcode(pkt);
     }
 
     for (LootItemList::iterator iter = loot->items.begin(); iter != loot->items.end(); ++iter)
     {
-        if (iter->is_looted)
-            continue;
+        // AC pattern: read from SMSG_LOOT_RESPONSE packet, not shared Creature::loot
+        // We skip is_looted check since server handles duplicate attempts
 
         ItemPrototype const* proto = sObjectMgr.GetItemPrototype(iter->itemid);
         if (!proto)
@@ -146,6 +174,7 @@ bool StoreLootAction::Execute(Event event)
         }
 
         uint8 bagSpace = GetAiObjectContext()->GetValue<uint8>("bag space")->Get();
+        LOG_DEBUG("playerbots", "StoreLoot: %s bagSpace=%u item=%u", bot->GetName(), bagSpace, iter->itemid);
         if (bagSpace > 85)
         {
             if (proto->MaxCount > 1)
@@ -170,19 +199,22 @@ bool StoreLootAction::Execute(Event event)
             }
         }
 
-        WorldPacket* pkt = new WorldPacket(CMSG_AUTOSTORE_LOOT_ITEM, 1);
-        *pkt << uint8(iter - loot->items.begin());
-        bot->GetSession()->QueuePacket(pkt);
+        WorldPacket pkt(CMSG_AUTOSTORE_LOOT_ITEM, 1);
+        pkt << uint8(iter - loot->items.begin());
+        bot->GetSession()->HandleAutostoreLootItemOpcode(pkt);
 
         LOG_DEBUG("playerbots", "StoreLoot: %s storing item %u '%s' count=%u",
             bot->GetName(), iter->itemid, proto->Name1, iter->count);
 
         iter->is_looted = true;
+        botAI->SetNextCheckDelay(sPlayerbotAIConfig.lootDelay);
     }
 
-    WorldPacket* pkt = new WorldPacket(CMSG_LOOT_RELEASE, 8);
-    *pkt << lootGuid;
-    bot->GetSession()->QueuePacket(pkt);
+    LOG_DEBUG("playerbots", "StoreLoot: %s done, releasing loot", bot->GetName());
+
+    WorldPacket pkt(CMSG_LOOT_RELEASE, 8);
+    pkt << lootGuid;
+    bot->GetSession()->HandleLootReleaseOpcode(pkt);
 
     LootObjectStack* stack = GetAiObjectContext()->GetValue<LootObjectStack*>("available loot")->Get();
     if (stack)

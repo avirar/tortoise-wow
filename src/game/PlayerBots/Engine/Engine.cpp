@@ -24,12 +24,12 @@ Engine::Engine(PlayerBotAI* botAI, AiObjectContext* ctx)
       triggerInterval(100),
       lastRelevance(0.0f)
 {
-    sLog.outString("[3ENGINE] Engine constructor: botAI=%p", (void*)botAI);
+    LOG_DEBUG("playerbots", "[3ENGINE] Engine constructor: botAI=%p", (void*)botAI);
 }
 
 void Engine::Init()
 {
-    sLog.outString("[3ENGINE] Engine::Init() START, context=%p", (void*)context);
+    LOG_DEBUG("playerbots", "[3ENGINE] Engine::Init() START, context=%p", (void*)context);
     // Reset engine-local state first (AC pattern) — does NOT touch shared context
     Reset();
 

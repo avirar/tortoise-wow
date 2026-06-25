@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "Policies/SingletonImp.h"
 #include "PlayerBotMgr.h"
+#include "Logging.h"
 #include "ObjectMgr.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -62,7 +63,7 @@ void PlayerBotMgr::LoadConfig()
 
 void PlayerBotMgr::Load()
 {
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() START");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() START");
     // 1- clean
     DeleteAll();
     m_bots.clear();
@@ -70,36 +71,36 @@ void PlayerBotMgr::Load()
     totalChance = 0;
 
     // 2- Configuration
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() calling LoadConfig()");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() calling LoadConfig()");
     LoadConfig();
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u", confFactoryEnabled, confFactoryBotCount);
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u", confFactoryEnabled, confFactoryBotCount);
 
     // 3- Load usable account ID
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
     QueryResult *result = LoginDatabase.PQuery("SELECT MAX(id) FROM account");
     if (!result)
     {
         sLog.outError("Playerbot: unable to load max account id.");
         return;
     }
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() querying Fetch()");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying Fetch()");
     Field *fields = result->Fetch();
     _maxAccountId = fields[0].GetUInt32() + 10000;
-    sLog.outString("[3ENGINE] PlayerBotMgr::Load() maxAccountId=%u", _maxAccountId);
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() maxAccountId=%u", _maxAccountId);
     delete result;
 
     // 3.5- Generate bots via factory if enabled
     if (confFactoryEnabled)
     {
-        sLog.outString("[3ENGINE] PlayerBotMgr::Load() calling GenerateBots(%u, '%s')", confFactoryBotCount, confFactoryAccountPrefix.c_str());
+        LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() calling GenerateBots(%u, '%s')", confFactoryBotCount, confFactoryAccountPrefix.c_str());
         PlayerbotFactory::GenerateBots(confFactoryBotCount, confFactoryAccountPrefix);
-        sLog.outString("[3ENGINE] PlayerBotMgr::Load() GenerateBots() done");
+        LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() GenerateBots() done");
     }
 
     // 4- LoadFromDB
     result = CharacterDatabase.PQuery("SELECT char_guid, chance, ai FROM playerbot");
     if (!result)
-        sLog.outString("Loading playerbots...");
+        LOG_DEBUG("playerbots", "Loading playerbots...");
     else
     {
         do
@@ -120,7 +121,7 @@ void PlayerBotMgr::Load()
         } while (result->NextRow());
 
         delete result;
-        sLog.outString("%u bots charges", m_bots.size());
+        LOG_DEBUG("playerbots", "%u bots charges", m_bots.size());
     }
 
     // 5- Check config/DB
@@ -148,8 +149,8 @@ void PlayerBotMgr::Load()
     //8- Afficher les stats si débug
     if (confDebug)
     {
-        sLog.outString("[PlayerBotMgr] Between %u and %u bots online", confMinBots, confMaxBots);
-        sLog.outString("[PlayerBotMgr] %u now loading", m_stats.loadingCount);
+        LOG_DEBUG("playerbots", "[PlayerBotMgr] Between %u and %u bots online", confMinBots, confMaxBots);
+        LOG_DEBUG("playerbots", "[PlayerBotMgr] %u now loading", m_stats.loadingCount);
     }
 }
 
@@ -171,21 +172,21 @@ void PlayerBotMgr::DeleteAll()
     m_tempBots.clear();
 
     if (confDebug)
-        sLog.outString("[PlayerBotMgr] Deleting all bots [OK]");
+        LOG_DEBUG("playerbots", "[PlayerBotMgr] Deleting all bots [OK]");
 }
 
 void PlayerBotMgr::OnBotLogin(PlayerBotEntry *e)
 {
     e->state = PB_STATE_ONLINE;
     if (confDebug)
-        sLog.outString("[PlayerBot][Login]  '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
+        LOG_DEBUG("playerbots", "[PlayerBot][Login]  '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
 }
 
 void PlayerBotMgr::OnBotLogout(PlayerBotEntry *e)
 {
     e->state = PB_STATE_OFFLINE;
     if (confDebug)
-        sLog.outString("[PlayerBot][Logout] '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
+        LOG_DEBUG("playerbots", "[PlayerBot][Logout] '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
 }
 
 void PlayerBotMgr::OnPlayerInWorld(Player* player)
@@ -256,7 +257,7 @@ void PlayerBotMgr::Update(uint32 diff)
         if (!sess)
         {
             // This may happen : just wait for the World to add the session.
-            //sLog.outString("/!\\ PlayerBot in queue but Session not in World ... Account : %u, GUID : %u", iter->second->accountId, iter->second->playerGUID);
+            //LOG_DEBUG("playerbots", "/!\\ PlayerBot in queue but Session not in World ... Account : %u, GUID : %u", iter->second->accountId, iter->second->playerGUID);
             continue;
         }
 

@@ -32,6 +32,13 @@ bool FarFromLootTrigger::IsActive()
     if (!wo)
         return false;
 
+    // Don't chase loot tapped by someone else
+    if (creature && creature->HasLootRecipient() && !creature->IsTappedBy(bot))
+    {
+        GetAiObjectContext()->GetValue<LootObject>("loot target")->Set(LootObject());
+        return false;
+    }
+
     return bot->GetDistance2d(wo) > INTERACTION_DISTANCE - 2.0f;
 }
 
@@ -48,6 +55,14 @@ bool CanLootTrigger::IsActive()
     WorldObject* wo = creature ? static_cast<WorldObject*>(creature) :
                                 go ? static_cast<WorldObject*>(go) : nullptr;
     if (!wo)
+        return false;
+
+    // Don't fire if loot is already open (prevents repeated OpenLoot calls)
+    if (!bot->GetLootGuid().IsEmpty())
+        return false;
+
+    // Only the tapped bot can loot (prevents multiple bots fighting over same corpse)
+    if (creature && creature->HasLootRecipient() && !creature->IsTappedBy(bot))
         return false;
 
     return bot->GetDistance2d(wo) <= INTERACTION_DISTANCE - 2.0f;

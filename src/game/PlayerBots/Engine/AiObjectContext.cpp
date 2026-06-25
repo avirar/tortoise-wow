@@ -25,21 +25,21 @@ void AiObjectContext::BuildAllSharedContexts()
 
 void AiObjectContext::Init(PlayerBotAI* botAI)
 {
-    sLog.outString("[3ENGINE] AiObjectContext::Init() START, botAI=%p", (void*)botAI);
+    LOG_DEBUG("playerbots", "[3ENGINE] AiObjectContext::Init() START, botAI=%p", (void*)botAI);
     this->botAI = botAI;
 
     static bool built = false;
     if (!built)
     {
-        sLog.outString("[3ENGINE] AiObjectContext::Init() calling BuildAllSharedContexts()");
+        LOG_DEBUG("playerbots", "[3ENGINE] AiObjectContext::Init() calling BuildAllSharedContexts()");
         BuildAllSharedContexts();
-        sLog.outString("[3ENGINE] AiObjectContext::Init() BuildAllSharedContexts() done");
+        LOG_DEBUG("playerbots", "[3ENGINE] AiObjectContext::Init() BuildAllSharedContexts() done");
         built = true;
     }
 
-    sLog.outString("[3ENGINE] AiObjectContext::Init() calling BuildSharedBaseAiObjectContext()");
+    LOG_DEBUG("playerbots", "[3ENGINE] AiObjectContext::Init() calling BuildSharedBaseAiObjectContext()");
     BuildSharedBaseAiObjectContext(botAI, this);
-    sLog.outString("[3ENGINE] AiObjectContext::Init() DONE");
+    LOG_DEBUG("playerbots", "[3ENGINE] AiObjectContext::Init() DONE");
 }
 
 void AiObjectContext::Reset()

@@ -30,16 +30,16 @@ bool PlayerBotAI::OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess)
 
 void PlayerBotAI::Initialize()
 {
-    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() START, me=%p, this=%p", (void*)me, (void*)this);
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() START, me=%p, this=%p", (void*)me, (void*)this);
     if (!engine)
     {
-        sLog.outString("[3ENGINE] PlayerBotAI::Initialize() creating PlayerbotAIBase");
+        LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() creating PlayerbotAIBase");
         engine = new PlayerbotAIBase(this);
-        sLog.outString("[3ENGINE] PlayerBotAI::Initialize() PlayerbotAIBase created");
+        LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() PlayerbotAIBase created");
     }
-    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() calling engine->Initialize()");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() calling engine->Initialize()");
     engine->Initialize();
-    sLog.outString("[3ENGINE] PlayerBotAI::Initialize() DONE");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() DONE");
 }
 
 void PlayerBotAI::Reset()
@@ -53,6 +53,12 @@ Engine* PlayerBotAI::GetEngine()
     if (engine)
         return engine->GetCurrentEngine();
     return nullptr;
+}
+
+void PlayerBotAI::SetNextCheckDelay(uint32 delay)
+{
+    if (engine)
+        engine->SetNextCheckDelay(delay);
 }
 
 AiObjectContext* PlayerBotAI::GetAiObjectContext()
@@ -124,10 +130,13 @@ void PlayerBotAI::UpdateAI(const uint32 diff)
 
 void PlayerBotAI::OnPlayerLogin()
 {
+    LOG_DEBUG("playerbots", "%s OnPlayerLogin() START", me ? me->GetName() : "null");
     _lastLevel = me ? me->GetLevel() : 0;
     AutoLearnSpellsForLevel();
     AutoEquipForLevel();
+    EquipBags();
     Initialize();
+    LOG_DEBUG("playerbots", "%s OnPlayerLogin() DONE", me ? me->GetName() : "null");
 }
 
 void PlayerBotAI::OnLevelUp()
@@ -588,6 +597,58 @@ void PlayerBotAI::AutoEquipForLevel()
         }
 
         me->EquipNewItem(dest, proto->ItemId, true);
+    }
+}
+
+// AC pattern: equip large bags for loot storage (entry 1977 = 20-slot Bag)
+void PlayerBotAI::EquipBags()
+{
+    LOG_DEBUG("playerbots", "%s EquipBags() called", me ? me->GetName() : "null");
+    if (!me)
+        return;
+
+    uint32 bagEntry = 1977;  // 20-slot Bag (vanilla)
+
+    for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+    {
+        Item* oldBag = me->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+        if (oldBag)
+        {
+            LOG_DEBUG("playerbots", "%s EquipBags: slot %u has bag entry %u", me->GetName(), slot, oldBag->GetEntry());
+            if (oldBag->GetEntry() == bagEntry)
+                continue;  // already has this bag
+        }
+        else
+        {
+            LOG_DEBUG("playerbots", "%s EquipBags: slot %u empty", me->GetName(), slot);
+        }
+
+        // AC pattern: create temp item to check equip
+        Item* tempItem = Item::CreateItem(bagEntry, 1, me);
+        if (!tempItem)
+        {
+            LOG_DEBUG("playerbots", "%s EquipBags: CreateItem failed entry %u", me->GetName(), bagEntry);
+            continue;
+        }
+
+        uint16 dest;
+        InventoryResult result = me->CanEquipItem(slot, dest, tempItem, true, true);
+        delete tempItem;
+
+        if (result != EQUIP_ERR_OK)
+        {
+            LOG_DEBUG("playerbots", "%s EquipBags: slot %u CanEquipItem failed (%d)", me->GetName(), slot, result);
+            continue;
+        }
+
+        if (oldBag)
+            me->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+
+        Item* newBag = me->EquipNewItem(dest, bagEntry, true);
+        if (newBag)
+            LOG_DEBUG("playerbots", "%s equipped bag slot %u (entry %u)", me->GetName(), slot, bagEntry);
+        else
+            LOG_DEBUG("playerbots", "%s EquipBags: EquipNewItem failed slot %u dest=%u", me->GetName(), slot, dest);
     }
 }
 

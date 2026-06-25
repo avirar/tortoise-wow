@@ -78,6 +78,9 @@ DropTargetAction::DropTargetAction(PlayerBotAI* botAI)
 
 bool DropTargetAction::Execute([[maybe_unused]] Event event)
 {
+    if (!bot || !bot->IsAlive())
+        return false;
+
     // AC pattern: if target is dead, add to loot stack before clearing
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     if (target && target->IsDead())
@@ -89,6 +92,9 @@ bool DropTargetAction::Execute([[maybe_unused]] Event event)
 
     // Clear target
     GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
+
+    if (bot->GetSelectionGuid().IsEmpty())
+        return false;
 
     bot->SetSelectionGuid(ObjectGuid());
 

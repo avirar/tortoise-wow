@@ -28,6 +28,7 @@
 #include "Language.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
+#include "PlayerbotAIConfig.h"
 #include "Opcodes.h"
 #include "SpellMgr.h"
 #include "World.h"
@@ -17978,8 +17979,8 @@ bool Player::SaveToDB(bool online, bool force, bool direct)
     // delay auto save at any saves (manual, in code, or autosave)
     m_nextSave = sWorld.getConfig(CONFIG_UINT32_INTERVAL_SAVE);
 
-    // Pas de sauvegarde des bots
-    if (GetSession()->GetBot())
+    // Pas de sauvegarde des bots (unless persist enabled)
+    if (GetSession()->GetBot() && !sPlayerbotAIConfig.persist)
         return false;
     if (m_DbSaveDisabled)
         return false;

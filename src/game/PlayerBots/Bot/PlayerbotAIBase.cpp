@@ -18,44 +18,44 @@ PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
       enabled(true),
       nextAICheckDelay(0)
 {
-    sLog.outString("[3ENGINE] PlayerbotAIBase constructor: botAI=%p", (void*)botAI);
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase constructor: botAI=%p", (void*)botAI);
     for (uint8 i = 0; i < BOT_STATE_MAX; ++i)
         engines[i] = nullptr;
-    sLog.outString("[3ENGINE] PlayerbotAIBase constructor: done");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase constructor: done");
 }
 
 PlayerbotAIBase::~PlayerbotAIBase()
 {
-    sLog.outString("[3ENGINE] PlayerbotAIBase destructor");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase destructor");
     for (uint8 i = 0; i < BOT_STATE_MAX; ++i)
         delete engines[i];
     delete sharedContext;
-    sLog.outString("[3ENGINE] PlayerbotAIBase destructor: done");
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase destructor: done");
 }
 
 void PlayerbotAIBase::Initialize()
 {
-    sLog.outString("[3ENGINE] Initialize() START");
+    LOG_DEBUG("playerbots", "[3ENGINE] Initialize() START");
 
     // Create shared context (ONE for all engines, matches AC pattern)
     // AC: aiObjectContext = AiFactory::createAiObjectContext(bot, this);
-    sLog.outString("[3ENGINE] Creating shared AiObjectContext");
+    LOG_DEBUG("playerbots", "[3ENGINE] Creating shared AiObjectContext");
     sharedContext = new AiObjectContext();
     sharedContext->Init(botAI);
-    sLog.outString("[3ENGINE] Shared AiObjectContext created and initialized");
+    LOG_DEBUG("playerbots", "[3ENGINE] Shared AiObjectContext created and initialized");
 
     // Non-combat engine: NonCombatStrategy + WanderStrategy + GrindingStrategy
-    sLog.outString("[3ENGINE] Creating NON_COMBAT engine");
+    LOG_DEBUG("playerbots", "[3ENGINE] Creating NON_COMBAT engine");
     engines[BOT_STATE_NON_COMBAT] = new Engine(botAI, sharedContext);
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new NonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new WanderStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new GrindingStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new LootNonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->Init();
-    sLog.outString("[3ENGINE] NON_COMBAT engine done");
+    LOG_DEBUG("playerbots", "[3ENGINE] NON_COMBAT engine done");
 
     // Combat engine: class-based strategy selection
-    sLog.outString("[3ENGINE] Creating COMBAT engine");
+    LOG_DEBUG("playerbots", "[3ENGINE] Creating COMBAT engine");
     engines[BOT_STATE_COMBAT] = new Engine(botAI, sharedContext);
     uint8 botClass = botAI->me->GetClass();
     if (botClass == CLASS_WARRIOR || botClass == CLASS_ROGUE ||
@@ -74,16 +74,16 @@ void PlayerbotAIBase::Initialize()
         engines[BOT_STATE_COMBAT]->AddStrategy(new CombatStrategy(botAI));
     }
     engines[BOT_STATE_COMBAT]->Init();
-    sLog.outString("[3ENGINE] COMBAT engine done");
+    LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine done");
 
     // Dead engine (minimal for now)
-    sLog.outString("[3ENGINE] Creating DEAD engine");
+    LOG_DEBUG("playerbots", "[3ENGINE] Creating DEAD engine");
     engines[BOT_STATE_DEAD] = new Engine(botAI, sharedContext);
     engines[BOT_STATE_DEAD]->Init();
-    sLog.outString("[3ENGINE] DEAD engine done");
+    LOG_DEBUG("playerbots", "[3ENGINE] DEAD engine done");
 
     currentState = BOT_STATE_NON_COMBAT;
-    sLog.outString("[3ENGINE] Initialize() DONE");
+    LOG_DEBUG("playerbots", "[3ENGINE] Initialize() DONE");
 }
 
 void PlayerbotAIBase::UpdateAI(uint32 diff)

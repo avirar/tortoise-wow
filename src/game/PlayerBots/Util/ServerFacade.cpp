@@ -309,27 +309,26 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
     // AC GrindTargetValue pattern: skip targets already being targeted by group members
     Unit* bestTarget = nullptr;
     float bestDist = range;
+    uint32 filtered = 0;
     for (Unit* candidate : collector.candidates)
     {
         if (!candidate || !candidate->IsAlive() || bot->IsFriendlyTo(candidate))
-            continue;
+        { ++filtered; continue; }
 
         // AC pattern: skip if another group member is already targeting this
         if (GetTargetingPlayerCount(bot, candidate) > 0)
-            continue;
+        { ++filtered; continue; }
 
         // AC pattern: skip creatures that don't give XP (critters, trainers, etc.)
         if (!bot->IsHonorOrXPTarget(candidate))
-            continue;
+        { ++filtered; continue; }
 
-        // Skip creatures tapped by someone else (server authority)
+        // Skip creatures already being attacked by someone else
         if (Creature* c = candidate->ToCreature())
         {
             if (c->GetVictim() && c->GetVictim() != bot)
-                continue;  // already attacking someone else
-
-            if (c->HasLootRecipient() && !c->IsTappedBy(bot))
-                continue;  // tapped by outsider
+            { ++filtered; continue; }  // already attacking someone else
+            // NOTE: tap check is for LOOT only, not for combat selection
         }
 
         float dist = GetDistance2d(bot, candidate);
@@ -339,6 +338,10 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
             bestTarget = candidate;
         }
     }
+
+    LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] candidates=%u filtered=%u best=%s dist=%.1f",
+        bot->GetName(), (uint32)collector.candidates.size(), filtered,
+        bestTarget ? bestTarget->GetName() : "none", bestDist);
 
     return bestTarget;
 }

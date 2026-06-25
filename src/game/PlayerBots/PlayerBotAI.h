@@ -32,6 +32,7 @@ class PlayerBotAI: public PlayerAI
         void Initialize();
         void Reset();
         Engine* GetEngine();
+        void SetNextCheckDelay(uint32 delay);
         AiObjectContext* GetAiObjectContext();
         uint32 SelectOffensiveSpell(Unit* target) const;
 
@@ -44,6 +45,7 @@ class PlayerBotAI: public PlayerAI
         uint8 _lastLevel;
         void AutoLearnSpellsForLevel();
         void AutoEquipForLevel();
+        void EquipBags();
         uint32 _gearMaxDiff = 9;
         uint32 GetHighestKnownSpell(uint32 spellId) const;
         bool TargetHasAuraFromChain(Unit* target, uint32 spellId) const;

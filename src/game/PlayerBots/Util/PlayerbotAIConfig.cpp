@@ -54,6 +54,9 @@ PlayerbotAIConfig::PlayerbotAIConfig()
 
     // Performance
     perfMonEnabled = false;
+
+    // Persistence
+    persist = true;
 }
 
 bool PlayerbotAIConfig::Initialize()
@@ -95,6 +98,9 @@ bool PlayerbotAIConfig::Initialize()
     fleeingEnabled = sConfig.GetBoolDefault("PlayerBot.FleeingEnabled", fleeingEnabled);
     enableAutoTradeOnItemMention = sConfig.GetBoolDefault("PlayerBot.EnableAutoTradeOnItemMention", enableAutoTradeOnItemMention);
     perfMonEnabled = sConfig.GetBoolDefault("PlayerBot.PerfMonEnabled", perfMonEnabled);
+
+    // Persistence
+    persist = sConfig.GetBoolDefault("PlayerBot.Persist", persist);
 
     return true;
 }

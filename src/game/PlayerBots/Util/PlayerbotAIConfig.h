@@ -69,6 +69,9 @@ public:
     // Performance
     bool perfMonEnabled;
 
+    // Persistence (AC: AiPlayerbot.EquipAndSpecPersistence)
+    bool persist;
+
     std::mutex m_logMtx;
 
 private:
