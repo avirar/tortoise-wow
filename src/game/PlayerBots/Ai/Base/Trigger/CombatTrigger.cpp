@@ -15,11 +15,9 @@ EnemyOutOfMeleeTrigger::EnemyOutOfMeleeTrigger(PlayerBotAI* botAI)
 
 bool EnemyOutOfMeleeTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
-    if (!target)
+    // AC pattern: check "current target" context value, not bot->GetVictim()
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
     return !bot->CanReachWithMeleeAutoAttack(target);
@@ -32,11 +30,9 @@ EnemyOutOfSpellTrigger::EnemyOutOfSpellTrigger(PlayerBotAI* botAI)
 
 bool EnemyOutOfSpellTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
-    if (!target)
+    // AC pattern: check "current target" context value
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
     float dist = bot->GetDistance(target);
@@ -50,11 +46,9 @@ EnemyTooCloseForSpellTrigger::EnemyTooCloseForSpellTrigger(PlayerBotAI* botAI)
 
 bool EnemyTooCloseForSpellTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
-    if (!target)
+    // AC pattern: check "current target" context value
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
     float dist = bot->GetDistance(target);
@@ -69,9 +63,11 @@ InvalidTargetTrigger::InvalidTargetTrigger(PlayerBotAI* botAI)
 bool InvalidTargetTrigger::IsActive()
 {
     // Check "current target" context value (AC pattern: AI_VALUE2(bool, "invalid target", "current target"))
+    // IMPORTANT: only fire when there IS a stale/invalid target, not when target is null
+    // (null target is handled by "no target" trigger)
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
     if (!target)
-        return true;
+        return false;
 
     // AC InvalidTargetValue::Calculate() checks: dead, different map, not visible, friendly, etc.
     // Tortoise adaptation: IsVisible() → IsInWorld() (tortoise lacks IsVisible())
@@ -88,11 +84,9 @@ NotFacingTargetTrigger::NotFacingTargetTrigger(PlayerBotAI* botAI)
 
 bool NotFacingTargetTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
-    if (!target)
+    // AC pattern: check "current target" context value
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
     return !bot->HasInArc(target, M_PI_F);
@@ -105,11 +99,9 @@ NotBehindTargetTrigger::NotBehindTargetTrigger(PlayerBotAI* botAI)
 
 bool NotBehindTargetTrigger::IsActive()
 {
-    Unit* target = bot->GetVictim();
-    if (!target)
-        target = ObjectAccessor::GetUnit(*bot, bot->GetSelectionGuid());
-
-    if (!target)
+    // AC pattern: check "current target" context value
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
     return target->HasInArc(bot, M_PI_F);

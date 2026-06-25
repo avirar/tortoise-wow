@@ -8,6 +8,7 @@
 #include "AiObjectContext.h"
 #include "Value.h"
 #include "Timer.h"
+#include "Mgr/Item/LootObjectStack.h"
 
 AttackAction::AttackAction(PlayerBotAI* botAI, std::string const& name)
     : MovementAction(botAI, name)
@@ -35,8 +36,16 @@ bool AttackAction::DoAttack(Unit* target)
     if (!bot->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
         return false;
 
+    // AC pattern: set selection, save old target, set current target, add to loot stack
     bot->SetTargetGuid(target->GetGUID());
+    GetAiObjectContext()->GetValue<Unit*>("old target")->Set(
+        GetAiObjectContext()->GetValue<Unit*>("current target")->Get());
     GetAiObjectContext()->GetValue<Unit*>("current target")->Set(target);
+
+    // Add target to loot stack (AC pattern: corpse will be looted when target dies)
+    LootObjectStack* lootStack = GetAiObjectContext()->GetValue<LootObjectStack*>("available loot")->Get();
+    if (lootStack)
+        lootStack->Add(target->GetGUID());
 
     bot->Attack(target, bot->CanReachWithMeleeAutoAttack(target) || true);
 
@@ -69,9 +78,17 @@ DropTargetAction::DropTargetAction(PlayerBotAI* botAI)
 
 bool DropTargetAction::Execute([[maybe_unused]] Event event)
 {
-    Value<Unit*>* targetVal = GetAiObjectContext()->GetValue<Unit*>("current target");
-    if (targetVal)
-        targetVal->Set(nullptr);
+    // AC pattern: if target is dead, add to loot stack before clearing
+    Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+    if (target && target->IsDead())
+    {
+        LootObjectStack* lootStack = GetAiObjectContext()->GetValue<LootObjectStack*>("available loot")->Get();
+        if (lootStack)
+            lootStack->Add(target->GetGUID());
+    }
+
+    // Clear target
+    GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
 
     bot->SetSelectionGuid(ObjectGuid());
 

@@ -35,6 +35,9 @@ class PlayerBotAI: public PlayerAI
         AiObjectContext* GetAiObjectContext();
         uint32 SelectOffensiveSpell(Unit* target) const;
 
+        // Engine state switching (called from actions, matches AC pattern)
+        void ChangeEngine(uint8 state);
+
         bool SpawnNewPlayer(WorldSession* sess, uint8 _class, uint32 _race, uint32 mapId, uint32 instanceId, float dx, float dy, float dz, float o);
         PlayerBotEntry* botEntry;
     protected:

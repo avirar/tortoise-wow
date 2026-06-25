@@ -1,4 +1,5 @@
 #include "PlayerBotAI.h"
+#include "PlayerbotAIBase.h"
 #include "Logging.h"
 #include "Player.h"
 #include "DBCStores.h"
@@ -58,6 +59,12 @@ AiObjectContext* PlayerBotAI::GetAiObjectContext()
 {
     Engine* eng = GetEngine();
     return eng ? eng->GetContext() : nullptr;
+}
+
+void PlayerBotAI::ChangeEngine(uint8 state)
+{
+    if (engine)
+        engine->ChangeEngine(static_cast<BotState>(state));
 }
 
 void PlayerBotAI::UpdateAI(const uint32 diff)

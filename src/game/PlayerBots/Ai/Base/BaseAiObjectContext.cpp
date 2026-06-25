@@ -6,6 +6,7 @@
 
 #include "Value/DpsTargetValue.h"
 #include "Value/CurrentTargetValue.h"
+#include "Value/OldTargetValue.h"
 #include "Value/MasterTargetValue.h"
 #include "Value/GroupLeaderValue.h"
 #include "Value/InCombatValue.h"
@@ -19,6 +20,7 @@ void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context
         return;
 
     context->AddValue(new CurrentTargetValue(botAI), "current target");
+    context->AddValue(new OldTargetValue(botAI), "old target");
     context->AddValue(new DpsTargetValue(botAI), "dps target");
     context->AddValue(new MasterTargetValue(botAI), "master target");
     context->AddValue(new GroupLeaderValue(botAI), "group leader");

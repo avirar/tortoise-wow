@@ -20,6 +20,10 @@ void CombatStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
         { NextAction("drop target", 99) }
     ));
     triggers.push_back(new TriggerNode(
+        "no target",
+        { NextAction("attack anything", ACTION_IDLE) }
+    ));
+    triggers.push_back(new TriggerNode(
         "not facing target",
         { NextAction("set facing", ACTION_MOVE + 7) }
     ));

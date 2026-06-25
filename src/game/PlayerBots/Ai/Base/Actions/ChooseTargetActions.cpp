@@ -172,9 +172,9 @@ bool AttackAnythingAction::Execute(Event /*event*/)
 
 bool AttackAnythingAction::isUseful()
 {
-    if (bot->IsInCombat())
-        return false;
-
+    // Don't block on IsInCombat() — bot may just have dropped its target
+    // and is waiting for server to clear combat flag. Engine state controls
+    // whether "attack anything" should be active (via trigger nodes).
     Unit* target = sServerFacade.SelectNearestHostileTarget(bot, sPlayerbotAIConfig.sightDistance);
     if (!target || !target->IsAlive() || bot->IsFriendlyTo(target))
     {

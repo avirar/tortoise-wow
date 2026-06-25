@@ -33,7 +33,7 @@ public:
     void SetEnabled(bool enable);
     bool IsEnabled() const { return enabled; }
 
-protected:
+    // Engine state switching (called from actions, matches AC pattern)
     void ChangeEngine(BotState state);
 
     PlayerBotAI* botAI;
