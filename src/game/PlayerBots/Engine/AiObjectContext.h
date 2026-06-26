@@ -6,12 +6,12 @@
 #include <string>
 
 #include "NamedObjectContext.h"
+#include "Action/Action.h"
+#include "Trigger/Trigger.h"
 
 class PlayerBotAI;
 template <class T> class Value;
 class UntypedValue;
-class Action;
-class Trigger;
 
 class AiObjectContext
 {

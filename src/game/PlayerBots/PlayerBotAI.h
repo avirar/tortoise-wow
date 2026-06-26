@@ -17,7 +17,7 @@ class PlayerBotAI: public PlayerAI
 {
     public:
         explicit PlayerBotAI(Player* pPlayer = nullptr) : PlayerAI(pPlayer), botEntry(nullptr), _lastLevel(0), engine(nullptr) {}
-        virtual ~PlayerBotAI() { delete engine; }
+        virtual ~PlayerBotAI();
         void Remove() override;
 
         virtual bool OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess);

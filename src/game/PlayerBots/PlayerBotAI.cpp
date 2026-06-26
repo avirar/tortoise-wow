@@ -14,10 +14,11 @@
 #include "SpellMgr.h"
 #include "Database/DBCStructure.h"
 #include "Database/DatabaseEnv.h"
-#include "PlayerbotAIBase.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+
+PlayerBotAI::~PlayerBotAI() { delete engine; }
 #include <cmath>
 #include <memory>
 #include <functional>
