@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/AiObjectContext.h"
 #include "Engine/Strategy/CustomStrategy.h"
+#include "Util/PerfMonitor.h"
 
 enum BotState
 {
@@ -49,6 +50,7 @@ public:
     BotState currentState;
     bool enabled;
     uint32 nextAICheckDelay;
+    PerfMonitorOperation* totalPmo;  // AC pattern: track full tick cycle time
 };
 
 #endif

@@ -17,7 +17,8 @@ PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
       sharedContext(nullptr),
       currentState(BOT_STATE_NON_COMBAT),
       enabled(true),
-      nextAICheckDelay(0)
+      nextAICheckDelay(0),
+      totalPmo(nullptr)
 {
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase constructor: botAI=%p", (void*)botAI);
     for (uint8 i = 0; i < BOT_STATE_MAX; ++i)
@@ -92,6 +93,11 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!enabled || !botAI)
         return;
 
+    // AC pattern: finish previous FullTick, start new one
+    if (totalPmo)
+        totalPmo->finish();
+    totalPmo = sPlayerbotPerfMonitor.start(PERF_MON_TOTAL, "PlayerbotAIBase::FullTick");
+
     // AC pattern: decrement delay and skip if not ready
     if (nextAICheckDelay > diff)
         nextAICheckDelay -= diff;
@@ -104,9 +110,6 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     Player* bot = GetBot();
     if (!bot || !bot->IsInWorld())
         return;
-
-    // PerfMonitor: track total UpdateAI time
-    PerfMonitorOperation* pmo = sPlayerbotPerfMonitor.start(PERF_MON_TOTAL, std::string("PlayerbotAI::UpdateAI ") + bot->GetName());
 
     // Check if bot died
     if (!bot->IsAlive())
@@ -136,8 +139,6 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
 
     // AC pattern: yield after processing to stagger bot ticks
     YieldThread(sPlayerbotAIConfig.reactDelay);
-
-    if (pmo) pmo->finish();
 }
 
 void PlayerbotAIBase::Reset()
