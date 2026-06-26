@@ -38,6 +38,7 @@
 #include "PoolManager.h"
 #include "GameEventMgr.h"
 #include "HardcodedEvents.h"
+#include "PlayerBots/PlayerBotMgr.h"
 
 ChatCommand * ChatHandler::getCommandTable()
 {
@@ -993,6 +994,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "cleaninventory", SEC_DEVELOPER,       false, &ChatHandler::HandleCleanInventoryCommand,      "", nullptr},
         { "showborders",    SEC_DEVELOPER,       false, &ChatHandler::HandleShowBordersCommand,         "", nullptr },
         { "queststatuses",  SEC_PLAYER,           false, &ChatHandler::HandleQuestStatusesCommand,       "", nullptr},
+        { "playerbots",      SEC_MODERATOR,        true,  &ChatHandler::HandlePlayerbotsCommand,          "", nullptr },
         { nullptr,          0,                   false, nullptr,                                        "", nullptr }
     };
 
@@ -3759,6 +3761,11 @@ template void ChatHandler::ShowNpcOrGoSpawnInformation<GameObject>(uint32 guid);
 template std::string ChatHandler::PrepareStringNpcOrGoSpawnInformation<Creature>(uint32 guid);
 template std::string ChatHandler::PrepareStringNpcOrGoSpawnInformation<GameObject>(uint32 guid);
 
+// Playerbot command handler — delegates to PlayerBotMgr::HandleConsoleCommand
+bool ChatHandler::HandlePlayerbotsCommand(char* args)
+{
+    return PlayerBotMgr::HandleConsoleCommand(this, args);
+}
 
 LocaleConstant NullChatHandler::GetSessionDbcLocale() const
 {

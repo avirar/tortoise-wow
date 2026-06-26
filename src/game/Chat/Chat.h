@@ -428,6 +428,9 @@ class ChatHandler
 
         bool HandleQuestStatusesCommand(char* args);
 
+        // Playerbot commands
+        bool HandlePlayerbotsCommand(char* args);
+
         bool HandleGameObjectAddCommand(char* args);
         bool HandleGameObjectDeleteCommand(char* args);
         bool HandleGameObjectMoveCommand(char* args);

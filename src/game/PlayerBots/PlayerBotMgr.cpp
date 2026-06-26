@@ -13,6 +13,9 @@
 #include "Player.h"
 #include "PlayerBotAI.h"
 #include "Bot/PlayerbotFactory.h"
+#include "Bot/PlayerbotAIBase.h"
+#include "Util/PlayerbotAIConfig.h"
+#include "Util/PerfMonitor.h"
 #include "Anticheat.h"
 #include "Log.h"
 #include "Logging.h"
@@ -39,6 +42,7 @@ PlayerBotMgr::PlayerBotMgr()
     m_elapsedTime = 0;
     m_lastBotsRefresh = 0;
     m_lastUpdate = 0;
+    m_lastStatsPrint = 0;
 }
 
 PlayerBotMgr::~PlayerBotMgr()
@@ -274,6 +278,15 @@ void PlayerBotMgr::Update(uint32 diff)
     }
 
     m_elapsedTime += diff;
+
+    /* AC pattern: periodic stats output (every 30s) */
+    m_lastStatsPrint += diff;
+    if (m_lastStatsPrint >= 30000)
+    {
+        m_lastStatsPrint = 0;
+        PrintStats();
+    }
+
     if (!((m_elapsedTime - m_lastUpdate) > confUpdateDiff))
         return; //Pas besoin d'update
 
@@ -604,4 +617,185 @@ void PlayerBotMgr::AddAllBots()
                 AddBot(it->first);
         }
     }
+}
+
+// AC pattern: rndbot stats — print bot activity readout
+void PlayerBotMgr::PrintStats()
+{
+    uint32 online = 0, combat = 0, dead = 0, moving = 0;
+    uint32 engine_noncombat = 0, engine_combat = 0, engine_dead = 0;
+    std::map<uint8, uint32> perRace;
+    std::map<uint8, uint32> perClass;
+    std::map<uint8, uint32> lvlPerRace;
+    std::map<uint8, uint32> lvlPerClass;
+    uint8 maxBotLevel = 0;
+
+    // Initialize race/class counters
+    for (uint8 race = 0; race < 10; ++race)
+    {
+        perRace[race] = 0;
+        lvlPerRace[race] = 0;
+    }
+    for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
+    {
+        perClass[cls] = 0;
+        lvlPerClass[cls] = 0;
+    }
+
+    for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
+    {
+        PlayerBotEntry* e = i->second;
+        if (e->state != PB_STATE_ONLINE)
+            continue;
+
+        online++;
+
+        Player* bot = ObjectAccessor::FindPlayer(i->first);
+        if (!bot)
+            continue;
+
+        maxBotLevel = std::max((uint8)maxBotLevel, (uint8)bot->GetLevel());
+
+        uint8 race = bot->GetRace();
+        uint8 cls = bot->GetClass();
+        perRace[race]++;
+        perClass[cls]++;
+        lvlPerRace[race] += bot->GetLevel();
+        lvlPerClass[cls] += bot->GetLevel();
+
+        if (bot->IsInCombat())
+            combat++;
+        if (!bot->IsAlive())
+            dead++;
+        if (bot->IsMoving())
+            moving++;
+
+        // Check engine state
+        PlayerbotAIBase* aiBase = dynamic_cast<PlayerbotAIBase*>(e->ai->engine);
+        if (aiBase)
+        {
+            BotState state = aiBase->GetState();
+            if (state == BOT_STATE_NON_COMBAT)
+                engine_noncombat++;
+            else if (state == BOT_STATE_COMBAT)
+                engine_combat++;
+            else
+                engine_dead++;
+        }
+    }
+
+    LOG_DEBUG("playerbots", "=== Playerbot Stats: %u online, %u total ===", online, (uint32)m_bots.size());
+    LOG_DEBUG("playerbots", "  Queued: %u, Loading: %u", (uint32)m_loginQueue.size(), (uint32)m_loadingBots.size());
+    LOG_DEBUG("playerbots", "  Combat: %u, Dead: %u, Moving: %u", combat, dead, moving);
+    LOG_DEBUG("playerbots", "  Engine: non-combat=%u, combat=%u, dead=%u", engine_noncombat, engine_combat, engine_dead);
+
+    LOG_DEBUG("playerbots", "Bots race:");
+    const char* raceNames[] = {"Human","Orc","Dwarf","NightElf","Undead","Tauren","Gnome","Troll","Goblin","HighElf","!"};
+    for (uint8 race = 0; race < 10; ++race)
+    {
+        if (perRace[race])
+        {
+            float avgLvl = (float)lvlPerRace[race] / perRace[race];
+            LOG_DEBUG("playerbots", "  %-10s: %u, avg lvl: %.1f", raceNames[race], perRace[race], avgLvl);
+        }
+    }
+
+    LOG_DEBUG("playerbots", "Bots class:");
+    const char* classNames[] = {"","Warrior","Paladin","Hunter","Rogue","Priest","Shaman","Mage","Warlock","Druid"};
+    for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
+    {
+        if (perClass[cls])
+        {
+            float avgLvl = (float)lvlPerClass[cls] / perClass[cls];
+            LOG_DEBUG("playerbots", "  %-10s: %u, avg lvl: %.1f", classNames[cls], perClass[cls], avgLvl);
+        }
+    }
+
+    LOG_DEBUG("playerbots", "Max bot level: %u", maxBotLevel);
+}
+
+// AC pattern: HandleConsoleCommand — ".playerbots rndbot stats" etc.
+bool PlayerBotMgr::HandleConsoleCommand(ChatHandler* handler, char* args)
+{
+    if (!args || !*args)
+    {
+        handler->PSendSysMessage("Usage: .playerbots <rndbot|pmon|bot> [subcommand]");
+        handler->PSendSysMessage("  .playerbots rndbot stats  - Show bot activity stats");
+        handler->PSendSysMessage("  .playerbots pmon [tick|reset|toggle] - Performance monitor");
+        handler->PSendSysMessage("  .playerbots bot list       - List all bots");
+        return false;
+    }
+
+    // Parse first subcommand
+    char* cmd = strtok(args, " ");
+    char* subcmd = strtok(nullptr, " ");
+
+    if (!strcmp(cmd, "rndbot"))
+    {
+        if (!subcmd || !strcmp(subcmd, "stats"))
+        {
+            sPlayerBotMgr.PrintStats();
+            return true;
+        }
+        handler->PSendSysMessage("Usage: .playerbots rndbot stats");
+        return false;
+    }
+
+    if (!strcmp(cmd, "pmon"))
+    {
+        if (!subcmd)
+        {
+            // Default: print total stats
+            sPlayerbotPerfMonitor.PrintStats(false, false);
+            return true;
+        }
+        if (!strcmp(subcmd, "tick"))
+        {
+            sPlayerbotPerfMonitor.PrintStats(true, false);
+            return true;
+        }
+        if (!strcmp(subcmd, "reset"))
+        {
+            sPlayerbotPerfMonitor.Reset();
+            handler->PSendSysMessage("Performance monitor reset.");
+            return true;
+        }
+        if (!strcmp(subcmd, "toggle"))
+        {
+            sPlayerbotAIConfig.perfMonEnabled = !sPlayerbotAIConfig.perfMonEnabled;
+            handler->PSendSysMessage(sPlayerbotAIConfig.perfMonEnabled ? "Performance monitor enabled." : "Performance monitor disabled.");
+            return true;
+        }
+        if (!strcmp(subcmd, "stack"))
+        {
+            sPlayerbotPerfMonitor.PrintStats(false, true);
+            return true;
+        }
+        handler->PSendSysMessage("Usage: .playerbots pmon [tick|reset|toggle|stack]");
+        return false;
+    }
+
+    if (!strcmp(cmd, "bot"))
+    {
+        if (!subcmd || !strcmp(subcmd, "list"))
+        {
+            uint32 online = 0, offline = 0;
+            for (std::map<uint32, PlayerBotEntry*>::iterator i = sPlayerBotMgr.m_bots.begin();
+                 i != sPlayerBotMgr.m_bots.end(); ++i)
+            {
+                if (i->second->state == PB_STATE_ONLINE)
+                    online++;
+                else
+                    offline++;
+            }
+            handler->PSendSysMessage("Bots: %u online, %u offline, %u total", online, offline, (uint32)sPlayerBotMgr.m_bots.size());
+            return true;
+        }
+        handler->PSendSysMessage("Usage: .playerbots bot list");
+        return false;
+    }
+
+    handler->PSendSysMessage("Unknown command: %s", cmd);
+    handler->PSendSysMessage("Usage: .playerbots <rndbot|pmon|bot> [subcommand]");
+    return false;
 }

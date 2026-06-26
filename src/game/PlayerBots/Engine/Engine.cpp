@@ -160,7 +160,9 @@ bool Engine::DoNextAction()
                     }
                 }
 
+                PerfMonitorOperation* pmo = sPlayerbotPerfMonitor.start(PERF_MON_ACTION, action->getName(), &context->performanceStack);
                 actionExecuted = action->Execute(event);
+                if (pmo) pmo->finish();
 
                 if (actionExecuted)
                 {
@@ -225,7 +227,9 @@ void Engine::ProcessTriggers()
 
         if (trigger->needCheck(now))
         {
+            PerfMonitorOperation* pmo = sPlayerbotPerfMonitor.start(PERF_MON_TRIGGER, trigger->getName(), &context->performanceStack);
             Event evt = trigger->Check();
+            if (pmo) pmo->finish();
             if (!evt.IsEmpty())
             {
                 fires[trigger] = evt;

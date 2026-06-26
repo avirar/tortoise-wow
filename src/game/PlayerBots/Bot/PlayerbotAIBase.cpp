@@ -2,6 +2,7 @@
 
 #include "Logging.h"
 #include "Log.h"
+#include "PerfMonitor.h"
 #include "NonCombatStrategy.h"
 #include "CombatStrategy.h"
 #include "MeleeCombatStrategy.h"
@@ -104,6 +105,9 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!bot || !bot->IsInWorld())
         return;
 
+    // PerfMonitor: track total UpdateAI time
+    PerfMonitorOperation* pmo = sPlayerbotPerfMonitor.start(PERF_MON_TOTAL, std::string("PlayerbotAI::UpdateAI ") + bot->GetName());
+
     // Check if bot died
     if (!bot->IsAlive())
     {
@@ -132,6 +136,8 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
 
     // AC pattern: yield after processing to stagger bot ticks
     YieldThread(sPlayerbotAIConfig.reactDelay);
+
+    if (pmo) pmo->finish();
 }
 
 void PlayerbotAIBase::Reset()

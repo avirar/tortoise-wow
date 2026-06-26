@@ -70,6 +70,6 @@ private:
     std::mutex lock;
 };
 
-#define sPerfMonitor PerfMonitor::instance()
+#define sPlayerbotPerfMonitor PerfMonitor::instance()
 
 #endif

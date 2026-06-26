@@ -12,6 +12,7 @@
 class PlayerBotAI;
 class WorldSession;
 class Player;
+class ChatHandler;
 
 enum PlayerBotState
 {
@@ -101,11 +102,16 @@ class PlayerBotMgr
         uint32 ProcessLoginQueue();
         uint32 GetQueuedCount() const { return (uint32)m_loginQueue.size(); }
         uint32 GetLoadingCount() const { return (uint32)m_loadingBots.size(); }
+
+        // AC pattern: rndbot stats
+        void PrintStats();
+        static bool HandleConsoleCommand(ChatHandler* handler, char* args);
     protected:
         /* Combien de temps depuis la derniere MaJ ?*/
         uint32 m_elapsedTime;
         uint32 m_lastBotsRefresh;
         uint32 m_lastUpdate;
+        uint32 m_lastStatsPrint;
         uint32 totalChance;
         uint32 _maxAccountId;
 
