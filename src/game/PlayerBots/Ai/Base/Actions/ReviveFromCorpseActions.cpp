@@ -28,7 +28,7 @@ bool FindCorpseAction::Execute(Event event)
 
     bot->GetMotionMaster()->Clear();
     bot->StopMoving();
-    bot->GetMotionMaster()->MovePoint(1, corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ());
+    bot->GetMotionMaster()->MovePoint(1, corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ(), MOVE_PATHFINDING);
     return true;
 }
 

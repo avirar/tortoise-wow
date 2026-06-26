@@ -38,7 +38,7 @@ bool FollowAction::Execute(Event /*event*/)
     MotionMaster* mm = bot->GetMotionMaster();
     if (mm)
     {
-        mm->MovePoint(0, x, y, z, MOVE_NONE, 0.0f, -10);
+        mm->MovePoint(0, x, y, z, MOVE_PATHFINDING, 0.0f, -10);
         return true;
     }
 
@@ -95,7 +95,7 @@ bool FleeToGroupLeaderAction::Execute(Event /*event*/)
     if (mm)
     {
         mm->MovePoint(0, leader->GetPositionX(), leader->GetPositionY(), leader->GetPositionZ(),
-                      MOVE_NONE, 0.0f, -10);
+                      MOVE_PATHFINDING, 0.0f, -10);
         return true;
     }
 
