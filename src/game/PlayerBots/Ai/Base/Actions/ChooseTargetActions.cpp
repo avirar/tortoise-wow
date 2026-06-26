@@ -16,8 +16,14 @@
 // DpsAssistAction: reads "dps target", attacks it (group assist)
 bool DpsAssistAction::isUseful()
 {
-    // Only useful in battlegrounds when not capturing flag
-    // For solo bots, this is not the primary attack action
+    if (!bot || !bot->IsAlive())
+        return false;
+
+    // AC pattern: dps assist is for group play only
+    // Solo bots use AttackAnythingAction with "grind target"
+    if (!bot->GetGroup())
+        return false;
+
     return true;
 }
 

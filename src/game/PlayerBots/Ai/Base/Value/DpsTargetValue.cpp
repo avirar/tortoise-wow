@@ -62,6 +62,11 @@ Unit* DpsTargetValue::Calculate()
             return masterTarget;
     }
 
+    // AC pattern: when in a group, only assist group members' targets
+    // Don't fall back to solo target selection (bot should follow/assist, not grind)
+    if (group)
+        return nullptr;
+
     // Solo fallback: scan nearby unfriendly (neutral + hostile) units
     Unit* nearest = bot->SelectNearestUnfriendlyTarget(sPlayerbotAIConfig.sightDistance);
     if (nearest && nearest->IsAlive() && !bot->IsFriendlyTo(nearest))
