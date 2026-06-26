@@ -3,6 +3,7 @@
 #include "Player.h"
 #include "Creature.h"
 #include "GameObject.h"
+#include "Group.h"
 #include "LootMgr.h"
 #include "Mgr/Item/LootObjectStack.h"
 #include "Value/LootStrategyValue.h"
@@ -171,6 +172,45 @@ bool StoreLootAction::Execute(Event event)
 
     LOG_DEBUG("playerbots", "%s [StoreLootAction] loot has %u items, gold=%u", bot->GetName(), (uint32)loot->items.size(), loot->gold);
 
+    // AC pattern: parse SMSG_LOOT_RESPONSE packet and respect lootslot_type per item.
+    // We can't intercept the packet (no WorldPacketTrigger), so we replicate LootView::operator<<
+    // logic to compute lootslot_type from the Loot object directly.
+    // This ensures we only take items the server would mark as ALLOW_LOOT in the packet.
+
+    // Determine permission type (same logic as Player::SendLoot)
+    PermissionTypes permission = ALL_PERMISSION;
+    Player* recipient = creature ? creature->GetLootRecipient() : nullptr;
+    if (recipient)
+    {
+        if (Group* group = bot->GetGroup())
+        {
+            if (group == recipient->GetGroup())
+            {
+                switch (group->GetLootMethod())
+                {
+                    case MASTER_LOOT:
+                        permission = MASTER_PERMISSION;
+                        break;
+                    case FREE_FOR_ALL:
+                        permission = ALL_PERMISSION;
+                        break;
+                    case ROUND_ROBIN:
+                        permission = ROUND_ROBIN_PERMISSION;
+                        break;
+                    default:
+                        permission = GROUP_PERMISSION;
+                        break;
+                }
+            }
+            else
+                permission = NONE_PERMISSION;
+        }
+        else if (recipient == bot)
+            permission = OWNER_PERMISSION;
+        else
+            permission = NONE_PERMISSION;
+    }
+
     LootStrategy* lootStrategy = GetAiObjectContext()->GetValue<LootStrategy*>("loot strategy")->Get();
 
     if (loot->gold > 0)
@@ -184,6 +224,59 @@ bool StoreLootAction::Execute(Event event)
     {
         if (iter->is_looted)
             continue;
+
+        // AC pattern: compute lootslot_type matching LootView::operator<< logic
+        // Only take items with ALLOW_LOOT or OWNER (skip ROLL_ONGOING, MASTER, LOCKED, etc.)
+        LootSlotType slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+
+        if (!iter->AllowedForPlayer(bot, lootTarget))
+            continue;
+
+        if (iter->freeforall)
+        {
+            // FFA items always ALLOW_LOOT
+            slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+        }
+        else if (permission == GROUP_PERMISSION)
+        {
+            // Match LootView::operator<< GROUP_PERMISSION logic (correct if/else, not buggy ||)
+            if (iter->is_blocked)
+                slotType = LOOT_SLOT_TYPE_ROLL_ONGOING;
+            else if (loot->roundRobinPlayer == 0 || !iter->is_underthreshold || bot->GetGUID() == loot->roundRobinPlayer)
+                slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+            else
+                continue;  // not round-robin player's turn, skip
+        }
+        else if (permission == MASTER_PERMISSION)
+        {
+            slotType = iter->is_underthreshold ? LOOT_SLOT_TYPE_ALLOW_LOOT : LOOT_SLOT_TYPE_MASTER;
+        }
+        else if (permission == ROUND_ROBIN_PERMISSION)
+        {
+            if (loot->roundRobinPlayer != 0 && bot->GetGUID() != loot->roundRobinPlayer)
+                continue;  // not round-robin player's turn
+            slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+        }
+        else if (permission == OWNER_PERMISSION)
+        {
+            slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+        }
+        else if (permission == ALL_PERMISSION)
+        {
+            slotType = LOOT_SLOT_TYPE_ALLOW_LOOT;
+        }
+        else
+        {
+            continue;  // NONE_PERMISSION or unknown
+        }
+
+        // AC pattern: only take items with ALLOW_LOOT or OWNER
+        if (slotType != LOOT_SLOT_TYPE_ALLOW_LOOT && slotType != LOOT_SLOT_TYPE_OWNER)
+        {
+            LOG_DEBUG("playerbots", "%s [StoreLootAction] skipped item %u (slotType=%u)",
+                bot->GetName(), iter->itemid, slotType);
+            continue;
+        }
 
         ItemPrototype const* proto = sObjectMgr.GetItemPrototype(iter->itemid);
         if (!proto)
