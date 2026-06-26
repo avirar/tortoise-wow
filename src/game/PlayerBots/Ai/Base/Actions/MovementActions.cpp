@@ -4,6 +4,7 @@
 #include "Player.h"
 #include "Unit.h"
 #include "Object.h"
+#include "Group.h"
 #include "Spell.h"
 #include "ServerFacade.h"
 #include "PlayerbotAIConfig.h"
@@ -129,6 +130,14 @@ bool MoveRandomAction::isUseful()
 
     if (bot->HasUnitState(UNIT_STAT_TAXI_FLIGHT))
         return false;
+
+    // AC pattern: wander only for solo bots or group leaders
+    // Group followers follow the leader, don't wander independently
+    if (Group* group = bot->GetGroup())
+    {
+        if (group->GetLeaderGuid() != ObjectGuid(bot->GetGUID()))
+            return false;  // not group leader, don't wander
+    }
 
     return true;
 }

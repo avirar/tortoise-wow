@@ -24,6 +24,8 @@ Unit* DpsTargetValue::Calculate()
     Group* group = bot->GetGroup();
     if (group)
     {
+        // AC pattern: only consider targets of group members actively in combat
+        // Use GetVictim() (active combat target), NOT GetSelectionGuid() (just selected)
         Unit* bestTarget = nullptr;
         float bestHpPercent = 100.0f;
 
@@ -33,11 +35,15 @@ Unit* DpsTargetValue::Calculate()
             if (!member || !member->IsInWorld() || member == bot)
                 continue;
 
+            // Only use targets from members actively in combat
+            if (!member->IsInCombat())
+                continue;
+
             Unit* memberTarget = member->GetVictim();
             if (!memberTarget)
-                memberTarget = ObjectAccessor::GetUnit(*member, member->GetSelectionGuid());
+                continue;  // in combat but no victim (shouldn't happen, skip)
 
-            if (memberTarget && memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
+            if (memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
             {
                 float hpPercent = memberTarget->GetHealthPercent();
                 if (hpPercent < bestHpPercent)
@@ -52,12 +58,13 @@ Unit* DpsTargetValue::Calculate()
             return bestTarget;
     }
 
+    // Master check: only if master is actively in combat with a victim
     if (Player* master = GetMaster())
     {
-        Unit* masterTarget = master->GetVictim();
-        if (!masterTarget)
-            masterTarget = ObjectAccessor::GetUnit(*master, master->GetSelectionGuid());
+        if (!master->IsInCombat())
+            return nullptr;  // master not in combat, don't assist
 
+        Unit* masterTarget = master->GetVictim();
         if (masterTarget && masterTarget->IsAlive() && !bot->IsFriendlyTo(masterTarget))
             return masterTarget;
     }

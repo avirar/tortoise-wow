@@ -6,8 +6,9 @@ NonCombatStrategy::NonCombatStrategy(PlayerBotAI* botAI) : Strategy(botAI)
 
 std::vector<NextAction> NonCombatStrategy::getDefaultActions()
 {
+    // AC FollowMasterStrategy pattern: "follow" at priority 1.0f
     return std::vector<NextAction>{
-        NextAction("follow", ACTION_IDLE)
+        NextAction("follow", 1.0f)
     };
 }
 

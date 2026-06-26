@@ -10,12 +10,8 @@ DpsAssistStrategy::DpsAssistStrategy(PlayerBotAI* botAI)
 
 std::vector<NextAction> DpsAssistStrategy::getDefaultActions()
 {
-    // Always push "dps assist" so bot keeps chasing/attacking current target
-    // Trigger "not dps target active" handles target SWITCHING (priority 50)
-    // Default action handles continuous chase/attack (priority ACTION_DEFAULT)
-    return std::vector<NextAction>{
-        NextAction("dps assist", ACTION_DEFAULT)
-    };
+    // AC pattern: no default actions. "dps assist" fires only via trigger.
+    return std::vector<NextAction>();
 }
 
 void DpsAssistStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)

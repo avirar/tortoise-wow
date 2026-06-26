@@ -24,7 +24,15 @@ bool DpsAssistAction::isUseful()
     if (!bot->GetGroup())
         return false;
 
-    return true;
+    // Only assist when a group member is actively in combat
+    Group* group = bot->GetGroup();
+    for (GroupReference* itr = group->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        Player* member = itr->getSource();
+        if (member && member->IsInWorld() && member->IsInCombat())
+            return true;  // someone in group is fighting, assist is useful
+    }
+    return false;  // no one in combat, don't assist
 }
 
 // AttackAnythingAction: reads "grind target", attacks it (solo grind)
