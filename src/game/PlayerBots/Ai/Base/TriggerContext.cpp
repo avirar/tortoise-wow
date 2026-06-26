@@ -5,6 +5,9 @@
 #include "Trigger/LootTriggers.h"
 #include "Trigger/DeathTriggers.h"
 
+// Class-specific triggers (modular registration)
+#include "../Class/Warrior/WarriorTriggers.h"
+
 class TriggerContext : public NamedObjectContext<Trigger>
 {
 public:
@@ -34,6 +37,24 @@ public:
         creators["resurrect request"] = &TriggerContext::CreateResurrectRequest;
         creators["can self resurrect"] = &TriggerContext::CreateCanSelfResurrect;
         creators["falling far"] = &TriggerContext::CreateFallingFar;
+
+        // === Warrior class triggers ===
+        creators["battle shout expired"] = &TriggerContext::CreateBattleShoutExpired;
+        creators["rend expired"] = &TriggerContext::CreateRendExpired;
+        creators["sunder armor expired"] = &TriggerContext::CreateSunderArmorExpired;
+        creators["thunder clap expired"] = &TriggerContext::CreateThunderClapExpired;
+        creators["low rage"] = &TriggerContext::CreateLowRage;
+        creators["medium rage"] = &TriggerContext::CreateMediumRage;
+        creators["high rage"] = &TriggerContext::CreateHighRage;
+        creators["not in battle stance"] = &TriggerContext::CreateNotInBattleStance;
+        creators["not in defensive stance"] = &TriggerContext::CreateNotInDefensiveStance;
+        creators["not in berserker stance"] = &TriggerContext::CreateNotInBerserkerStance;
+        creators["target below 20%"] = &TriggerContext::CreateTargetBelow20Percent;
+        creators["target below 35%"] = &TriggerContext::CreateTargetBelow35Percent;
+        creators["target dodged"] = &TriggerContext::CreateTargetDodged;
+        creators["death wish ready"] = &TriggerContext::CreateDeathWishReady;
+        creators["shield block ready"] = &TriggerContext::CreateShieldBlockReady;
+        creators["intimidating shout ready"] = &TriggerContext::CreateIntimidatingShoutReady;
     }
 
 private:
@@ -61,6 +82,24 @@ private:
     static Trigger* CreateResurrectRequest(PlayerBotAI* botAI) { return new ResurrectRequestTrigger(botAI); }
     static Trigger* CreateCanSelfResurrect(PlayerBotAI* botAI) { return new CanSelfResurrectTrigger(botAI); }
     static Trigger* CreateFallingFar(PlayerBotAI* botAI) { return new FallingFarTrigger(botAI); }
+
+    // === Warrior class trigger factories ===
+    static Trigger* CreateBattleShoutExpired(PlayerBotAI* botAI) { return new BattleShoutExpiredTrigger(botAI); }
+    static Trigger* CreateRendExpired(PlayerBotAI* botAI) { return new RendExpiredTrigger(botAI); }
+    static Trigger* CreateSunderArmorExpired(PlayerBotAI* botAI) { return new SunderArmorExpiredTrigger(botAI); }
+    static Trigger* CreateThunderClapExpired(PlayerBotAI* botAI) { return new ThunderClapExpiredTrigger(botAI); }
+    static Trigger* CreateLowRage(PlayerBotAI* botAI) { return new LowRageTrigger(botAI); }
+    static Trigger* CreateMediumRage(PlayerBotAI* botAI) { return new MediumRageTrigger(botAI); }
+    static Trigger* CreateHighRage(PlayerBotAI* botAI) { return new HighRageTrigger(botAI); }
+    static Trigger* CreateNotInBattleStance(PlayerBotAI* botAI) { return new NotInBattleStanceTrigger(botAI); }
+    static Trigger* CreateNotInDefensiveStance(PlayerBotAI* botAI) { return new NotInDefensiveStanceTrigger(botAI); }
+    static Trigger* CreateNotInBerserkerStance(PlayerBotAI* botAI) { return new NotInBerserkerStanceTrigger(botAI); }
+    static Trigger* CreateTargetBelow20Percent(PlayerBotAI* botAI) { return new TargetBelow20PercentTrigger(botAI); }
+    static Trigger* CreateTargetBelow35Percent(PlayerBotAI* botAI) { return new TargetBelow35PercentTrigger(botAI); }
+    static Trigger* CreateTargetDodged(PlayerBotAI* botAI) { return new TargetDodgedTrigger(botAI); }
+    static Trigger* CreateDeathWishReady(PlayerBotAI* botAI) { return new DeathWishReadyTrigger(botAI); }
+    static Trigger* CreateShieldBlockReady(PlayerBotAI* botAI) { return new ShieldBlockReadyTrigger(botAI); }
+    static Trigger* CreateIntimidatingShoutReady(PlayerBotAI* botAI) { return new IntimidatingShoutReadyTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

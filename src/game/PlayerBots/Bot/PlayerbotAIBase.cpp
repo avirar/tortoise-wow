@@ -15,6 +15,12 @@
 #include "DeadStrategy.h"
 #include "PlayerbotAIConfig.h"
 
+// Class-specific strategies
+#include "../Ai/Class/Warrior/Strategy/ArmsWarriorStrategy.h"
+#include "../Ai/Class/Warrior/Strategy/FuryWarriorStrategy.h"
+#include "../Ai/Class/Warrior/Strategy/TankWarriorStrategy.h"
+#include "../Ai/Class/Warrior/WarriorAiObjectContext.h"
+
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
     : botAI(botAI),
       sharedContext(nullptr),
@@ -65,8 +71,20 @@ void PlayerbotAIBase::Initialize()
     LOG_DEBUG("playerbots", "[3ENGINE] Creating COMBAT engine");
     engines[BOT_STATE_COMBAT] = new Engine(botAI, sharedContext);
     uint8 botClass = botAI->me->GetClass();
-    if (botClass == CLASS_WARRIOR || botClass == CLASS_ROGUE ||
-        botClass == CLASS_PALADIN || botClass == CLASS_DRUID)
+    if (botClass == CLASS_WARRIOR)
+    {
+        // Class-specific warrior strategies (modular, AC pattern)
+        // For now, use Arms strategy as default. Spec detection via talents
+        // will be added when talent parsing is implemented.
+        engines[BOT_STATE_COMBAT]->AddStrategy(new ArmsWarriorStrategy(botAI));
+
+        // Register warrior-specific context values
+        BuildWarriorAiObjectContext(botAI);
+
+        LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine: ArmsWarriorStrategy for warrior");
+    }
+    else if (botClass == CLASS_ROGUE ||
+             botClass == CLASS_PALADIN || botClass == CLASS_DRUID)
     {
         engines[BOT_STATE_COMBAT]->AddStrategy(new MeleeCombatStrategy(botAI));
     }

@@ -6,6 +6,9 @@
 #include "Actions/ReviveFromCorpseActions.h"
 #include "Actions/AcceptResurrectAction.h"
 
+// Class-specific actions (modular registration)
+#include "../Class/Warrior/WarriorActions.h"
+
 class ActionContext : public NamedObjectContext<Action>
 {
 public:
@@ -43,6 +46,34 @@ public:
         creators["revive from corpse"] = &ActionContext::CreateReviveFromCorpseAction;
         creators["spirit healer"] = &ActionContext::CreateSpiritHealerAction;
         creators["accept resurrect"] = &ActionContext::CreateAcceptResurrectAction;
+
+        // === Warrior class actions ===
+        creators["battle stance"] = &ActionContext::CreateCastBattleStanceAction;
+        creators["defensive stance"] = &ActionContext::CreateCastDefensiveStanceAction;
+        creators["berserker stance"] = &ActionContext::CreateCastBerserkerStanceAction;
+        creators["battle shout"] = &ActionContext::CreateCastBattleShoutAction;
+        creators["bloodrage"] = &ActionContext::CreateCastBloodrageAction;
+        creators["berserker rage"] = &ActionContext::CreateCastBerserkerRageAction;
+        creators["death wish"] = &ActionContext::CreateCastDeathWishAction;
+        creators["recklessness"] = &ActionContext::CreateCastRecklessnessAction;
+        creators["shield block"] = &ActionContext::CreateCastShieldBlockAction;
+        creators["intimidating shout"] = &ActionContext::CreateCastIntimidatingShoutAction;
+        creators["charge"] = &ActionContext::CreateCastChargeAction;
+        creators["heroic strike"] = &ActionContext::CreateCastHeroicStrikeAction;
+        creators["rend"] = &ActionContext::CreateCastRendAction;
+        creators["sunder armor"] = &ActionContext::CreateCastSunderArmorAction;
+        creators["thunder clap"] = &ActionContext::CreateCastThunderClapAction;
+        creators["hamstring"] = &ActionContext::CreateCastHamstringAction;
+        creators["overpower"] = &ActionContext::CreateCastOverpowerAction;
+        creators["whirlwind"] = &ActionContext::CreateCastWhirlwindAction;
+        creators["mortal strike"] = &ActionContext::CreateCastMortalStrikeAction;
+        creators["bloodthirst"] = &ActionContext::CreateCastBloodthirstAction;
+        creators["execute"] = &ActionContext::CreateCastExecuteAction;
+        creators["shield slam"] = &ActionContext::CreateCastShieldSlamAction;
+        creators["revenge"] = &ActionContext::CreateCastRevengeAction;
+        creators["taunt"] = &ActionContext::CreateCastTauntAction;
+        creators["demoralizing shout"] = &ActionContext::CreateCastDemoralizingShoutAction;
+        creators["sweeping strikes"] = &ActionContext::CreateCastSweepingStrikesAction;
     }
 
 private:
@@ -78,6 +109,34 @@ private:
     static Action* CreateReviveFromCorpseAction(PlayerBotAI* botAI) { return new ReviveFromCorpseAction(botAI); }
     static Action* CreateSpiritHealerAction(PlayerBotAI* botAI) { return new SpiritHealerAction(botAI); }
     static Action* CreateAcceptResurrectAction(PlayerBotAI* botAI) { return new AcceptResurrectAction(botAI); }
+
+    // === Warrior class action factories ===
+    static Action* CreateCastBattleStanceAction(PlayerBotAI* botAI) { return new CastBattleStanceAction(botAI); }
+    static Action* CreateCastDefensiveStanceAction(PlayerBotAI* botAI) { return new CastDefensiveStanceAction(botAI); }
+    static Action* CreateCastBerserkerStanceAction(PlayerBotAI* botAI) { return new CastBerserkerStanceAction(botAI); }
+    static Action* CreateCastBattleShoutAction(PlayerBotAI* botAI) { return new CastBattleShoutAction(botAI); }
+    static Action* CreateCastBloodrageAction(PlayerBotAI* botAI) { return new CastBloodrageAction(botAI); }
+    static Action* CreateCastBerserkerRageAction(PlayerBotAI* botAI) { return new CastBerserkerRageAction(botAI); }
+    static Action* CreateCastDeathWishAction(PlayerBotAI* botAI) { return new CastDeathWishAction(botAI); }
+    static Action* CreateCastRecklessnessAction(PlayerBotAI* botAI) { return new CastRecklessnessAction(botAI); }
+    static Action* CreateCastShieldBlockAction(PlayerBotAI* botAI) { return new CastShieldBlockAction(botAI); }
+    static Action* CreateCastIntimidatingShoutAction(PlayerBotAI* botAI) { return new CastIntimidatingShoutAction(botAI); }
+    static Action* CreateCastChargeAction(PlayerBotAI* botAI) { return new CastChargeAction(botAI); }
+    static Action* CreateCastHeroicStrikeAction(PlayerBotAI* botAI) { return new CastHeroicStrikeAction(botAI); }
+    static Action* CreateCastRendAction(PlayerBotAI* botAI) { return new CastRendAction(botAI); }
+    static Action* CreateCastSunderArmorAction(PlayerBotAI* botAI) { return new CastSunderArmorAction(botAI); }
+    static Action* CreateCastThunderClapAction(PlayerBotAI* botAI) { return new CastThunderClapAction(botAI); }
+    static Action* CreateCastHamstringAction(PlayerBotAI* botAI) { return new CastHamstringAction(botAI); }
+    static Action* CreateCastOverpowerAction(PlayerBotAI* botAI) { return new CastOverpowerAction(botAI); }
+    static Action* CreateCastWhirlwindAction(PlayerBotAI* botAI) { return new CastWhirlwindAction(botAI); }
+    static Action* CreateCastMortalStrikeAction(PlayerBotAI* botAI) { return new CastMortalStrikeAction(botAI); }
+    static Action* CreateCastBloodthirstAction(PlayerBotAI* botAI) { return new CastBloodthirstAction(botAI); }
+    static Action* CreateCastExecuteAction(PlayerBotAI* botAI) { return new CastExecuteAction(botAI); }
+    static Action* CreateCastShieldSlamAction(PlayerBotAI* botAI) { return new CastShieldSlamAction(botAI); }
+    static Action* CreateCastRevengeAction(PlayerBotAI* botAI) { return new CastRevengeAction(botAI); }
+    static Action* CreateCastTauntAction(PlayerBotAI* botAI) { return new CastTauntAction(botAI); }
+    static Action* CreateCastDemoralizingShoutAction(PlayerBotAI* botAI) { return new CastDemoralizingShoutAction(botAI); }
+    static Action* CreateCastSweepingStrikesAction(PlayerBotAI* botAI) { return new CastSweepingStrikesAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

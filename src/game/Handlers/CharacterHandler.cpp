@@ -179,6 +179,21 @@ public:
 
         if (session->GetPlayer())
         {
+            Player* bot = session->GetPlayer();
+            // Teleport bot to Goldshire (Elwynn Forest) after login
+            float tx = -9493.0f, ty = 65.0f, tz = 56.10f, to = 0.0f;
+            Map* m = bot->GetMap();
+            if (m)
+            {
+                tz = m->GetHeight(tx, ty, tz);
+                sLog.outString("[BOT_LOGIN] '%s' ground height at (%f,%f) = %f", bot->GetName(), tx, ty, tz);
+            }
+            sLog.outString("[BOT_LOGIN] '%s' before: map=%u pos=(%f,%f,%f)",
+                bot->GetName(), bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
+            bot->SetPosition(tx, ty, tz, to, true);
+            sLog.outString("[BOT_LOGIN] '%s' after:  map=%u pos=(%f,%f,%f)",
+                bot->GetName(), bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
+
             sLog.outString("[BOT_LOGIN_CALLBACK] GUID:%u '%s' login success, adding session", playerGUID, session->GetPlayerName());
             sWorld.AddSession(session);
             sPlayerBotMgr.OnBotLogin(botEntry);
