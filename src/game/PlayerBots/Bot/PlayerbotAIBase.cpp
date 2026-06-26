@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "Log.h"
 #include "PerfMonitor.h"
+#include "Timer.h"
 #include "Unit.h"
 #include "NonCombatStrategy.h"
 #include "CombatStrategy.h"
@@ -158,16 +159,23 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     // AC AiFactory pattern: GrindingStrategy only when solo or group leader
     // (AiFactory.cpp:597-612). Toggled dynamically as group membership changes.
     {
-        bool shouldHaveGrind = !bot->GetGroup() || bot->GetGroup()->IsLeader(bot->GetObjectGuid());
+        bool isGrouped = bot->GetGroup() != nullptr;
+        bool isLeader = isGrouped && bot->GetGroup()->IsLeader(bot->GetObjectGuid());
+        bool shouldHaveGrind = !isGrouped || isLeader;
+        LOG_DEBUG("playerbots", "%s [group] grouped=%d, isLeader=%d, shouldHaveGrind=%d, grindActive=%d",
+            bot->GetName(), isGrouped, isLeader, shouldHaveGrind, grindStrategyActive);
+
         if (shouldHaveGrind && !grindStrategyActive)
         {
-            engines[BOT_STATE_NON_COMBAT]->AddStrategy("grind", false);
+            LOG_DEBUG("playerbots", "%s [group] calling AddStrategy(grind, init=true) on NON_COMBAT engine %p",
+                bot->GetName(), (void*)engines[BOT_STATE_NON_COMBAT]);
+            engines[BOT_STATE_NON_COMBAT]->AddStrategy("grind", true);
             grindStrategyActive = true;
             LOG_DEBUG("playerbots", "%s [group] added grind strategy (solo or leader)", bot->GetName());
         }
         else if (!shouldHaveGrind && grindStrategyActive)
         {
-            engines[BOT_STATE_NON_COMBAT]->RemoveStrategy("grind", false);
+            engines[BOT_STATE_NON_COMBAT]->RemoveStrategy("grind", true);
             grindStrategyActive = false;
             LOG_DEBUG("playerbots", "%s [group] removed grind strategy (grouped, not leader)", bot->GetName());
         }
@@ -184,6 +192,30 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
             botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
             LOG_DEBUG("playerbots", "%s [stale-target] cleared 'current target' (was '%s')",
                 bot->GetName(), currentTarget->GetName());
+        }
+    }
+
+    // Periodic strategy report (every 30s) — debug active strategies on current engine
+    {
+        static std::map<uint32, uint32> lastReportTime;
+        uint32 now = getMSTime();
+        uint32 botGuid = bot->GetGUIDLow();
+        if (lastReportTime.find(botGuid) == lastReportTime.end() || now - lastReportTime[botGuid] >= 30000)
+        {
+            lastReportTime[botGuid] = now;
+            Engine* e = engines[currentState];
+            std::string stratList;
+            if (e)
+            {
+                for (std::map<std::string, Strategy*>::const_iterator i = e->GetStrategies().begin(); i != e->GetStrategies().end(); ++i)
+                    stratList += i->first + ", ";
+                if (!stratList.empty())
+                    stratList.erase(stratList.size() - 2);
+            }
+            LOG_DEBUG("playerbots", "%s [strategies] state=%d (%s) engine=%p: [%s]",
+                bot->GetName(), currentState,
+                currentState == BOT_STATE_COMBAT ? "COMBAT" : currentState == BOT_STATE_NON_COMBAT ? "NON_COMBAT" : "DEAD",
+                (void*)e, stratList.c_str());
         }
     }
 

@@ -18,12 +18,8 @@
 bool DpsAssistAction::isUseful()
 {
     if (!bot || !bot->IsAlive())
-    {
-        LOG_DEBUG("playerbots", "%s [DpsAssist::isUseful] -> false (no bot/dead)", bot ? bot->GetName() : "null");
         return false;
-    }
 
-    LOG_DEBUG("playerbots", "%s [DpsAssist::isUseful] -> true", bot->GetName());
     return true;
 }
 
@@ -53,6 +49,14 @@ bool AttackAnythingAction::isUseful()
         return false;
     }
 
+    // AC pattern: blocked when in combat. "dps assist" handles targeting during combat.
+    // "attack anything" is only for peaceful grinding (proactive target acquisition).
+    if (bot->IsInCombat())
+    {
+        LOG_DEBUG("playerbots", "%s [AttackAnything::isUseful] -> false (in combat)", bot->GetName());
+        return false;
+    }
+
     // Need a valid grind target
     Unit* target = GetTarget();
     if (!target || !target->IsAlive() || !target->IsInWorld())
@@ -69,7 +73,7 @@ bool AttackAnythingAction::isUseful()
         name.find("Melee Target") != std::string::npos ||
         name.find("Ranged Target") != std::string::npos)
     {
-        LOG_DEBUG("playerbots", "%s [AttackAnything::isUseful] -> false (dummy target: %s)",
+        LOG_DEBUG("playerbots", "%s [AttackAnything::isUseful] -> false (dummy: %s)",
             bot->GetName(), name.c_str());
         return false;
     }

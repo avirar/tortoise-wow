@@ -380,10 +380,19 @@ void Engine::AddStrategy(std::string const& name, bool init)
 {
     RemoveStrategy(name, init);  // remove existing first (AC pattern)
 
-    if (Strategy* strategy = context->GetStrategy(name))
+    Strategy* strategy = context->GetStrategy(name);
+    LOG_DEBUG("playerbots", "[Engine] AddStrategy(%s) on engine %p, factory returned %p, strategies.size=%zu",
+        name.c_str(), (void*)this, (void*)strategy, strategies.size());
+
+    if (strategy)
     {
         LogAction("S:+%s", strategy->getName().c_str());
         strategies[strategy->getName()] = strategy;
+        LOG_DEBUG("playerbots", "[Engine] AddStrategy(%s) OK, now %zu strategies", name.c_str(), strategies.size());
+    }
+    else
+    {
+        LOG_DEBUG("playerbots", "[Engine] AddStrategy(%s) FAILED: factory returned null", name.c_str());
     }
     if (init)
         Init();
@@ -393,9 +402,13 @@ bool Engine::RemoveStrategy(std::string const& name, bool init)
 {
     std::map<std::string, Strategy*>::iterator it = strategies.find(name);
     if (it == strategies.end())
+    {
+        LOG_DEBUG("playerbots", "[Engine] RemoveStrategy(%s) NOT FOUND, strategies=%zu", name.c_str(), strategies.size());
         return false;
+    }
 
     strategies.erase(it);
+    LOG_DEBUG("playerbots", "[Engine] RemoveStrategy(%s) OK, now %zu strategies", name.c_str(), strategies.size());
     if (init)
         Init();
     return true;

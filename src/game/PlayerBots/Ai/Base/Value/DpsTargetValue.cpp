@@ -6,8 +6,12 @@
 #include "PlayerbotAIConfig.h"
 #include "Logging.h"
 
-// NOTE: Players CANNOT have threat lists (CanHaveThreatList() returns !IsCreature()).
-// Only creatures track threat. For player bots, use GetVictim() and nearby scanning.
+// AC pattern: DpsTargetValue returns enemies actively attacking the bot or group members.
+// Used by "dps assist" for DEFENSE (reactive), not grinding (proactive).
+// Grinding is handled by GrindTargetValue -> "attack anything".
+//
+// Tortoise note: players cannot have threat lists (CanHaveThreatList() returns false).
+// Use Unit::GetAttackers() (m_attackers set) instead - populated by Unit::Attack()/AttackStop().
 
 DpsTargetValue::DpsTargetValue(PlayerBotAI* botAI)
     : UnitCalculatedValue(botAI, "dps target", 1)
@@ -17,20 +21,38 @@ DpsTargetValue::DpsTargetValue(PlayerBotAI* botAI)
 Unit* DpsTargetValue::Calculate()
 {
     Group* group = bot->GetGroup();
+    Unit* victim = bot->GetVictim();
+    size_t attackerCount = bot->GetAttackers().size();
 
-    // 1. Bot's current victim (who's actively attacking the bot)
-    if (Unit* victim = bot->GetVictim())
+    LOG_DEBUG("playerbots", "%s [DpsTargetValue] START: group=%s, inCombat=%s, victim=%s, attackers=%zu",
+        bot->GetName(),
+        group ? "yes" : "no",
+        bot->IsInCombat() ? "yes" : "no",
+        victim ? victim->GetName() : "null",
+        attackerCount);
+
+    // 1. Bot's current victim (who bot is actively attacking)
+    if (victim && victim->IsAlive())
     {
-        if (victim->IsAlive())
-        {
-            LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> victim: %s (entry=%u)",
-                bot->GetName(), victim->GetName(), victim->GetEntry());
-            return victim;
-        }
+        LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> victim: %s (entry=%u)",
+            bot->GetName(), victim->GetName(), victim->GetEntry());
+        return victim;
     }
 
-    // 2. Group members' targets (assist pattern)
-    // Check who group members are attacking (GetVictim = who THEY attack)
+    // 2. Bot's attackers (units actively attacking the bot, even if bot hasn't attacked back)
+    // This is the self-defense case: bear attacked Samanna, she needs to fight back
+    Unit::AttackerSet const& myAttackers = bot->GetAttackers();
+    for (Unit* attacker : myAttackers)
+    {
+        if (!attacker || !attacker->IsAlive() || bot->IsFriendlyTo(attacker))
+            continue;
+        LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> my attacker: %s (entry=%u)",
+            bot->GetName(), attacker->GetName(), attacker->GetEntry());
+        return attacker;
+    }
+
+    // 3. Group members' targets and attackers (assist pattern)
+    // Find the lowest-HP enemy threatening any group member
     if (group)
     {
         Unit* bestTarget = nullptr;
@@ -42,54 +64,74 @@ Unit* DpsTargetValue::Calculate()
             if (!member || !member->IsInWorld() || member == bot)
                 continue;
 
-            // member->GetVictim() = who the member is attacking
-            Unit* memberTarget = member->GetVictim();
-            if (memberTarget && memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
+            // Member's victim (who member is attacking)
+            if (Unit* memberTarget = member->GetVictim())
             {
-                float hpPercent = memberTarget->GetHealthPercent();
+                if (memberTarget->IsAlive() && !bot->IsFriendlyTo(memberTarget))
+                {
+                    float hpPercent = memberTarget->GetHealthPercent();
+                    LOG_DEBUG("playerbots", "%s [DpsTargetValue] group member %s victim: %s (entry=%u, hp=%.0f%%)",
+                        bot->GetName(), member->GetName(), memberTarget->GetName(),
+                        memberTarget->GetEntry(), hpPercent);
+                    if (hpPercent < bestHpPercent)
+                    {
+                        bestHpPercent = hpPercent;
+                        bestTarget = memberTarget;
+                    }
+                }
+            }
+
+            // Member's attackers (who is attacking this member)
+            for (Unit* attacker : member->GetAttackers())
+            {
+                if (!attacker || !attacker->IsAlive() || bot->IsFriendlyTo(attacker))
+                    continue;
+
+                float hpPercent = attacker->GetHealthPercent();
+                LOG_DEBUG("playerbots", "%s [DpsTargetValue] group member %s attacker: %s (entry=%u, hp=%.0f%%)",
+                    bot->GetName(), member->GetName(), attacker->GetName(),
+                    attacker->GetEntry(), hpPercent);
                 if (hpPercent < bestHpPercent)
                 {
                     bestHpPercent = hpPercent;
-                    bestTarget = memberTarget;
+                    bestTarget = attacker;
                 }
             }
         }
 
         if (bestTarget)
         {
-            LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> group assist: %s (entry=%u)",
+            LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> group best: %s (entry=%u)",
                 bot->GetName(), bestTarget->GetName(), bestTarget->GetEntry());
             return bestTarget;
         }
     }
 
-    // 3. Master's target (pet/pet-like assist)
+    // 4. Master's target (pet-like assist)
     if (Player* master = GetMaster())
     {
-        Unit* masterTarget = master->GetVictim();
-        if (masterTarget && masterTarget->IsAlive() && !bot->IsFriendlyTo(masterTarget))
+        if (Unit* masterTarget = master->GetVictim())
         {
-            LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> master target: %s (entry=%u)",
-                bot->GetName(), masterTarget->GetName(), masterTarget->GetEntry());
-            return masterTarget;
+            if (masterTarget->IsAlive() && !bot->IsFriendlyTo(masterTarget))
+            {
+                LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> master victim: %s (entry=%u)",
+                    bot->GetName(), masterTarget->GetName(), masterTarget->GetEntry());
+                return masterTarget;
+            }
+        }
+
+        for (Unit* attacker : master->GetAttackers())
+        {
+            if (attacker && attacker->IsAlive() && !bot->IsFriendlyTo(attacker))
+            {
+                LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> master attacker: %s (entry=%u)",
+                    bot->GetName(), attacker->GetName(), attacker->GetEntry());
+                return attacker;
+            }
         }
     }
 
-    // 4. Fallback: scan nearby unfriendly (neutral + hostile) units
-    // Handles: bot in combat but victim=null (attacker stopped swinging),
-    // or bot needs proactive target for grinding
-    Unit* nearest = bot->SelectNearestUnfriendlyTarget(sPlayerbotAIConfig.sightDistance);
-    if (nearest && nearest->IsAlive() && !bot->IsFriendlyTo(nearest))
-    {
-        LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> nearby: %s (entry=%u)",
-            bot->GetName(), nearest->GetName(), nearest->GetEntry());
-        return nearest;
-    }
-
-    LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> null (victim=%s, inCombat=%s, group=%s)",
-        bot->GetName(),
-        bot->GetVictim() ? "yes" : "no",
-        bot->IsInCombat() ? "yes" : "no",
-        group ? "yes" : "no");
+    LOG_DEBUG("playerbots", "%s [DpsTargetValue] -> null (no active attackers)",
+        bot->GetName());
     return nullptr;
 }
