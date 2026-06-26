@@ -28,6 +28,8 @@
 #include "Log.h"
 #include "World.h"
 #include "ObjectMgr.h"
+#include "Auth/BigNumber.h"
+#include "PlayerBots/PlayerBotMgr.h"
 #include "Player.h"
 #include "Guild.h"
 #include "GuildMgr.h"
@@ -150,7 +152,65 @@ public:
         }
         session->HandlePlayerLogin((LoginQueryHolder*)holder);
     }
+
+    // AC pattern: bot login callback creates session here (avoids FindSession collision)
+    void HandleBotLoginCallback(QueryResult * /*dummy*/, SqlQueryHolder * holder)
+    {
+        if (!holder) return;
+        LoginQueryHolder* loginHolder = (LoginQueryHolder*)holder;
+        uint32 playerGUID = loginHolder->GetGuid().GetCounter();
+
+        PlayerBotEntry* botEntry = sPlayerBotMgr.GetBot(playerGUID);
+        if (!botEntry)
+        {
+            delete holder;
+            return;
+        }
+
+        // Create session for this bot (AC pattern)
+        uint32 accountId = loginHolder->GetAccountId();
+        WorldSession *session = new WorldSession(accountId, nullptr, sAccountMgr.GetSecurity(accountId), 0, LOCALE_enUS, "<BOT>", 0);
+        BigNumber dummyKey(0);
+        session->InitAntiCheatSession(&dummyKey);
+        session->SetBot(botEntry);
+        session->m_playerLoading = true; // required by HandlePlayerLogin crash guard
+
+        session->HandlePlayerLogin(loginHolder);
+
+        if (session->GetPlayer())
+        {
+            sLog.outString("[BOT_LOGIN_CALLBACK] GUID:%u '%s' login success, adding session", playerGUID, session->GetPlayerName());
+            sWorld.AddSession(session);
+            sPlayerBotMgr.OnBotLogin(botEntry);
+            sPlayerBotMgr.GetStats().loadingCount--;
+            if (botEntry->isChatBot)
+                sPlayerBotMgr.GetStats().onlineChat++;
+            else
+                sPlayerBotMgr.GetStats().onlineCount++;
+            sPlayerBotMgr.GetLoadingBots().erase(playerGUID);
+            sLog.outString("[BOT_LOGIN_CALLBACK] GUID:%u '%s' session added, online=%u", playerGUID, session->GetPlayerName(), sPlayerBotMgr.GetStats().onlineCount);
+        }
+        else
+        {
+            session->LogoutPlayer(true);
+            delete session;
+            sPlayerBotMgr.GetLoadingBots().erase(playerGUID);
+            sPlayerBotMgr.GetStats().loadingCount--;
+        }
+    }
 } chrHandler;
+
+// AC pattern: schedule bot login (creates session in callback, avoids FindSession collision)
+void ScheduleBotLogin(uint32 accountId, ObjectGuid playerGuid)
+{
+    LoginQueryHolder *holder = new LoginQueryHolder(accountId, playerGuid);
+    if (!holder->Initialize())
+    {
+        delete holder;
+        return;
+    }
+    CharacterDatabase.DelayQueryHolderUnsafe(&chrHandler, &CharacterHandler::HandleBotLoginCallback, holder);
+}
 
 bool WorldSession::HasHighLevelCharacter() const
 {
@@ -783,6 +843,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     static SqlStatementID updChars;
     static SqlStatementID updAccount;
 
+    sLog.outString("[BOT_LOGIN] GUID:%u '%s' setting online=1 in DB", pCurrChar->GetGUIDLow(), pCurrChar->GetName());
     SqlStatement stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 1 WHERE guid = ?");
     stmt.PExecute(pCurrChar->GetGUIDLow());
 

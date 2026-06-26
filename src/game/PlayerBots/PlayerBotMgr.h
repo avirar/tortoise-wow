@@ -96,6 +96,8 @@ class PlayerBotMgr
         uint32 GenBotAccountId() { return ++_maxAccountId; }
         PlayerBotStats& GetStats(){ return m_stats; }
         void Start() { enable = true; }
+        PlayerBotEntry* GetBot(uint32 playerGuid) { return m_bots.count(playerGuid) ? m_bots[playerGuid] : nullptr; }
+        std::set<uint32>& GetLoadingBots() { return m_loadingBots; }
 
         // AC pattern: async login queue
         void AddBotAsync(uint32 playerGuid);

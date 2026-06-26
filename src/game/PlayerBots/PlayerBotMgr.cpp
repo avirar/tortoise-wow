@@ -20,6 +20,10 @@
 #include "Log.h"
 #include "Logging.h"
 
+// Forward declaration (defined in CharacterHandler.cpp)
+class LoginQueryHolder;
+void ScheduleBotLogin(uint32 accountId, ObjectGuid playerGuid);
+
 PlayerBotMgr sPlayerBotMgr;
 
 PlayerBotMgr::PlayerBotMgr()
@@ -310,13 +314,17 @@ void PlayerBotMgr::Update(uint32 diff)
         ProcessLoginQueue();
     }
 
-    /* Connection des bots en attente (legacy sync path) */
+    /* Connection des bots en attente (legacy sync path for non-async bots) */
     std::map<uint32, PlayerBotEntry*>::iterator iter;
     for (iter = m_bots.begin(); iter != m_bots.end(); ++iter)
     {
         if (!enable && !iter->second->customBot)
             continue;
         if (iter->second->state != PB_STATE_LOADING)
+            continue;
+
+        // Skip bots in async login queue (callback handles login)
+        if (m_loadingBots.count(iter->second->playerGUID))
             continue;
 
         WorldSession* sess = sWorld.FindSession(iter->second->accountId);
@@ -495,15 +503,11 @@ uint32 PlayerBotMgr::ProcessLoginQueue()
             continue;
         }
 
-        // Create session and add to world (non-blocking)
-        WorldSession *session = new WorldSession(accountId, nullptr, sAccountMgr.GetSecurity(accountId), 0, LOCALE_enUS, "<BOT>", 0);
-        BigNumber dummyKey(0);
-        session->InitAntiCheatSession(&dummyKey);
-        session->SetBot(e);
-        sWorld.AddSession(session);
+        // AC pattern: schedule login query, session created in callback
+        ScheduleBotLogin(accountId, ObjectGuid(HIGHGUID_PLAYER, playerGUID));
 
         if (confDebug)
-            LOG_DEBUG("playerbots", "[PlayerBot][AsyncLogin] '%s' GUID:%u session created (processed=%u/%u)",
+            LOG_DEBUG("playerbots", "[PlayerBot][AsyncLogin] '%s' GUID:%u login scheduled (processed=%u/%u)",
                       e->name.c_str(), playerGUID, processed, batchSize);
     }
 

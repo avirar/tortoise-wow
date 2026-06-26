@@ -122,9 +122,7 @@ void PlayerBotAI::UpdateAI(const uint32 diff)
         AutoEquipForLevel();
     }
 
-    if (!me->IsAlive())
-        return;
-
+    // Note: don't return early for dead bots - they need engine to switch to DEAD state
     if (engine)
         engine->UpdateAI(diff);
 }

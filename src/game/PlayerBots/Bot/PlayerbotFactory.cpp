@@ -333,8 +333,8 @@ void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPref
         }
     }
 
-    // AC pattern: 10 chars per account (vanilla max)
-    const uint32 charsPerAccount = 10;
+    // 1 char per account - m_sessions is keyed by accountId, so multiple bots per account causes session collision
+    const uint32 charsPerAccount = 1;
     uint32 created = 0;
     uint32 accountId = 0;
 
@@ -400,11 +400,10 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
 {
     uint32 guid = sObjectMgr.GeneratePlayerLowGuid();
 
-    // Pick random valid race/class combination
-    uint32 comboIdx = urand(0, (uint32)s_validRaceClass.size() - 1);
-    uint8 race = s_validRaceClass[comboIdx].first;
-    uint8 class_ = s_validRaceClass[comboIdx].second;
-    uint8 gender = urand(0, 1) ? GENDER_MALE : GENDER_FEMALE;
+    // TEMP: All human warriors for testing (race=1 human, class=1 warrior)
+    uint8 race = RACE_HUMAN;
+    uint8 class_ = CLASS_WARRIOR;
+    uint8 gender = GENDER_MALE;
 
     // Generate name using name table (AC pattern)
     std::string name = GenerateName(gender);
