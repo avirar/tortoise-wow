@@ -22,9 +22,9 @@ bool EnemyOutOfMeleeTrigger::IsActive()
     if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
-    // 1yd safety buffer: small creatures have tiny hitboxes, attack can fail at exact melee range
+    // 2yd safety buffer: small creatures have tiny hitboxes, attack can fail at exact melee range
     float dist = sServerFacade.GetDistance2d(bot, target);
-    return sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance - 1.0f);
+    return sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance - 2.0f);
 }
 
 EnemyOutOfSpellTrigger::EnemyOutOfSpellTrigger(PlayerBotAI* botAI)

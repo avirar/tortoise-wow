@@ -37,10 +37,10 @@ bool ReachCloseCombatAction::isUseful()
     if (!target || !target->IsAlive())
         return false;
 
-    // Use same check as EnemyOutOfMeleeTrigger, with 1yd safety buffer
+    // Use same check as EnemyOutOfMeleeTrigger, with 2yd safety buffer
     // Small creatures have tiny hitboxes, attack can fail at exact melee range
     float dist = sServerFacade.GetDistance2d(bot, target);
-    return sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance - 1.0f);
+    return sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance - 2.0f);
 }
 
 ReachSpellCombatAction::ReachSpellCombatAction(PlayerBotAI* botAI)
