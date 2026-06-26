@@ -21666,9 +21666,11 @@ bool Player::IsHonorOrXPTarget(Unit* pVictim) const
 
     if (pVictim->GetTypeId() == TYPEID_UNIT)
     {
-        if (((Creature*)pVictim)->IsTotem() ||
-            ((Creature*)pVictim)->IsPet() ||
-            ((Creature*)pVictim)->GetCreatureInfo()->xp_multiplier == 0 ||
+        Creature* creature = (Creature*)pVictim;
+        if (creature->IsTotem() ||
+            creature->IsPet() ||
+            creature->GetCreatureInfo()->type == CREATURE_TYPE_CRITTER ||
+            creature->GetCreatureInfo()->xp_multiplier == 0 ||
             pVictim->HasUnitState(UNIT_STAT_NO_KILL_REWARD))
             return false;
     }

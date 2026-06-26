@@ -328,7 +328,9 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
         {
             if (c->GetVictim() && c->GetVictim() != bot)
             { ++filtered; continue; }  // already attacking someone else
-            // NOTE: tap check is for LOOT only, not for combat selection
+            // Skip creatures already tapped by another bot (wastes attacks/XP)
+            if (c->HasLootRecipient() && !c->IsTappedBy(bot))
+            { ++filtered; continue; }  // tapped by outsider
         }
 
         float dist = GetDistance2d(bot, candidate);

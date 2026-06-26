@@ -4,6 +4,7 @@
 #include "Player.h"
 #include "Unit.h"
 #include "Creature.h"
+#include "Group.h"
 #include "ServerFacade.h"
 #include "PlayerbotAIConfig.h"
 #include "AiObjectContext.h"
@@ -47,6 +48,14 @@ bool AttackAnythingAction::isUseful()
     // "attack anything" is only for peaceful grinding (proactive target acquisition).
     if (bot->IsInCombat())
         return false;
+
+    // AC pattern: grinding only for solo bots or group leaders
+    // Group followers follow the leader, don't grind independently
+    if (Group* group = bot->GetGroup())
+    {
+        if (group->GetLeaderGuid() != ObjectGuid(bot->GetGUID()))
+            return false;  // not group leader, don't grind
+    }
 
     // Need a valid grind target
     Unit* target = GetTarget();
