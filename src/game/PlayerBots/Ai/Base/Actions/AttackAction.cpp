@@ -12,6 +12,7 @@
 #include "Mgr/Item/LootObjectStack.h"
 #include "Strategy/WaitForAttackStrategy.h"
 #include "Logging.h"
+#include "PlayerbotAIBase.h"
 
 AttackAction::AttackAction(PlayerBotAI* botAI, std::string const& name)
     : MovementAction(botAI, name)
@@ -67,6 +68,9 @@ bool AttackAction::DoAttack(Unit* target)
     // For solo bots, ShouldWait always returns false (attack immediately)
     if (!WaitForAttackStrategy::ShouldWait(botAI))
         bot->Attack(target, bot->CanReachWithMeleeAutoAttack(target) || true);
+
+    // AC pattern: switch to COMBAT engine when attacking
+    botAI->ChangeEngine(BOT_STATE_COMBAT);
 
     // Move to target if too far for melee
     float dist = sServerFacade.GetDistance2d(bot, target);
@@ -125,6 +129,9 @@ bool DropTargetAction::Execute([[maybe_unused]] Event event)
         bot->CombatStop();
 
     bot->AttackStop();
+
+    // AC pattern: switch to NON_COMBAT engine when dropping target
+    botAI->ChangeEngine(BOT_STATE_NON_COMBAT);
 
     lastDropTime = getMSTime();
     return true;

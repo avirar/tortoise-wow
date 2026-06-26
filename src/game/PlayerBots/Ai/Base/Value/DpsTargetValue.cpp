@@ -4,6 +4,7 @@
 #include "Group.h"
 #include "ObjectAccessor.h"
 #include "PlayerbotAIConfig.h"
+#include "Logging.h"
 
 DpsTargetValue::DpsTargetValue(PlayerBotAI* botAI)
     : UnitCalculatedValue(botAI, "dps target", 1)
@@ -14,7 +15,11 @@ Unit* DpsTargetValue::Calculate()
 {
     // If bot has a victim (being attacked by or attacking), keep it
     if (bot->GetVictim() && bot->GetVictim()->IsAlive())
+    {
+        LOG_DEBUG("playerbots", "%s [DpsTargetValue] victim: %s (entry=%u)",
+            bot->GetName(), bot->GetVictim()->GetName(), bot->GetVictim()->GetEntry());
         return bot->GetVictim();
+    }
 
     Group* group = bot->GetGroup();
     if (group)

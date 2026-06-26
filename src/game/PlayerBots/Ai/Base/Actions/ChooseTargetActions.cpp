@@ -43,26 +43,15 @@ bool AttackAnythingAction::isUseful()
     if (!bot || !bot->IsAlive())
         return false;
 
-    // Don't attack if already in combat — let COMBAT engine handle it
+    // AC pattern: blocked when in combat. "dps assist" handles targeting during combat.
+    // "attack anything" is only for peaceful grinding (proactive target acquisition).
     if (bot->IsInCombat())
         return false;
 
     // Need a valid grind target
     Unit* target = GetTarget();
     if (!target || !target->IsAlive() || !target->IsInWorld())
-    {
-        // Debug: scan nearby creatures every 30s when no target found
-        static std::map<std::string, uint32> lastDebugTime;
-        uint32 now = getMSTime();
-        if (lastDebugTime.find(bot->GetName()) == lastDebugTime.end() ||
-            now - lastDebugTime[bot->GetName()] > 30000)
-        {
-            lastDebugTime[bot->GetName()] = now;
-            sServerFacade.DebugNearbyCreatures(bot, sPlayerbotAIConfig.sightDistance,
-                "AttackAnything::isUseful");
-        }
         return false;
-    }
 
     // Skip training dummies
     std::string name = target->GetName();

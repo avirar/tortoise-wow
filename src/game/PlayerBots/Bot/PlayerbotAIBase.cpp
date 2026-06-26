@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "Log.h"
 #include "PerfMonitor.h"
+#include "Unit.h"
 #include "NonCombatStrategy.h"
 #include "CombatStrategy.h"
 #include "MeleeCombatStrategy.h"
@@ -10,6 +11,7 @@
 #include "WanderStrategy.h"
 #include "GrindingStrategy.h"
 #include "LootNonCombatStrategy.h"
+#include "DpsAssistStrategy.h"
 #include "DeadStrategy.h"
 #include "PlayerbotAIConfig.h"
 
@@ -47,12 +49,14 @@ void PlayerbotAIBase::Initialize()
     sharedContext->Init(botAI);
     LOG_DEBUG("playerbots", "[3ENGINE] Shared AiObjectContext created and initialized");
 
-    // Non-combat engine: NonCombatStrategy + WanderStrategy + GrindingStrategy
+    // Non-combat engine: NonCombatStrategy + WanderStrategy + GrindingStrategy + DpsAssistStrategy + LootNonCombatStrategy
+    // AC pattern: DpsAssistStrategy on NON_COMBAT, fires "dps assist" (50.0f) which outranks "attack anything" (4.0f)
     LOG_DEBUG("playerbots", "[3ENGINE] Creating NON_COMBAT engine");
     engines[BOT_STATE_NON_COMBAT] = new Engine(botAI, sharedContext);
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new NonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new WanderStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new GrindingStrategy(botAI));
+    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new DpsAssistStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new LootNonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->Init();
     LOG_DEBUG("playerbots", "[3ENGINE] NON_COMBAT engine done");
@@ -76,6 +80,8 @@ void PlayerbotAIBase::Initialize()
     {
         engines[BOT_STATE_COMBAT]->AddStrategy(new CombatStrategy(botAI));
     }
+    // AC pattern: "dps assist" in BOTH engines for reactive aggro handling
+    engines[BOT_STATE_COMBAT]->AddStrategy(new DpsAssistStrategy(botAI));
     engines[BOT_STATE_COMBAT]->Init();
     LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine done");
 
@@ -113,19 +119,30 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!bot || !bot->IsInWorld())
         return;
 
-    // Check if bot died
+    // AC pattern: only switch engine for death/resurrection.
+    // COMBAT engine switch is action-driven (AttackAction/DropTargetAction).
     if (!bot->IsAlive())
     {
         ChangeEngine(BOT_STATE_DEAD);
     }
-    // Check if bot entered/left combat
-    else if (bot->IsInCombat() && currentState != BOT_STATE_COMBAT)
+    else if (currentState == BOT_STATE_DEAD)
     {
-        ChangeEngine(BOT_STATE_COMBAT);
-    }
-    else if (!bot->IsInCombat() && currentState != BOT_STATE_NON_COMBAT)
-    {
+        // Resurrected: switch back to NON_COMBAT
         ChangeEngine(BOT_STATE_NON_COMBAT);
+    }
+
+    // AC pattern: stale-target cleanup (PlayerbotAI.cpp:1514)
+    // When bot is on NON_COMBAT but server put it in combat (creature attacked),
+    // clear "current target" so "not dps target active" can fire.
+    if (currentState == BOT_STATE_NON_COMBAT && bot->IsInCombat())
+    {
+        Unit* currentTarget = botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+        if (currentTarget)
+        {
+            botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
+            LOG_DEBUG("playerbots", "%s [stale-target] cleared 'current target' (was '%s')", 
+                bot->GetName(), currentTarget->GetName());
+        }
     }
 
     Engine* currentEngine = GetCurrentEngine();

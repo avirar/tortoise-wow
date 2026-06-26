@@ -8,9 +8,9 @@
 #include "NamedObjectContext.h"
 #include "Action/Action.h"
 #include "Trigger/Trigger.h"
+#include "Value/Value.h"
 
 class PlayerBotAI;
-template <class T> class Value;
 class UntypedValue;
 
 class AiObjectContext
