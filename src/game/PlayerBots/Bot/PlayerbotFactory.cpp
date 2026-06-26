@@ -11,16 +11,16 @@
 #include "WorldSession.h"
 #include "Util.h"
 #include "World.h"
+#include <algorithm>
 
 std::vector<std::pair<uint8, uint8>> PlayerbotFactory::s_validRaceClass;
+std::vector<PlayerbotFactory::CachedName> PlayerbotFactory::s_cachedNames;
 
 void PlayerbotFactory::LoadValidRaceClassCombinations()
 {
     if (!s_validRaceClass.empty())
-        return; // already loaded
+        return;
 
-    // Use sObjectMgr.GetPlayerInfo() to check valid race/class combinations
-    // This matches what Player::Create() uses internally
     for (uint8 race = 1; race < MAX_RACES; ++race)
     {
         for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
@@ -35,155 +35,133 @@ void PlayerbotFactory::LoadValidRaceClassCombinations()
     LOG_DEBUG("playerbots", "Playerbot Factory: Loaded %u valid race/class combinations", (uint32)s_validRaceClass.size());
 }
 
-void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPrefix)
+// AC pattern: load names from playerbots_names table into memory cache
+void PlayerbotFactory::LoadNamesFromDB()
 {
-    if (count == 0)
-        return;
+    if (!s_cachedNames.empty())
+        return; // already loaded
 
-    CleanupOldBots(accountPrefix);
+    QueryResult* result = CharacterDatabase.PQuery(
+        "SELECT name, gender FROM playerbots_names ORDER BY RAND() LIMIT 50000");
 
-    // Load valid race/class combinations from playercreateinfo
-    LoadValidRaceClassCombinations();
-    if (s_validRaceClass.empty())
+    if (result)
     {
-        sLog.outError("Playerbot Factory: No valid race/class combinations found");
-        return;
+        do
+        {
+            Field* fields = result->Fetch();
+            CachedName entry;
+            entry.name = fields[0].GetCppString();
+            entry.gender = fields[1].GetUInt8();
+            s_cachedNames.push_back(entry);
+        } while (result->NextRow());
+        delete result;
     }
 
-    LOG_DEBUG("playerbots", ">> Playerbot Factory: Generating %u bot accounts and characters...", count);
+    LOG_DEBUG("playerbots", "Playerbot Factory: Loaded %u names from playerbots_names table", (uint32)s_cachedNames.size());
+}
 
-    uint32 created = 0;
-    for (uint32 i = 0; i < count; ++i)
+// AC pattern: conlang name generation (fallback when name table exhausted)
+std::string PlayerbotFactory::GenerateConlangName(uint8 gender)
+{
+    // AC conlang algorithm - adapted from RandomPlayerbotFactory
+    const std::string groupCategory = "SCVKRU";
+    const std::string groupFormStart[2][4] = {{"SV", "SV", "VK", "RV"}, {"V", "SU", "VS", "RV"}};
+    const std::string groupFormMid[2][6] = {{"CV", "CVC", "CVC", "CVK", "VC", "VK"},
+                                            {"CV", "CVC", "CVK", "KVC", "VC", "KV"}};
+    const std::string groupFormEnd[2][4] = {{"CV", "VC", "VK", "CV"}, {"RU", "UR", "VR", "V"}};
+    const std::string groupLetter[2][6] = {
+        {"dtspkThfS", "bcCdfghjkmnNqqrrlsStTvwxyz", "aaeeiouA", "ppttkkbdg", "lmmnrr", "AEO"},
+        {"dtskThfS", "bcCdfghjkmmnNqrrlssStTvwyz", "aaaeeiiuAAEIO", "ppttkbbdg", "lmmnrrr", "AEOy"}};
+    const std::string replaceRule[2][17] = {
+        {"ST", "ka", "ko", "ku", "kr", "S", "T", "C", "N", "jj", "AA", "AI", "A", "E", "O", "I", "aa"},
+        {"sth", "ca", "co", "cu", "cr", "sh", "th", "ch", "ng", "dg", "A", "ayu", "ai", "ei", "ou", "iu", "ae"}};
+
+    std::string botName;
+    // Build name from groupForms
+    botName = groupFormStart[gender][rand() % 4];
+    for (int i = 0; i < rand() % 3 + rand() % 2; i++)
     {
-        LOG_DEBUG("playerbots", "[FACTORY] Starting bot #%u of %u...", i, count);
-        uint32 accountId = CreateBotAccount(i, accountPrefix);
-        if (!accountId)
+        botName += groupFormMid[gender][rand() % 6];
+    }
+    botName += rand() % 2 ? groupFormEnd[gender][rand() % 4] : "";
+    if (botName.size() < 2)
+        botName += groupFormEnd[gender][rand() % 4];
+
+    // Replace category values with random letters
+    for (size_t i = 0; i < botName.size(); i++)
+    {
+        size_t pos = groupCategory.find(botName[i]);
+        if (pos != std::string::npos && pos < 6)
         {
-            sLog.outError("Playerbot Factory: Failed to create account #%u, skipping", i);
+            botName[i] = groupLetter[gender][pos][rand() % groupLetter[gender][pos].size()];
+        }
+    }
+
+    // Apply replacement rules
+    for (int i = 0; i < 17; i++)
+    {
+        size_t j = botName.find(replaceRule[0][i]);
+        while (j != std::string::npos)
+        {
+            botName.replace(j, replaceRule[0][i].size(), replaceRule[1][i]);
+            j = botName.find(replaceRule[0][i]);
+        }
+    }
+
+    // Capitalize first letter
+    if (!botName.empty())
+        botName[0] = toupper(botName[0]);
+
+    return botName;
+}
+
+std::string PlayerbotFactory::GenerateName(uint8 gender)
+{
+    // Try 1: Pick from cached names table
+    LoadNamesFromDB();
+    for (uint32 attempt = 0; attempt < 100 && !s_cachedNames.empty(); ++attempt)
+    {
+        uint32 idx = urand(0, (uint32)s_cachedNames.size() - 1);
+        CachedName& entry = s_cachedNames[idx];
+
+        // Skip wrong gender
+        if (entry.gender != gender && entry.gender != (gender % 2)) // gender % 2 = male/female
+            continue;
+
+        if (entry.name.length() < 3 || entry.name.length() > 12)
+            continue;
+
+        if (ObjectMgr::CheckPlayerName(entry.name) != CHAR_NAME_SUCCESS)
+            continue;
+
+        if (IsNameTaken(entry.name))
+        {
+            // Remove used name from cache
+            s_cachedNames.erase(s_cachedNames.begin() + (int)idx);
             continue;
         }
-        LOG_DEBUG("playerbots", "[FACTORY] Account #%u created (id=%u)", i, accountId);
 
-        LOG_DEBUG("playerbots", "[FACTORY] Creating character for account %u...", accountId);
-        uint32 charGuid = CreateBotCharacter(accountId);
-        if (!charGuid)
-        {
-            sLog.outError("Playerbot Factory: Failed to create character for account %u", accountId);
+        return entry.name;
+    }
+
+    // Try 2: Conlang name generation (AC fallback)
+    for (uint32 attempt = 0; attempt < 20; ++attempt)
+    {
+        std::string name = GenerateConlangName(gender);
+
+        if (name.length() < 3 || name.length() > 12)
             continue;
-        }
-        LOG_DEBUG("playerbots", "[FACTORY] Character created (guid=%u)", charGuid);
 
-        LOG_DEBUG("playerbots", "[FACTORY] Registering bot in playerbot table...");
-        RegisterInPlayerbotTable(charGuid, 100, "PlayerBotAI");
-        ++created;
-        LOG_DEBUG("playerbots", "[FACTORY] Bot #%u registered, total=%u", i, created);
+        if (ObjectMgr::CheckPlayerName(name) != CHAR_NAME_SUCCESS)
+            continue;
 
-        if (created % 5 == 0)
-            LOG_DEBUG("playerbots", ">> Playerbot Factory: %u/%u bots created", created, count);
+        if (IsNameTaken(name))
+            continue;
+
+        return name;
     }
 
-    LOG_DEBUG("playerbots", ">> Playerbot Factory: Successfully created %u/%u bots", created, count);
-}
-
-uint32 PlayerbotFactory::CreateBotAccount(uint32 index, std::string const& prefix)
-{
-    std::string accountName = prefix + std::to_string(index);
-
-    if (sAccountMgr.GetId(accountName))
-        return sAccountMgr.GetId(accountName);
-
-    AccountOpResult res = sAccountMgr.CreateAccount(accountName, accountName);
-    if (res != AOR_OK)
-    {
-        sLog.outError("Playerbot Factory: CreateAccount('%s') failed with code %u", accountName.c_str(), res);
-        return 0;
-    }
-
-    uint32 accountId = sAccountMgr.GetId(accountName);
-    if (!accountId)
-    {
-        sLog.outError("Playerbot Factory: Account '%s' created but ID not found", accountName.c_str());
-        return 0;
-    }
-
-    LoginDatabase.PExecute("UPDATE account SET rank = 0 WHERE id = %u", accountId);
-
-    LOG_DEBUG("playerbots", "Playerbot Factory: Created account '%s' (id=%u, rank=0)", accountName.c_str(), accountId);
-    return accountId;
-}
-
-uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
-{
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: generating GUID");
-    uint32 guid = sObjectMgr.GeneratePlayerLowGuid();
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: GUID=%u", guid);
-
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: generating name");
-    std::string name = GenerateName();
-    if (name.empty())
-    {
-        sLog.outError("Playerbot Factory: Could not generate unique name");
-        return 0;
-    }
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: name='%s'", name.c_str());
-
-    // Pick random valid race/class combination
-    uint32 comboIdx = urand(0, (uint32)s_validRaceClass.size() - 1);
-    uint8 race = s_validRaceClass[comboIdx].first;
-    uint8 class_ = s_validRaceClass[comboIdx].second;
-    uint8 gender = urand(0, 1) ? GENDER_MALE : GENDER_FEMALE;
-
-    // Get race/class names for logging
-    ChrRacesEntry const* rEntry = sChrRacesStore.LookupEntry(race);
-    ChrClassesEntry const* cEntry = sChrClassesStore.LookupEntry(class_);
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: race=%u (%s) class=%u (%s) gender=%u",
-        race, rEntry ? rEntry->name[0] : "?", class_, cEntry ? cEntry->name[0] : "?", gender);
-
-    uint8 skin = urand(0, 5);
-    uint8 face = urand(0, 5);
-    uint8 hairStyle = urand(0, 5);
-    uint8 hairColor = urand(0, 5);
-    uint8 facialHair = urand(0, 5);
-
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: creating WorldSession");
-    WorldSession* sess = new WorldSession(accountId, nullptr, SEC_PLAYER, 0, LOCALE_enUS, "<FACTORY>", 0);
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: creating Player");
-    Player* newChar = new Player(sess);
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: calling Player::Create");
-    if (!newChar->Create(guid, name, race, class_, gender, skin, face, hairStyle, hairColor, facialHair))
-    {
-        sLog.outError("Playerbot Factory: Player::Create failed for guid %u", guid);
-        delete newChar;
-        delete sess;
-        return 0;
-    }
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: Player::Create done");
-
-    newChar->SetCinematic(1);
-
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: calling SaveToDB");
-    if (!newChar->SaveToDB(true, false))
-    {
-        sLog.outError("Playerbot Factory: SaveToDB failed for guid %u", guid);
-        delete newChar;
-        delete sess;
-        return 0;
-    }
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: SaveToDB done");
-
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: deleting Player/Session");
-    delete newChar;
-    delete sess;
-    LOG_DEBUG("playerbots", "[FACTORY] CreateBotCharacter: deleting done, loading cache");
-
-    sObjectMgr.LoadPlayerCacheData(guid);
-
-    LOG_DEBUG("playerbots", "Playerbot Factory: Created character '%s' (guid=%u, account=%u)", name.c_str(), guid, accountId);
-    return guid;
-}
-
-std::string PlayerbotFactory::GenerateName()
-{
+    // Try 3: Syllable-based generation (old method, last resort)
     static const char* startSyl[] = {
         "Ar", "Bel", "Cor", "Dal", "El", "Fal", "Gor", "Hal", "Ir", "Jor",
         "Kael", "Lor", "Mor", "Nor", "Or", "Par", "Quel", "Ran", "Sil", "Tor",
@@ -242,49 +220,311 @@ bool PlayerbotFactory::IsNameTaken(std::string const& name)
     return false;
 }
 
+// AC pattern: get existing bot characters from accounts matching prefix
+std::vector<uint32> PlayerbotFactory::GetExistingBotCharacters(std::string const& accountPrefix)
+{
+    std::vector<uint32> charGuids;
+
+    // Get all bot accounts
+    QueryResult* accResult = LoginDatabase.PQuery("SELECT id FROM account WHERE username LIKE '%s%%'", accountPrefix.c_str());
+    if (!accResult)
+    {
+        LOG_DEBUG("playerbots", "Playerbot Factory: No existing bot accounts found with prefix '%s'", accountPrefix.c_str());
+        return charGuids;
+    }
+
+    std::vector<uint32> accountIds;
+    do
+    {
+        Field* fields = accResult->Fetch();
+        accountIds.push_back(fields[0].GetUInt32());
+    } while (accResult->NextRow());
+    delete accResult;
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Found %u existing bot accounts", (uint32)accountIds.size());
+
+    // Get all characters from these accounts
+    for (uint32 accId : accountIds)
+    {
+        QueryResult* charResult = CharacterDatabase.PQuery(
+            "SELECT guid, name, race, `class` FROM characters WHERE account = %u", accId);
+        if (!charResult)
+            continue;
+
+        do
+        {
+            Field* fields = charResult->Fetch();
+            uint32 guid = fields[0].GetUInt32();
+            charGuids.push_back(guid);
+        } while (charResult->NextRow());
+        delete charResult;
+    }
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Found %u existing bot characters", (uint32)charGuids.size());
+    return charGuids;
+}
+
+void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPrefix)
+{
+    if (count == 0)
+        return;
+
+    // Load valid race/class combinations from playercreateinfo
+    LoadValidRaceClassCombinations();
+    if (s_validRaceClass.empty())
+    {
+        sLog.outError("Playerbot Factory: No valid race/class combinations found");
+        return;
+    }
+
+    // AC pattern: check for existing characters first
+    std::vector<uint32> existingChars = GetExistingBotCharacters(accountPrefix);
+    uint32 existingCount = (uint32)existingChars.size();
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Need %u bots, found %u existing characters", count, existingCount);
+
+    if (existingCount >= count)
+    {
+        // Enough existing characters - just ensure they're registered in playerbot table
+        LOG_DEBUG("playerbots", "Playerbot Factory: Reusing %u existing characters", existingCount);
+
+        // Clear old playerbot table and re-register
+        CharacterDatabase.PExecute("DELETE FROM playerbot");
+        for (uint32 guid : existingChars)
+        {
+            RegisterInPlayerbotTable(guid, 100, "PlayerBotAI");
+        }
+        LOG_DEBUG("playerbots", "Playerbot Factory: Re-registered %u existing bots in playerbot table", existingCount);
+        return;
+    }
+
+    // Need to create more characters
+    uint32 toCreate = count - existingCount;
+    LOG_DEBUG("playerbots", "Playerbot Factory: Creating %u new bot characters (need %u total, have %u)", toCreate, count, existingCount);
+
+    // Clean up playerbot table (will re-register all)
+    CharacterDatabase.PExecute("DELETE FROM playerbot");
+
+    // Register existing characters
+    for (uint32 guid : existingChars)
+    {
+        RegisterInPlayerbotTable(guid, 100, "PlayerBotAI");
+    }
+
+    // Determine starting account index
+    uint32 startAccountIndex = 0;
+    {
+        QueryResult* accResult = LoginDatabase.PQuery("SELECT MAX(id) FROM account WHERE username LIKE '%s%%'", accountPrefix.c_str());
+        if (accResult)
+        {
+            Field* fields = accResult->Fetch();
+            uint32 maxAccId = fields[0].GetUInt32();
+            // Extract index from account name
+            QueryResult* nameResult = LoginDatabase.PQuery("SELECT username FROM account WHERE id = %u", maxAccId);
+            if (nameResult)
+            {
+                Field* fields2 = nameResult->Fetch();
+                std::string accName = fields2->GetCppString();
+                std::string numStr = accName.substr(accountPrefix.size());
+                startAccountIndex = (uint32)atoi(numStr.c_str()) + 1;
+                delete nameResult;
+            }
+            delete accResult;
+        }
+    }
+
+    // AC pattern: 10 chars per account (vanilla max)
+    const uint32 charsPerAccount = 10;
+    uint32 created = 0;
+    uint32 accountId = 0;
+
+    for (uint32 i = 0; i < toCreate; ++i)
+    {
+        // Create new account every charsPerAccount characters
+        if (i % charsPerAccount == 0 || accountId == 0)
+        {
+            accountId = CreateBotAccount(startAccountIndex + (i / charsPerAccount), accountPrefix);
+            if (!accountId)
+            {
+                sLog.outError("Playerbot Factory: Failed to create account, skipping bot #%u", i);
+                continue;
+            }
+        }
+
+        uint32 charGuid = CreateBotCharacter(accountId);
+        if (!charGuid)
+        {
+            sLog.outError("Playerbot Factory: Failed to create character for account %u", accountId);
+            continue;
+        }
+
+        RegisterInPlayerbotTable(charGuid, 100, "PlayerBotAI");
+        ++created;
+
+        if (created % 10 == 0)
+            LOG_DEBUG("playerbots", "Playerbot Factory: %u/%u new bots created", created, toCreate);
+    }
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Total bots available: %u existing + %u new = %u total (target: %u)",
+              existingCount, created, existingCount + created, count);
+}
+
+uint32 PlayerbotFactory::CreateBotAccount(uint32 index, std::string const& prefix)
+{
+    std::string accountName = prefix + std::to_string(index);
+
+    if (sAccountMgr.GetId(accountName))
+        return sAccountMgr.GetId(accountName);
+
+    AccountOpResult res = sAccountMgr.CreateAccount(accountName, accountName);
+    if (res != AOR_OK)
+    {
+        sLog.outError("Playerbot Factory: CreateAccount('%s') failed with code %u", accountName.c_str(), res);
+        return 0;
+    }
+
+    uint32 accountId = sAccountMgr.GetId(accountName);
+    if (!accountId)
+    {
+        sLog.outError("Playerbot Factory: Account '%s' created but ID not found", accountName.c_str());
+        return 0;
+    }
+
+    LoginDatabase.PExecute("UPDATE account SET rank = 0 WHERE id = %u", accountId);
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Created account '%s' (id=%u, rank=0)", accountName.c_str(), accountId);
+    return accountId;
+}
+
+uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
+{
+    uint32 guid = sObjectMgr.GeneratePlayerLowGuid();
+
+    // Pick random valid race/class combination
+    uint32 comboIdx = urand(0, (uint32)s_validRaceClass.size() - 1);
+    uint8 race = s_validRaceClass[comboIdx].first;
+    uint8 class_ = s_validRaceClass[comboIdx].second;
+    uint8 gender = urand(0, 1) ? GENDER_MALE : GENDER_FEMALE;
+
+    // Generate name using name table (AC pattern)
+    std::string name = GenerateName(gender);
+    if (name.empty())
+    {
+        sLog.outError("Playerbot Factory: Could not generate unique name");
+        return 0;
+    }
+
+    // Get race/class names for logging
+    ChrRacesEntry const* rEntry = sChrRacesStore.LookupEntry(race);
+    ChrClassesEntry const* cEntry = sChrClassesStore.LookupEntry(class_);
+    LOG_DEBUG("playerbots", "[FACTORY] Creating: name='%s' race=%u (%s) class=%u (%s) gender=%u",
+        name.c_str(), race, rEntry ? rEntry->name[0] : "?", class_, cEntry ? cEntry->name[0] : "?", gender);
+
+    uint8 skin = urand(0, 5);
+    uint8 face = urand(0, 5);
+    uint8 hairStyle = urand(0, 5);
+    uint8 hairColor = urand(0, 5);
+    uint8 facialHair = urand(0, 5);
+
+    WorldSession* sess = new WorldSession(accountId, nullptr, SEC_PLAYER, 0, LOCALE_enUS, "<FACTORY>", 0);
+    Player* newChar = new Player(sess);
+
+    if (!newChar->Create(guid, name, race, class_, gender, skin, face, hairStyle, hairColor, facialHair))
+    {
+        sLog.outError("Playerbot Factory: Player::Create failed for guid %u", guid);
+        delete newChar;
+        delete sess;
+        return 0;
+    }
+
+    newChar->SetCinematic(1);
+
+    if (!newChar->SaveToDB(true, false))
+    {
+        sLog.outError("Playerbot Factory: SaveToDB failed for guid %u", guid);
+        delete newChar;
+        delete sess;
+        return 0;
+    }
+
+    delete newChar;
+    delete sess;
+
+    sObjectMgr.LoadPlayerCacheData(guid);
+
+    LOG_DEBUG("playerbots", "Playerbot Factory: Created character '%s' (guid=%u, account=%u)", name.c_str(), guid, accountId);
+    return guid;
+}
+
 void PlayerbotFactory::RegisterInPlayerbotTable(uint32 charGuid, uint32 chance, std::string const& aiName)
 {
     CharacterDatabase.PExecute("INSERT INTO playerbot (char_guid, chance, ai) VALUES (%u, %u, '%s')",
         charGuid, chance, aiName.c_str());
 }
 
-void PlayerbotFactory::CleanupOldBots(std::string const& prefix)
+// AC pattern: delete all bot accounts and characters
+void PlayerbotFactory::DeleteAllBots(std::string const& accountPrefix)
 {
-    CharacterDatabase.PExecute("DELETE FROM playerbot");
+    LOG_INFO("playerbots", "Deleting all bot characters and accounts...");
 
-    QueryResult* result = LoginDatabase.PQuery("SELECT id FROM account WHERE username LIKE '%s%%'",
-        prefix.c_str());
-    if (!result)
+    // Get all bot accounts
+    QueryResult* accResult = LoginDatabase.PQuery("SELECT id FROM account WHERE username LIKE '%s%%'", accountPrefix.c_str());
+    if (!accResult)
     {
-        LOG_DEBUG("playerbots", "Playerbot Factory: No old factory accounts to clean up");
+        LOG_INFO("playerbots", "No bot accounts found to delete");
         return;
     }
 
     std::vector<uint32> accountIds;
     do
     {
-        Field* fields = result->Fetch();
+        Field* fields = accResult->Fetch();
         accountIds.push_back(fields[0].GetUInt32());
-    } while (result->NextRow());
-    delete result;
+    } while (accResult->NextRow());
+    delete accResult;
 
-    QueryResult* oldResult = LoginDatabase.PQuery("SELECT id FROM account WHERE username = 'BOT' OR username = 'bot'");
-    if (oldResult)
+    if (accountIds.empty())
     {
-        do
-        {
-            Field* fields = oldResult->Fetch();
-            accountIds.push_back(fields[0].GetUInt32());
-        } while (oldResult->NextRow());
-        delete oldResult;
+        LOG_INFO("playerbots", "No bot accounts found to delete");
+        return;
     }
 
+    // Build account ID list for SQL
+    std::string accList;
+    for (size_t i = 0; i < accountIds.size(); ++i)
+    {
+        if (i > 0) accList += ",";
+        accList += std::to_string(accountIds[i]);
+    }
+
+    // Delete character data in correct order (AC cascade pattern)
+    CharacterDatabase.PExecute("DELETE FROM character_queststatus WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_spell WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_aura WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_action WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_social WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_homebind WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_skills WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_reputation WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM character_spell_cooldown WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM playerbot WHERE char_guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    CharacterDatabase.PExecute("DELETE FROM characters WHERE account IN (%s)", accList.c_str());
+
+    // Delete accounts
     for (uint32 accId : accountIds)
     {
         sAccountMgr.DeleteAccount(accId);
     }
 
+    // Refresh account name cache
     sAccountMgr.LoadAccountNames();
 
-    LOG_DEBUG("playerbots", "Playerbot Factory: Cleaned up %u old bot accounts", (uint32)accountIds.size());
+    LOG_INFO("playerbots", "Deleted %u bot accounts and all associated characters", (uint32)accountIds.size());
+}
+
+void PlayerbotFactory::CleanupOldBots(std::string const& prefix)
+{
+    // Only called if explicitly requested - not during normal GenerateBots
+    DeleteAllBots(prefix);
 }

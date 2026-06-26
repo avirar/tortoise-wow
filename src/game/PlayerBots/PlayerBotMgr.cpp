@@ -32,6 +32,8 @@ PlayerBotMgr::PlayerBotMgr()
     enable = false;
     confDebug = false;
     forceLogoutDelay = true;
+    confAsyncLogin = true;
+    confAsyncBatchSize = 5;
 
     /* Time */
     m_elapsedTime = 0;
@@ -59,6 +61,10 @@ void PlayerBotMgr::LoadConfig()
     confFactoryEnabled = sConfig.GetBoolDefault("PlayerBot.FactoryEnabled", true);
     confFactoryBotCount = sConfig.GetIntDefault("PlayerBot.FactoryBotCount", 10);
     confFactoryAccountPrefix = sConfig.GetStringDefault("PlayerBot.FactoryAccountPrefix", "botacc");
+
+    // AC pattern: async login config
+    confAsyncLogin = sConfig.GetBoolDefault("PlayerBot.AsyncLogin", true);
+    confAsyncBatchSize = sConfig.GetIntDefault("PlayerBot.AsyncLoginBatchSize", 5);
 }
 
 void PlayerBotMgr::Load()
@@ -68,12 +74,14 @@ void PlayerBotMgr::Load()
     DeleteAll();
     m_bots.clear();
     m_tempBots.clear();
+    m_loginQueue.clear();
+    m_loadingBots.clear();
     totalChance = 0;
 
     // 2- Configuration
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() calling LoadConfig()");
     LoadConfig();
-    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u", confFactoryEnabled, confFactoryBotCount);
+    LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u, async=%d", confFactoryEnabled, confFactoryBotCount, confAsyncLogin);
 
     // 3- Load usable account ID
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
@@ -89,7 +97,7 @@ void PlayerBotMgr::Load()
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() maxAccountId=%u", _maxAccountId);
     delete result;
 
-    // 3.5- Generate bots via factory if enabled
+    // 3.5- Generate bots via factory if enabled (AC pattern: checks existing chars)
     if (confFactoryEnabled)
     {
         LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() calling GenerateBots(%u, '%s')", confFactoryBotCount, confFactoryAccountPrefix.c_str());
@@ -121,7 +129,7 @@ void PlayerBotMgr::Load()
         } while (result->NextRow());
 
         delete result;
-        LOG_DEBUG("playerbots", "%u bots charges", m_bots.size());
+        LOG_DEBUG("playerbots", "%u bots loaded from playerbot table", (uint32)m_bots.size());
     }
 
     // 5- Check config/DB
@@ -135,8 +143,31 @@ void PlayerBotMgr::Load()
     // 6- Start initial bots
     if (enable)
     {
-        for (uint32 i = 0; i < confMinBots; i++)
-            AddRandomBot();
+        if (confAsyncLogin)
+        {
+            // AC pattern: queue all initial bot logins
+            uint32 queued = 0;
+            for (uint32 i = 0; i < confMinBots && !m_bots.empty(); ++i)
+            {
+                // Find an offline bot
+                for (std::map<uint32, PlayerBotEntry*>::iterator it = m_bots.begin(); it != m_bots.end(); ++it)
+                {
+                    if (it->second->state == PB_STATE_OFFLINE && !it->second->customBot)
+                    {
+                        AddBotAsync((uint32)it->first);
+                        ++queued;
+                        break;
+                    }
+                }
+            }
+            LOG_DEBUG("playerbots", "[PlayerBotMgr] Queued %u bots for async login", queued);
+        }
+        else
+        {
+            // Legacy: sync login
+            for (uint32 i = 0; i < confMinBots; i++)
+                AddRandomBot();
+        }
     }
 
     //7 - Remplir les stats
@@ -151,6 +182,7 @@ void PlayerBotMgr::Load()
     {
         LOG_DEBUG("playerbots", "[PlayerBotMgr] Between %u and %u bots online", confMinBots, confMaxBots);
         LOG_DEBUG("playerbots", "[PlayerBotMgr] %u now loading", m_stats.loadingCount);
+        LOG_DEBUG("playerbots", "[PlayerBotMgr] Async login: %s (batch=%u)", confAsyncLogin ? "ON" : "OFF", confAsyncBatchSize);
     }
 }
 
@@ -170,6 +202,8 @@ void PlayerBotMgr::DeleteAll()
     }
 
     m_tempBots.clear();
+    m_loginQueue.clear();
+    m_loadingBots.clear();
 
     if (confDebug)
         LOG_DEBUG("playerbots", "[PlayerBotMgr] Deleting all bots [OK]");
@@ -178,6 +212,7 @@ void PlayerBotMgr::DeleteAll()
 void PlayerBotMgr::OnBotLogin(PlayerBotEntry *e)
 {
     e->state = PB_STATE_ONLINE;
+    m_loadingBots.erase((uint32)e->playerGUID);
     if (confDebug)
         LOG_DEBUG("playerbots", "[PlayerBot][Login]  '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
 }
@@ -185,6 +220,7 @@ void PlayerBotMgr::OnBotLogin(PlayerBotEntry *e)
 void PlayerBotMgr::OnBotLogout(PlayerBotEntry *e)
 {
     e->state = PB_STATE_OFFLINE;
+    m_loadingBots.erase((uint32)e->playerGUID);
     if (confDebug)
         LOG_DEBUG("playerbots", "[PlayerBot][Logout] '%s' GUID:%u Acc:%u", e->name.c_str(), e->playerGUID, e->accountId);
 }
@@ -243,7 +279,13 @@ void PlayerBotMgr::Update(uint32 diff)
 
     m_lastUpdate = m_elapsedTime;
 
-    /* Connection des bots en attente */
+    /* AC pattern: process async login queue */
+    if (confAsyncLogin)
+    {
+        ProcessLoginQueue();
+    }
+
+    /* Connection des bots en attente (legacy sync path) */
     std::map<uint32, PlayerBotEntry*>::iterator iter;
     for (iter = m_bots.begin(); iter != m_bots.end(); ++iter)
     {
@@ -256,8 +298,6 @@ void PlayerBotMgr::Update(uint32 diff)
 
         if (!sess)
         {
-            // This may happen : just wait for the World to add the session.
-            //LOG_DEBUG("playerbots", "/!\\ PlayerBot in queue but Session not in World ... Account : %u, GUID : %u", iter->second->accountId, iter->second->playerGUID);
             continue;
         }
 
@@ -292,7 +332,21 @@ Toutes les X minutes, ajoute ou enleve un bot.
 bool PlayerBotMgr::AddOrRemoveBot()
 {
     if (m_stats.onlineCount < confMinBots)
+    {
+        if (confAsyncLogin)
+        {
+            // Queue async login
+            for (std::map<uint32, PlayerBotEntry*>::iterator it = m_bots.begin(); it != m_bots.end(); ++it)
+            {
+                if (it->second->state == PB_STATE_OFFLINE && !it->second->customBot)
+                {
+                    AddBotAsync((uint32)it->first);
+                    return true;
+                }
+            }
+        }
         return AddRandomBot();
+    }
     if (m_stats.onlineCount > confMaxBots)
         return DeleteRandomBot();
     return false;
@@ -357,6 +411,80 @@ bool PlayerBotMgr::AddBot(uint32 playerGUID, bool chatBot)
     return true;
 }
 
+// AC pattern: queue bot for async login
+void PlayerBotMgr::AddBotAsync(uint32 playerGUID)
+{
+    // Check if already queued or loading
+    if (m_loadingBots.count(playerGUID))
+        return;
+
+    PlayerBotEntry* e = nullptr;
+    std::map<uint32, PlayerBotEntry*>::iterator iter = m_bots.find(playerGUID);
+    if (iter == m_bots.end())
+        return;
+
+    e = iter->second;
+    if (e->state != PB_STATE_OFFLINE)
+        return;
+
+    e->state = PB_STATE_LOADING;
+    m_loginQueue.push_back(playerGUID);
+    m_loadingBots.insert(playerGUID);
+    m_stats.loadingCount++;
+
+    if (confDebug)
+        LOG_DEBUG("playerbots", "[PlayerBot][Queue] '%s' GUID:%u queued for async login (queue=%u, loading=%u)",
+                  e->name.c_str(), playerGUID, (uint32)m_loginQueue.size(), (uint32)m_loadingBots.size());
+}
+
+// AC pattern: process login queue (async, non-blocking)
+uint32 PlayerBotMgr::ProcessLoginQueue()
+{
+    uint32 processed = 0;
+    uint32 batchSize = confAsyncBatchSize;
+
+    while (!m_loginQueue.empty() && processed < batchSize)
+    {
+        uint32 playerGUID = m_loginQueue.back();
+        m_loginQueue.pop_back();
+        ++processed;
+
+        PlayerBotEntry* e = nullptr;
+        std::map<uint32, PlayerBotEntry*>::iterator iter = m_bots.find(playerGUID);
+        if (iter == m_bots.end())
+        {
+            m_loadingBots.erase(playerGUID);
+            m_stats.loadingCount--;
+            continue;
+        }
+        e = iter->second;
+
+        uint32 accountId = e->accountId;
+        if (!accountId)
+            accountId = sObjectMgr.GetPlayerAccountIdByGUID(playerGUID);
+        if (!accountId)
+        {
+            sLog.outError("PLAYERBOT: Account ID not found for GUID %u", playerGUID);
+            m_loadingBots.erase(playerGUID);
+            m_stats.loadingCount--;
+            continue;
+        }
+
+        // Create session and add to world (non-blocking)
+        WorldSession *session = new WorldSession(accountId, nullptr, sAccountMgr.GetSecurity(accountId), 0, LOCALE_enUS, "<BOT>", 0);
+        BigNumber dummyKey(0);
+        session->InitAntiCheatSession(&dummyKey);
+        session->SetBot(e);
+        sWorld.AddSession(session);
+
+        if (confDebug)
+            LOG_DEBUG("playerbots", "[PlayerBot][AsyncLogin] '%s' GUID:%u session created (processed=%u/%u)",
+                      e->name.c_str(), playerGUID, processed, batchSize);
+    }
+
+    return processed;
+}
+
 bool PlayerBotMgr::AddRandomBot()
 {
     uint32 alea = urand(0, totalChance);
@@ -374,7 +502,10 @@ bool PlayerBotMgr::AddRandomBot()
 
         if (chance >= alea)
         {
-            AddBot(it->first);
+            if (confAsyncLogin)
+                AddBotAsync((uint32)it->first);
+            else
+                AddBot(it->first);
             done = true;
         }
 
@@ -466,6 +597,11 @@ void PlayerBotMgr::AddAllBots()
     for (it = m_bots.begin(); it != m_bots.end(); it++)
     {
         if (!it->second->isChatBot && it->second->state == PB_STATE_OFFLINE)
-            AddBot(it->first);
+        {
+            if (confAsyncLogin)
+                AddBotAsync((uint32)it->first);
+            else
+                AddBot(it->first);
+        }
     }
 }

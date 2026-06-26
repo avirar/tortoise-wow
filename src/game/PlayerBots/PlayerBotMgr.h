@@ -6,6 +6,8 @@
 #include "Database/DatabaseEnv.h"
 
 #include <vector>
+#include <vector>
+#include <set>
 
 class PlayerBotAI;
 class WorldSession;
@@ -93,6 +95,12 @@ class PlayerBotMgr
         uint32 GenBotAccountId() { return ++_maxAccountId; }
         PlayerBotStats& GetStats(){ return m_stats; }
         void Start() { enable = true; }
+
+        // AC pattern: async login queue
+        void AddBotAsync(uint32 playerGuid);
+        uint32 ProcessLoginQueue();
+        uint32 GetQueuedCount() const { return (uint32)m_loginQueue.size(); }
+        uint32 GetLoadingCount() const { return (uint32)m_loadingBots.size(); }
     protected:
         /* Combien de temps depuis la derniere MaJ ?*/
         uint32 m_elapsedTime;
@@ -117,6 +125,12 @@ class PlayerBotMgr
         std::string confFactoryAccountPrefix;
 
         bool enable;
+
+        // AC pattern: async login queue
+        std::vector<uint32> m_loginQueue;          // GUIDs waiting to login
+        std::set<uint32> m_loadingBots;            // GUIDs currently loading (async)
+        uint32 confAsyncBatchSize;                 // max logins per update tick
+        bool confAsyncLogin;                       // use async login queue
 };
 
 extern PlayerBotMgr sPlayerBotMgr;
