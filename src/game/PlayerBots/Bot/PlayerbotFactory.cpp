@@ -439,13 +439,8 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId)
 
     newChar->SetCinematic(1);
 
-    if (!newChar->SaveToDB(true, false))
-    {
-        sLog.outError("Playerbot Factory: SaveToDB failed for guid %u", guid);
-        delete newChar;
-        delete sess;
-        return 0;
-    }
+    // AC doesn't check SaveToDB return value - transaction layer can return false even on success
+    newChar->SaveToDB(true, false);
 
     delete newChar;
     delete sess;
@@ -462,10 +457,10 @@ void PlayerbotFactory::RegisterInPlayerbotTable(uint32 charGuid, uint32 chance, 
         charGuid, chance, aiName.c_str());
 }
 
-// AC pattern: delete all bot accounts and characters
+// AC pattern: delete all bot accounts and characters with full cascade cleanup
 void PlayerbotFactory::DeleteAllBots(std::string const& accountPrefix)
 {
-    LOG_INFO("playerbots", "Deleting all bot characters and accounts...");
+    LOG_INFO("playerbots", "Deleting all bot characters and accounts (cascade cleanup)...");
 
     // Get all bot accounts
     QueryResult* accResult = LoginDatabase.PQuery("SELECT id FROM account WHERE username LIKE '%s%%'", accountPrefix.c_str());
@@ -497,21 +492,59 @@ void PlayerbotFactory::DeleteAllBots(std::string const& accountPrefix)
         accList += std::to_string(accountIds[i]);
     }
 
-    // Delete character data in correct order (AC cascade pattern)
-    CharacterDatabase.PExecute("DELETE FROM character_queststatus WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_spell WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_aura WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_action WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_social WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_homebind WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_skills WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_reputation WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
-    CharacterDatabase.PExecute("DELETE FROM character_spell_cooldown WHERE guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+    // Step 1: Delete playerbot table entries first
     CharacterDatabase.PExecute("DELETE FROM playerbot WHERE char_guid IN (SELECT guid FROM characters WHERE account IN (%s))", accList.c_str());
+
+    // Step 2: Delete characters (cascades to most child tables via FK in AC, but we do manual cleanup for Tortoise)
     CharacterDatabase.PExecute("DELETE FROM characters WHERE account IN (%s)", accList.c_str());
 
-    // Delete accounts
+    // Step 3: Clean up orphaned entries in all related tables (AC pattern: NOT IN characters)
+    // Corpse
+    CharacterDatabase.PExecute("DELETE FROM corpse WHERE guid NOT IN (SELECT guid FROM characters)");
+    // Inventory & items
+    CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM item_instance WHERE owner_guid NOT IN (SELECT guid FROM characters) AND owner_guid > 0");
+    // Character data
+    CharacterDatabase.PExecute("DELETE FROM character_account_data WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_action WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_aura WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_homebind WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_queststatus WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_reputation WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_skills WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_social WHERE friend NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_spell WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_spell_cooldown WHERE guid NOT IN (SELECT guid FROM characters)");
+    // Pet data
+    CharacterDatabase.PExecute("DELETE FROM character_pet WHERE owner NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM pet_aura WHERE guid NOT IN (SELECT id FROM character_pet)");
+    CharacterDatabase.PExecute("DELETE FROM pet_spell WHERE guid NOT IN (SELECT id FROM character_pet)");
+    CharacterDatabase.PExecute("DELETE FROM pet_spell_cooldown WHERE guid NOT IN (SELECT id FROM character_pet)");
+    // Group data
+    CharacterDatabase.PExecute("DELETE FROM groups WHERE leaderGuid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM group_member WHERE memberGuid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM group_instance WHERE leaderGuid NOT IN (SELECT guid FROM characters)");
+    // Mail
+    CharacterDatabase.PExecute("DELETE FROM mail_items WHERE receiver NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM mail WHERE receiver NOT IN (SELECT guid FROM characters)");
+    // Guild data
+    CharacterDatabase.PExecute("DELETE FROM guild WHERE leaderguid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM guild_member WHERE guildid NOT IN (SELECT guildid FROM guild) OR guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM guild_rank WHERE guildid NOT IN (SELECT guildid FROM guild)");
+    // Tortoise-specific tables
+    CharacterDatabase.PExecute("DELETE FROM character_instance WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_battleground_data WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_deleted_items WHERE player_guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_destroyed_items WHERE player_guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_gifts WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_titles WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_transmogs WHERE guid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM character_variables WHERE lowGuid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM petition WHERE ownerguid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM petition_sign WHERE playerguid NOT IN (SELECT guid FROM characters)");
+    CharacterDatabase.PExecute("DELETE FROM hardcore_deaths WHERE lowGuid NOT IN (SELECT guid FROM characters)");
+
+    // Step 4: Delete accounts
     for (uint32 accId : accountIds)
     {
         sAccountMgr.DeleteAccount(accId);
@@ -520,7 +553,7 @@ void PlayerbotFactory::DeleteAllBots(std::string const& accountPrefix)
     // Refresh account name cache
     sAccountMgr.LoadAccountNames();
 
-    LOG_INFO("playerbots", "Deleted %u bot accounts and all associated characters", (uint32)accountIds.size());
+    LOG_INFO("playerbots", "Deleted %u bot accounts and all associated characters (cascade complete)", (uint32)accountIds.size());
 }
 
 void PlayerbotFactory::CleanupOldBots(std::string const& prefix)

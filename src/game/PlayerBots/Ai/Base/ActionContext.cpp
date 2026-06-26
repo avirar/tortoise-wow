@@ -2,6 +2,9 @@
 
 #include "PlayerBotAI.h"
 #include "Actions/LootAction.h"
+#include "Actions/ReleaseSpiritActions.h"
+#include "Actions/ReviveFromCorpseActions.h"
+#include "Actions/AcceptResurrectAction.h"
 
 class ActionContext : public NamedObjectContext<Action>
 {
@@ -31,6 +34,15 @@ public:
         creators["move to loot"] = &ActionContext::CreateMoveToLootAction;
         creators["food"] = &ActionContext::CreateEatAction;
         creators["drink"] = &ActionContext::CreateDrinkAction;
+        // Death/resurrection actions
+        creators["release"] = &ActionContext::CreateReleaseSpiritAction;
+        creators["auto release"] = &ActionContext::CreateAutoReleaseSpiritAction;
+        creators["repop"] = &ActionContext::CreateRepopAction;
+        creators["self resurrect"] = &ActionContext::CreateSelfResurrectAction;
+        creators["find corpse"] = &ActionContext::CreateFindCorpseAction;
+        creators["revive from corpse"] = &ActionContext::CreateReviveFromCorpseAction;
+        creators["spirit healer"] = &ActionContext::CreateSpiritHealerAction;
+        creators["accept resurrect"] = &ActionContext::CreateAcceptResurrectAction;
     }
 
 private:
@@ -57,6 +69,15 @@ private:
     static Action* CreateMoveToLootAction(PlayerBotAI* botAI) { return new MoveToLootAction(botAI); }
     static Action* CreateEatAction(PlayerBotAI* botAI) { return new EatAction(botAI); }
     static Action* CreateDrinkAction(PlayerBotAI* botAI) { return new DrinkAction(botAI); }
+    // Death/resurrection actions
+    static Action* CreateReleaseSpiritAction(PlayerBotAI* botAI) { return new ReleaseSpiritAction(botAI); }
+    static Action* CreateAutoReleaseSpiritAction(PlayerBotAI* botAI) { return new AutoReleaseSpiritAction(botAI); }
+    static Action* CreateRepopAction(PlayerBotAI* botAI) { return new RepopAction(botAI); }
+    static Action* CreateSelfResurrectAction(PlayerBotAI* botAI) { return new SelfResurrectAction(botAI); }
+    static Action* CreateFindCorpseAction(PlayerBotAI* botAI) { return new FindCorpseAction(botAI); }
+    static Action* CreateReviveFromCorpseAction(PlayerBotAI* botAI) { return new ReviveFromCorpseAction(botAI); }
+    static Action* CreateSpiritHealerAction(PlayerBotAI* botAI) { return new SpiritHealerAction(botAI); }
+    static Action* CreateAcceptResurrectAction(PlayerBotAI* botAI) { return new AcceptResurrectAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

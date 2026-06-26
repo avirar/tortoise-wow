@@ -57,6 +57,9 @@ PlayerbotAIConfig::PlayerbotAIConfig()
 
     // Persistence
     persist = true;
+
+    // Delete all bots (AC: AiPlayerbot.DeleteRandomBotAccounts)
+    deleteAllBots = false;
 }
 
 bool PlayerbotAIConfig::Initialize()
@@ -101,6 +104,9 @@ bool PlayerbotAIConfig::Initialize()
 
     // Persistence
     persist = sConfig.GetBoolDefault("PlayerBot.Persist", persist);
+
+    // Delete all bots (AC: AiPlayerbot.DeleteRandomBotAccounts)
+    deleteAllBots = sConfig.GetBoolDefault("PlayerBot.DeleteAllBots", deleteAllBots);
 
     return true;
 }

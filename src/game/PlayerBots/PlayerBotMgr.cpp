@@ -87,6 +87,18 @@ void PlayerBotMgr::Load()
     LoadConfig();
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() LoadConfig() done, factory=%d, count=%u, async=%d", confFactoryEnabled, confFactoryBotCount, confAsyncLogin);
 
+    // 2.5- AC pattern: DeleteAllBots mode (AiPlayerbot.DeleteRandomBotAccounts)
+    // When set to 1, delete all bot accounts/characters and shutdown
+    if (sPlayerbotAIConfig.deleteAllBots)
+    {
+        LOG_INFO("playerbots", "DeleteAllBots mode enabled - deleting all bot accounts and characters...");
+        PlayerbotFactory::DeleteAllBots(confFactoryAccountPrefix);
+        LOG_INFO("playerbots", "Bot cleanup complete. Please set PlayerBot.DeleteAllBots=0 and restart.");
+        // Schedule graceful shutdown (calling StopNow during init crashes socket manager)
+        sWorld.ShutdownServ(1, SHUTDOWN_MASK_RESTART, SHUTDOWN_EXIT_CODE);
+        return;
+    }
+
     // 3- Load usable account ID
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
     QueryResult *result = LoginDatabase.PQuery("SELECT MAX(id) FROM account");
@@ -119,7 +131,7 @@ void PlayerBotMgr::Load()
         {
             fields = result->Fetch();
             uint32 guid = fields[0].GetUInt32();
-            uint32 acc = GenBotAccountId();
+            uint32 acc = sObjectMgr.GetPlayerAccountIdByGUID(guid);
             uint32 chance = fields[1].GetUInt32();
 
             PlayerBotEntry* entry = new PlayerBotEntry(guid, acc, chance);

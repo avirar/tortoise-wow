@@ -10,6 +10,7 @@
 #include "WanderStrategy.h"
 #include "GrindingStrategy.h"
 #include "LootNonCombatStrategy.h"
+#include "DeadStrategy.h"
 #include "PlayerbotAIConfig.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
@@ -81,6 +82,7 @@ void PlayerbotAIBase::Initialize()
     // Dead engine (minimal for now)
     LOG_DEBUG("playerbots", "[3ENGINE] Creating DEAD engine");
     engines[BOT_STATE_DEAD] = new Engine(botAI, sharedContext);
+    engines[BOT_STATE_DEAD]->AddStrategy(new DeadStrategy(botAI));
     engines[BOT_STATE_DEAD]->Init();
     LOG_DEBUG("playerbots", "[3ENGINE] DEAD engine done");
 

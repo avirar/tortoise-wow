@@ -325,6 +325,16 @@ set (game_SRCS
     PlayerBots/Ai/Base/Actions/LootAction.cpp
     PlayerBots/Ai/Base/Strategy/LootNonCombatStrategy.h
     PlayerBots/Ai/Base/Strategy/LootNonCombatStrategy.cpp
+    PlayerBots/Ai/Base/Strategy/DeadStrategy.h
+    PlayerBots/Ai/Base/Strategy/DeadStrategy.cpp
+    PlayerBots/Ai/Base/Trigger/DeathTriggers.h
+    PlayerBots/Ai/Base/Trigger/DeathTriggers.cpp
+    PlayerBots/Ai/Base/Actions/ReleaseSpiritActions.h
+    PlayerBots/Ai/Base/Actions/ReleaseSpiritActions.cpp
+    PlayerBots/Ai/Base/Actions/ReviveFromCorpseActions.h
+    PlayerBots/Ai/Base/Actions/ReviveFromCorpseActions.cpp
+    PlayerBots/Ai/Base/Actions/AcceptResurrectAction.h
+    PlayerBots/Ai/Base/Actions/AcceptResurrectAction.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp

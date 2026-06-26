@@ -3,6 +3,7 @@
 #include "PlayerBotAI.h"
 #include "Trigger/CombatTrigger.h"
 #include "Trigger/LootTriggers.h"
+#include "Trigger/DeathTriggers.h"
 
 class TriggerContext : public NamedObjectContext<Trigger>
 {
@@ -27,6 +28,11 @@ public:
         creators["far from loot target"] = &TriggerContext::CreateFarFromLoot;
         creators["can loot"] = &TriggerContext::CreateCanLoot;
         creators["loot open"] = &TriggerContext::CreateLootOpen;
+        // Death/resurrection triggers
+        creators["dead"] = &TriggerContext::CreateDead;
+        creators["corpse near"] = &TriggerContext::CreateCorpseNear;
+        creators["resurrect request"] = &TriggerContext::CreateResurrectRequest;
+        creators["can self resurrect"] = &TriggerContext::CreateCanSelfResurrect;
     }
 
 private:
@@ -48,6 +54,11 @@ private:
     static Trigger* CreateFarFromLoot(PlayerBotAI* botAI) { return new FarFromLootTrigger(botAI); }
     static Trigger* CreateCanLoot(PlayerBotAI* botAI) { return new CanLootTrigger(botAI); }
     static Trigger* CreateLootOpen(PlayerBotAI* botAI) { return new LootOpenTrigger(botAI); }
+    // Death/resurrection triggers
+    static Trigger* CreateDead(PlayerBotAI* botAI) { return new DeadTrigger(botAI); }
+    static Trigger* CreateCorpseNear(PlayerBotAI* botAI) { return new CorpseNearTrigger(botAI); }
+    static Trigger* CreateResurrectRequest(PlayerBotAI* botAI) { return new ResurrectRequestTrigger(botAI); }
+    static Trigger* CreateCanSelfResurrect(PlayerBotAI* botAI) { return new CanSelfResurrectTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

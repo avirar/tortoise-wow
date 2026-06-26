@@ -72,6 +72,10 @@ public:
     // Persistence (AC: AiPlayerbot.EquipAndSpecPersistence)
     bool persist;
 
+    // AC: AiPlayerbot.DeleteRandomBotAccounts
+    // When true, deletes all bot accounts/characters on startup then shuts down
+    bool deleteAllBots;
+
     std::mutex m_logMtx;
 
 private:

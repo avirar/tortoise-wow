@@ -66,6 +66,7 @@
 #include "AutoBroadCastMgr.h"
 #include "Transports/TransportMgr.h"
 #include "PlayerBotMgr.h"
+#include "PlayerBots/Util/PlayerbotAIConfig.h"
 #include "ZoneScriptMgr.h"
 #include "CharacterDatabaseCache.h"
 #include "CreatureGroups.h"
@@ -2315,6 +2316,7 @@ void LoadPlayerEggLoot();
                                               std::chrono::milliseconds(sWorld.getConfig(CONFIG_UINT32_PACKET_BCAST_FREQUENCY)));
 
     sLog.outString("Loading player bot manager...");
+	sPlayerbotAIConfig.Initialize();
 	sPlayerBotMgr.Load();
 
     m_ChannelBroadcaster = std::make_unique<ChannelBroadcaster>();
