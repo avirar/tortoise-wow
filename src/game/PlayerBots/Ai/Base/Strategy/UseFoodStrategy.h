@@ -9,6 +9,7 @@ class UseFoodStrategy : public Strategy
 {
 public:
     UseFoodStrategy(PlayerBotAI* botAI) : Strategy(botAI) {}
+    std::string const getName() override { return "food"; }
     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
 };
 

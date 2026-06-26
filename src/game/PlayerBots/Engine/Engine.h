@@ -27,9 +27,14 @@ public:
     void ProcessTriggers();
     void PushDefaultActions();
 
+    // Pointer-based (legacy)
     void AddStrategy(Strategy* strategy);
     void RemoveStrategy(Strategy* strategy);
     void RemoveStrategy(uint32 type);
+
+    // AC pattern: string-based, uses AiObjectContext factory
+    void AddStrategy(std::string const& name, bool init = true);
+    bool RemoveStrategy(std::string const& name, bool init = true);
 
     bool HasStrategy(uint32 type) const;
     bool HasStrategy(std::string const& name) const;

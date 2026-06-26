@@ -27,7 +27,8 @@ PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
       currentState(BOT_STATE_NON_COMBAT),
       enabled(true),
       nextAICheckDelay(0),
-      totalPmo(nullptr)
+      totalPmo(nullptr),
+      grindStrategyActive(false)
 {
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerbotAIBase constructor: botAI=%p", (void*)botAI);
     for (uint8 i = 0; i < BOT_STATE_MAX; ++i)
@@ -55,13 +56,15 @@ void PlayerbotAIBase::Initialize()
     sharedContext->Init(botAI);
     LOG_DEBUG("playerbots", "[3ENGINE] Shared AiObjectContext created and initialized");
 
-    // Non-combat engine: NonCombatStrategy + WanderStrategy + GrindingStrategy + DpsAssistStrategy + LootNonCombatStrategy
-    // AC pattern: DpsAssistStrategy on NON_COMBAT, fires "dps assist" (50.0f) which outranks "attack anything" (4.0f)
+    // Non-combat engine: NonCombatStrategy + WanderStrategy + DpsAssistStrategy + LootNonCombatStrategy
+    // AC AiFactory pattern: GrindingStrategy added ONLY when solo or group leader
+    // (AiFactory.cpp:597-612). Added/removed dynamically in UpdateAI() based on group state.
     LOG_DEBUG("playerbots", "[3ENGINE] Creating NON_COMBAT engine");
     engines[BOT_STATE_NON_COMBAT] = new Engine(botAI, sharedContext);
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new NonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new WanderStrategy(botAI));
-    engines[BOT_STATE_NON_COMBAT]->AddStrategy(new GrindingStrategy(botAI));
+    // GrindingStrategy added conditionally in UpdateAI() via string-based API
+    grindStrategyActive = false;
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new DpsAssistStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new LootNonCombatStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->Init();
@@ -150,6 +153,24 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     {
         // Resurrected: switch back to NON_COMBAT
         ChangeEngine(BOT_STATE_NON_COMBAT);
+    }
+
+    // AC AiFactory pattern: GrindingStrategy only when solo or group leader
+    // (AiFactory.cpp:597-612). Toggled dynamically as group membership changes.
+    {
+        bool shouldHaveGrind = !bot->GetGroup() || bot->GetGroup()->IsLeader(bot->GetObjectGuid());
+        if (shouldHaveGrind && !grindStrategyActive)
+        {
+            engines[BOT_STATE_NON_COMBAT]->AddStrategy("grind", false);
+            grindStrategyActive = true;
+            LOG_DEBUG("playerbots", "%s [group] added grind strategy (solo or leader)", bot->GetName());
+        }
+        else if (!shouldHaveGrind && grindStrategyActive)
+        {
+            engines[BOT_STATE_NON_COMBAT]->RemoveStrategy("grind", false);
+            grindStrategyActive = false;
+            LOG_DEBUG("playerbots", "%s [group] removed grind strategy (grouped, not leader)", bot->GetName());
+        }
     }
 
     // AC pattern: stale-target cleanup (PlayerbotAI.cpp:1514)

@@ -375,6 +375,32 @@ void Engine::RemoveStrategy(uint32 type)
     }
 }
 
+// AC pattern: string-based strategy management via AiObjectContext factory
+void Engine::AddStrategy(std::string const& name, bool init)
+{
+    RemoveStrategy(name, init);  // remove existing first (AC pattern)
+
+    if (Strategy* strategy = context->GetStrategy(name))
+    {
+        LogAction("S:+%s", strategy->getName().c_str());
+        strategies[strategy->getName()] = strategy;
+    }
+    if (init)
+        Init();
+}
+
+bool Engine::RemoveStrategy(std::string const& name, bool init)
+{
+    std::map<std::string, Strategy*>::iterator it = strategies.find(name);
+    if (it == strategies.end())
+        return false;
+
+    strategies.erase(it);
+    if (init)
+        Init();
+    return true;
+}
+
 bool Engine::HasStrategy(uint32 type) const
 {
     for (std::map<std::string, Strategy*>::const_iterator i = strategies.begin(); i != strategies.end(); ++i)

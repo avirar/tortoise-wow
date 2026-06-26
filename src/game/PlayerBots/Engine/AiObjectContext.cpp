@@ -3,17 +3,21 @@
 #include "Value/Value.h"
 #include "Action/Action.h"
 #include "Trigger/Trigger.h"
+#include "Strategy/Strategy.h"
 #include "PerfMonitor.h"
 #include "BaseAiObjectContext.h"
 #include "Logging.h"
+#include "Ai/Base/StrategyContext.h"
 
 SharedNamedObjectContextList<Action> AiObjectContext::sharedActionContexts;
 SharedNamedObjectContextList<Trigger> AiObjectContext::sharedTriggerContexts;
+SharedNamedObjectContextList<Strategy> AiObjectContext::sharedStrategyContexts;
 
 AiObjectContext::AiObjectContext()
     : botAI(nullptr),
       actionContexts(sharedActionContexts),
-      triggerContexts(sharedTriggerContexts)
+      triggerContexts(sharedTriggerContexts),
+      strategyContexts(sharedStrategyContexts)
 {
 }
 
@@ -21,6 +25,8 @@ void AiObjectContext::BuildAllSharedContexts()
 {
     BuildSharedActionContexts(sharedActionContexts);
     BuildSharedTriggerContexts(sharedTriggerContexts);
+    // AC pattern: BuildSharedStrategyContexts populates the shared strategy factory
+    sharedStrategyContexts.Add(new StrategyContext());
 }
 
 void AiObjectContext::Init(PlayerBotAI* botAI)
@@ -68,6 +74,11 @@ Action* AiObjectContext::GetAction(std::string const& name)
 Trigger* AiObjectContext::GetTrigger(std::string const& name)
 {
     return triggerContexts.GetContextObject(name, botAI);
+}
+
+Strategy* AiObjectContext::GetStrategy(std::string const& name)
+{
+    return strategyContexts.GetContextObject(name, botAI);
 }
 
 std::string const AiObjectContext::Format()

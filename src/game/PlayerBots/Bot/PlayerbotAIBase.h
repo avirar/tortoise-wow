@@ -51,6 +51,9 @@ public:
     bool enabled;
     uint32 nextAICheckDelay;
     PerfMonitorOperation* totalPmo;  // AC pattern: track full tick cycle time
+
+    // AC AiFactory pattern: track whether grind strategy is active
+    bool grindStrategyActive;
 };
 
 #endif

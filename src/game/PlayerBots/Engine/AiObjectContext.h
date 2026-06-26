@@ -14,6 +14,7 @@
 #include "Objects/Player.h"
 #include "PlayerBotAI.h"
 class UntypedValue;
+class Strategy;
 class Player;
 
 // SpellIdValue: resolve spell name to highest known rank (AC pattern)
@@ -79,6 +80,7 @@ public:
     UntypedValue* GetUntypedValue(std::string const& name);
     Action* GetAction(std::string const& name);
     Trigger* GetTrigger(std::string const& name);
+    Strategy* GetStrategy(std::string const& name);  // AC pattern: factory lookup
 
     template <class T>
     Value<T>* GetValue(std::string const& name)
@@ -137,11 +139,13 @@ public:
 protected:
     NamedObjectContextList<Action> actionContexts;
     NamedObjectContextList<Trigger> triggerContexts;
+    NamedObjectContextList<Strategy> strategyContexts;  // AC AiObjectContext pattern
 
 private:
     PlayerBotAI* botAI;
     static SharedNamedObjectContextList<Action> sharedActionContexts;
     static SharedNamedObjectContextList<Trigger> sharedTriggerContexts;
+    static SharedNamedObjectContextList<Strategy> sharedStrategyContexts;  // AC pattern
 };
 
 #endif

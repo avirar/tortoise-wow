@@ -296,6 +296,8 @@ set (game_SRCS
     PlayerBots/Ai/Base/ActionContext.cpp
     PlayerBots/Ai/Base/TriggerContext.h
     PlayerBots/Ai/Base/TriggerContext.cpp
+    PlayerBots/Ai/Base/StrategyContext.h
+    PlayerBots/Ai/Base/StrategyContext.cpp
     PlayerBots/Ai/Base/Value/InCombatValue.h
     PlayerBots/Ai/Base/Value/InCombatValue.cpp
     PlayerBots/Mgr/Item/StatsCollector.h
