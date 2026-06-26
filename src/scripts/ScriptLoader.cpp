@@ -199,6 +199,7 @@ void AddSC_burning_steppes();
 void AddSC_dun_morogh();
 void AddSC_eastern_plaguelands();
 void AddSC_elwynn_forest();
+void AddSC_grim_reaches();
 void AddSC_hillsbrad_foothills();
 void AddSC_hinterlands();
 void AddSC_ironforge();
@@ -217,6 +218,7 @@ void AddSC_westfall();
 void AddSC_wetlands();
 
 //kalimdor
+void AddSC_boss_velthelaxx_the_defiler();            //blackfathom_deeps
 void AddSC_instance_blackfathom_deeps();             //blackfathom_deeps
 void AddSC_boss_celebras_the_cursed();               //maraudon
 void AddSC_boss_landslide();
@@ -262,6 +264,7 @@ void AddSC_duskwood();
 void AddSC_felwood();
 void AddSC_feralas();
 void AddSC_moonglade();
+void AddSC_moonwhisper_coast();
 void AddSC_mulgore();
 void AddSC_orgrimmar();
 void AddSC_silithus();
@@ -553,6 +556,7 @@ void AddScripts()
     AddSC_dun_morogh();
     AddSC_eastern_plaguelands();
     AddSC_elwynn_forest();
+    AddSC_grim_reaches();
     AddSC_hillsbrad_foothills();
     AddSC_hinterlands();
     AddSC_ironforge();
@@ -571,6 +575,7 @@ void AddScripts()
     AddSC_wetlands();
 
     //kalimdor
+    AddSC_boss_velthelaxx_the_defiler();                    //blackfathom_deeps
     AddSC_instance_blackfathom_deeps();                     //blackfathom_deeps
     AddSC_boss_celebras_the_cursed();                       //maraudon
     AddSC_boss_landslide();
@@ -616,6 +621,7 @@ void AddScripts()
     AddSC_felwood();
     AddSC_feralas();
     AddSC_moonglade();
+    AddSC_moonwhisper_coast();
     AddSC_mulgore();
     AddSC_orgrimmar();
     AddSC_silithus();
