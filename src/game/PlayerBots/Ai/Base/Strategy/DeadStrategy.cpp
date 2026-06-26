@@ -11,17 +11,17 @@ void DeadStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
     NonCombatStrategy::InitTriggers(triggers);
 
-    // AC DeadStrategy pattern: auto release, find corpse, revive, accept resurrect, pop
+    // AC DeadStrategy pattern: relevance=100, revive=relevance-1, pop=relevance+1, self-res=relevance+2
     triggers.push_back(
-        new TriggerNode("can self resurrect", { NextAction("self resurrect", 12.0f) }));
+        new TriggerNode("can self resurrect", { NextAction("self resurrect", 102.0f) }));
     triggers.push_back(
-        new TriggerNode("often", { NextAction("auto release", 1.0f) }));
+        new TriggerNode("often", { NextAction("auto release", 100.0f) }));
     triggers.push_back(
-        new TriggerNode("dead", { NextAction("find corpse", 1.0f) }));
+        new TriggerNode("dead", { NextAction("find corpse", 100.0f) }));
     triggers.push_back(new TriggerNode(
-        "corpse near", { NextAction("revive from corpse", 0.0f) }));
+        "corpse near", { NextAction("revive from corpse", 99.0f) }));
     triggers.push_back(new TriggerNode(
-        "resurrect request", { NextAction("accept resurrect", 1.0f) }));
+        "resurrect request", { NextAction("accept resurrect", 100.0f) }));
     triggers.push_back(
-        new TriggerNode("falling far", { NextAction("repop", 2.0f) }));
+        new TriggerNode("falling far", { NextAction("repop", 101.0f) }));
 }

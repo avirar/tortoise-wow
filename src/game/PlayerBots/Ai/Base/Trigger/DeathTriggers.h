@@ -38,4 +38,11 @@ public:
     bool IsActive() override;
 };
 
+class FallingFarTrigger : public Trigger
+{
+public:
+    FallingFarTrigger(PlayerBotAI* botAI) : Trigger(botAI, "falling far", 10000) {}
+    bool IsActive() override;
+};
+
 #endif

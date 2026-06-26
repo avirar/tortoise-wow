@@ -33,6 +33,7 @@ public:
         creators["corpse near"] = &TriggerContext::CreateCorpseNear;
         creators["resurrect request"] = &TriggerContext::CreateResurrectRequest;
         creators["can self resurrect"] = &TriggerContext::CreateCanSelfResurrect;
+        creators["falling far"] = &TriggerContext::CreateFallingFar;
     }
 
 private:
@@ -59,6 +60,7 @@ private:
     static Trigger* CreateCorpseNear(PlayerBotAI* botAI) { return new CorpseNearTrigger(botAI); }
     static Trigger* CreateResurrectRequest(PlayerBotAI* botAI) { return new ResurrectRequestTrigger(botAI); }
     static Trigger* CreateCanSelfResurrect(PlayerBotAI* botAI) { return new CanSelfResurrectTrigger(botAI); }
+    static Trigger* CreateFallingFar(PlayerBotAI* botAI) { return new FallingFarTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

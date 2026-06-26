@@ -31,3 +31,8 @@ bool CanSelfResurrectTrigger::IsActive()
     // For standalone bots, this is rarely useful
     return bot->IsDead() && (bot->HasAura(20083) || bot->HasAura(20566));
 }
+
+bool FallingFarTrigger::IsActive()
+{
+    return bot->HasUnitMovementFlag(MOVEFLAG_FALLINGFAR);
+}

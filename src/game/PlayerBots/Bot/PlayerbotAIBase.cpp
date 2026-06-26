@@ -117,12 +117,9 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!bot->IsAlive())
     {
         ChangeEngine(BOT_STATE_DEAD);
-        YieldThread(sPlayerbotAIConfig.reactDelay);
-        return;
     }
-
     // Check if bot entered/left combat
-    if (bot->IsInCombat() && currentState != BOT_STATE_COMBAT)
+    else if (bot->IsInCombat() && currentState != BOT_STATE_COMBAT)
     {
         ChangeEngine(BOT_STATE_COMBAT);
     }

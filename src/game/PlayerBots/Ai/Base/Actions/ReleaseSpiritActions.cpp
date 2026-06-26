@@ -52,6 +52,11 @@ bool AutoReleaseSpiritAction::isUseful()
     if (bot->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
         return false;
 
+    // AC pattern: don't auto-release when near corpse (let revive win)
+    Corpse* corpse = bot->GetCorpse();
+    if (corpse && corpse->IsWithinDistInMap(bot, CORPSE_RECLAIM_RADIUS, true))
+        return false;
+
     return true;
 }
 
