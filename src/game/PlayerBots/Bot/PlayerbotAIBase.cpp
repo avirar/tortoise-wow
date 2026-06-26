@@ -137,8 +137,11 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     if (!bot || !bot->IsInWorld())
         return;
 
-    // AC pattern: only switch engine for death/resurrection.
-    // COMBAT engine switch is action-driven (AttackAction/DropTargetAction).
+    // Engine switching (AC pattern: action-driven, not state-driven)
+    // AC switches engine ONLY via actions:
+    //   AttackAction::Execute() → ChangeEngine(BOT_STATE_COMBAT)
+    //   DropTargetAction::Execute() → ChangeEngine(BOT_STATE_NON_COMBAT)
+    // Bot stays on NON_COMBAT when attacked; DpsAssistStrategy handles assist.
     if (!bot->IsAlive())
     {
         ChangeEngine(BOT_STATE_DEAD);
@@ -158,7 +161,7 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
         if (currentTarget)
         {
             botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
-            LOG_DEBUG("playerbots", "%s [stale-target] cleared 'current target' (was '%s')", 
+            LOG_DEBUG("playerbots", "%s [stale-target] cleared 'current target' (was '%s')",
                 bot->GetName(), currentTarget->GetName());
         }
     }

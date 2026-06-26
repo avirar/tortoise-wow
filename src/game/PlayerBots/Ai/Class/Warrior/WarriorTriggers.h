@@ -161,6 +161,66 @@ public:
 };
 
 // ============================================================================
+// Execute trigger
+// ============================================================================
+
+class ExecuteReadyTrigger : public Trigger
+{
+public:
+    ExecuteReadyTrigger(PlayerBotAI* botAI);
+    virtual ~ExecuteReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// ============================================================================
+// Mortal Strike ready trigger (cooldown + rage check)
+// ============================================================================
+
+class MortalStrikeReadyTrigger : public Trigger
+{
+public:
+    MortalStrikeReadyTrigger(PlayerBotAI* botAI);
+    virtual ~MortalStrikeReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// ============================================================================
+// Sunder Armor needed trigger (target missing debuff or stacks < 3)
+// ============================================================================
+
+class SunderArmorNeededTrigger : public Trigger
+{
+public:
+    SunderArmorNeededTrigger(PlayerBotAI* botAI);
+    virtual ~SunderArmorNeededTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// ============================================================================
+// Heroic Strike ready trigger (high rage filler)
+// ============================================================================
+
+class HeroicStrikeReadyTrigger : public Trigger
+{
+public:
+    HeroicStrikeReadyTrigger(PlayerBotAI* botAI);
+    virtual ~HeroicStrikeReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// ============================================================================
+// Bloodrage needed trigger (low rage, generate more)
+// ============================================================================
+
+class BloodrageNeededTrigger : public Trigger
+{
+public:
+    BloodrageNeededTrigger(PlayerBotAI* botAI);
+    virtual ~BloodrageNeededTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// ============================================================================
 // Special triggers
 // ============================================================================
 

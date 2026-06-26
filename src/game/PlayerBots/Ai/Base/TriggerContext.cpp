@@ -55,6 +55,11 @@ public:
         creators["death wish ready"] = &TriggerContext::CreateDeathWishReady;
         creators["shield block ready"] = &TriggerContext::CreateShieldBlockReady;
         creators["intimidating shout ready"] = &TriggerContext::CreateIntimidatingShoutReady;
+        creators["execute ready"] = &TriggerContext::CreateExecuteReady;
+        creators["mortal strike ready"] = &TriggerContext::CreateMortalStrikeReady;
+        creators["sunder armor needed"] = &TriggerContext::CreateSunderArmorNeeded;
+        creators["heroic strike ready"] = &TriggerContext::CreateHeroicStrikeReady;
+        creators["bloodrage needed"] = &TriggerContext::CreateBloodrageNeeded;
     }
 
 private:
@@ -100,6 +105,11 @@ private:
     static Trigger* CreateDeathWishReady(PlayerBotAI* botAI) { return new DeathWishReadyTrigger(botAI); }
     static Trigger* CreateShieldBlockReady(PlayerBotAI* botAI) { return new ShieldBlockReadyTrigger(botAI); }
     static Trigger* CreateIntimidatingShoutReady(PlayerBotAI* botAI) { return new IntimidatingShoutReadyTrigger(botAI); }
+    static Trigger* CreateExecuteReady(PlayerBotAI* botAI) { return new ExecuteReadyTrigger(botAI); }
+    static Trigger* CreateMortalStrikeReady(PlayerBotAI* botAI) { return new MortalStrikeReadyTrigger(botAI); }
+    static Trigger* CreateSunderArmorNeeded(PlayerBotAI* botAI) { return new SunderArmorNeededTrigger(botAI); }
+    static Trigger* CreateHeroicStrikeReady(PlayerBotAI* botAI) { return new HeroicStrikeReadyTrigger(botAI); }
+    static Trigger* CreateBloodrageNeeded(PlayerBotAI* botAI) { return new BloodrageNeededTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

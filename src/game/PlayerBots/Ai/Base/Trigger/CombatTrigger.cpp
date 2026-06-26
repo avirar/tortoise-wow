@@ -188,6 +188,11 @@ bool NotDpsTargetActiveTrigger::IsActive()
     }
 
     Unit* dps = GetAiObjectContext()->GetValue<Unit*>("dps target")->Get();
+    LOG_DEBUG("playerbots", "%s [NotDpsTargetActive] currentTarget=%s, dpsTarget=%s, result=%s",
+        bot->GetName(),
+        target ? target->GetName() : "null",
+        dps ? dps->GetName() : "null",
+        (dps && target != dps) ? "ACTIVE" : "inactive");
     return dps && target != dps;
 }
 

@@ -324,6 +324,126 @@ bool TargetDodgedTrigger::IsActive()
 }
 
 // ============================================================================
+// Execute ready trigger
+// ============================================================================
+
+ExecuteReadyTrigger::ExecuteReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "execute ready")
+{
+}
+
+bool ExecuteReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    // Execute is usable when target is below 20% HP
+    return target->GetHealthPercent() <= 20;
+}
+
+// ============================================================================
+// Mortal Strike ready trigger
+// ============================================================================
+
+MortalStrikeReadyTrigger::MortalStrikeReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "mortal strike ready")
+{
+}
+
+bool MortalStrikeReadyTrigger::IsActive()
+{
+    // Mortal Strike needs a target, rage, and no cooldown
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "mortal strike");
+    if (!spellId)
+        return false;
+
+    // Check cooldown
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+
+    // Check rage cost (Mortal Strike costs 20 rage)
+    if (bot->GetPower(POWER_RAGE) < 20)
+        return false;
+
+    return true;
+}
+
+// ============================================================================
+// Sunder Armor needed trigger
+// ============================================================================
+
+SunderArmorNeededTrigger::SunderArmorNeededTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "sunder armor needed")
+{
+}
+
+bool SunderArmorNeededTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    // Keep 3 stacks for Arms (5 for Protection)
+    uint32 stacks = GetSunderArmorStacks(target, bot);
+    return stacks < 3;
+}
+
+// ============================================================================
+// Heroic Strike ready trigger (high rage filler)
+// ============================================================================
+
+HeroicStrikeReadyTrigger::HeroicStrikeReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "heroic strike ready")
+{
+}
+
+bool HeroicStrikeReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    // Heroic Strike needs rage (10 base) and no global cooldown
+    if (bot->GetPower(POWER_RAGE) < 10)
+        return false;
+
+    // Check if we have the spell (implicit at level 1)
+    // Heroic Strike (78) is implicit, always known
+    return true;
+}
+
+// ============================================================================
+// Bloodrage needed trigger (low rage, generate more)
+// ============================================================================
+
+BloodrageNeededTrigger::BloodrageNeededTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "bloodrage needed")
+{
+}
+
+bool BloodrageNeededTrigger::IsActive()
+{
+    // Bloodrage when rage is low and not already active
+    if (bot->GetPower(POWER_RAGE) >= 30)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "bloodrage");
+    if (!spellId)
+        return false;
+
+    // Check cooldown
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+
+    return true;
+}
+
+// ============================================================================
 // Special triggers
 // ============================================================================
 
