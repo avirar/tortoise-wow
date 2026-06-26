@@ -636,7 +636,7 @@ void PlayerBotMgr::PrintStats()
         perRace[race] = 0;
         lvlPerRace[race] = 0;
     }
-    for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
+    for (uint8 cls = 1; cls <= 9; ++cls)
     {
         perClass[cls] = 0;
         lvlPerClass[cls] = 0;
@@ -702,7 +702,7 @@ void PlayerBotMgr::PrintStats()
 
     LOG_DEBUG("playerbots", "Bots class:");
     const char* classNames[] = {"","Warrior","Paladin","Hunter","Rogue","Priest","Shaman","Mage","Warlock","Druid"};
-    for (uint8 cls = 1; cls < MAX_CLASSES; ++cls)
+    for (uint8 cls = 1; cls <= 9; ++cls)
     {
         if (perClass[cls])
         {
