@@ -60,9 +60,23 @@ bool AttackAction::DoAttack(Unit* target)
         bot->StopMoving();
     }
 
-    // AC pattern: set facing to target if bot can move and not facing
-    if (botAI->CanMove() && !bot->HasInArc(target, M_PI_F))
+    // AC pattern: set facing to target before attacking
+    // Always set facing (not gated by CanMove) — bot may be stunned but still needs to face target
+    float dist = sServerFacade.GetDistance2d(bot, target);
+    float botFacing = bot->GetOrientation();
+    float angleToTarget = bot->GetAngle(target);
+    bool inArc = bot->HasInArc(target, M_PI_F);
+    if (!inArc)
+    {
         sServerFacade.SetFacingTo(bot, target);
+        LOG_DEBUG("playerbots", "%s [AttackAction] facing fix: bot=%.0f° target=%.0f° dist=%.1f",
+            bot->GetName(), botFacing * 57.2958f, angleToTarget * 57.2958f, dist);
+    }
+    else
+    {
+        LOG_DEBUG("playerbots", "%s [AttackAction] facing OK: bot=%.0f° target=%.0f° dist=%.1f",
+            bot->GetName(), botFacing * 57.2958f, angleToTarget * 57.2958f, dist);
+    }
 
     // AC pattern: check WaitForAttack before attacking
     // For solo bots, ShouldWait always returns false (attack immediately)
@@ -73,7 +87,6 @@ bool AttackAction::DoAttack(Unit* target)
     botAI->ChangeEngine(BOT_STATE_COMBAT);
 
     // Move to target if too far for melee
-    float dist = sServerFacade.GetDistance2d(bot, target);
     if (sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance))
     {
         bot->GetMotionMaster()->MoveChase(target);
