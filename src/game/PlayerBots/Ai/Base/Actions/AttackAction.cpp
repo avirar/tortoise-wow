@@ -78,6 +78,9 @@ bool AttackAction::DoAttack(Unit* target)
             bot->GetName(), botFacing * 57.2958f, angleToTarget * 57.2958f, dist);
     }
 
+    // AC pattern: set selection so DropTargetAction can clear it
+    bot->SetSelectionGuid(target->GetGUID());
+
     // AC pattern: check WaitForAttack before attacking
     // For solo bots, ShouldWait always returns false (attack immediately)
     if (!WaitForAttackStrategy::ShouldWait(botAI))

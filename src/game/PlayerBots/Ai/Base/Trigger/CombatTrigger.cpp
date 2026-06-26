@@ -8,6 +8,7 @@
 #include "AiObjectContext.h"
 #include "Value/Value.h"
 #include "ServerFacade.h"
+#include "Logging.h"
 
 EnemyOutOfMeleeTrigger::EnemyOutOfMeleeTrigger(PlayerBotAI* botAI)
     : Trigger(botAI, "enemy out of melee")
@@ -21,7 +22,9 @@ bool EnemyOutOfMeleeTrigger::IsActive()
     if (!target || !target->IsAlive() || !target->IsInWorld())
         return false;
 
-    return !bot->CanReachWithMeleeAutoAttack(target);
+    // 1yd safety buffer: small creatures have tiny hitboxes, attack can fail at exact melee range
+    float dist = sServerFacade.GetDistance2d(bot, target);
+    return sServerFacade.IsDistanceGreaterThan(dist, sPlayerbotAIConfig.meleeDistance - 1.0f);
 }
 
 EnemyOutOfSpellTrigger::EnemyOutOfSpellTrigger(PlayerBotAI* botAI)
@@ -76,20 +79,32 @@ bool InvalidTargetTrigger::IsActive()
         !target->IsInWorld() ||
         !target->IsAlive() ||
         target->IsFriendlyTo(bot))
+    {
+        LOG_DEBUG("playerbots", "%s [InvalidTargetTrigger] dead/map/friendly",
+            bot->GetName());
         return true;
+    }
 
     // Check if target is tapped by someone else (server authority)
     // If creature has a loot recipient that's not us, drop it and find another
     if (Creature* c = target->ToCreature())
     {
         if (c->HasLootRecipient() && !c->IsTappedBy(bot))
+        {
+            LOG_DEBUG("playerbots", "%s [InvalidTargetTrigger] tapped by other (recipient=%u)",
+                bot->GetName(), c->GetLootRecipientGuid().GetCounter());
             return true;  // tapped by outsider, invalid target
+        }
     }
 
     // Check if target is too far to be useful (beyond sight distance)
     float dist = sServerFacade.GetDistance2d(bot, target);
     if (dist > sPlayerbotAIConfig.sightDistance)
+    {
+        LOG_DEBUG("playerbots", "%s [InvalidTargetTrigger] too far (%.1f)",
+            bot->GetName(), dist);
         return true;  // target too far, likely despawned or moved away
+    }
 
     return false;
 }
