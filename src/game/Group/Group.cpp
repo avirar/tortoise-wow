@@ -39,6 +39,7 @@
 #include "LFGHandler.h"
 #include "Chat.h"
 #include "Logging/DatabaseLogger.hpp"
+#include "ScriptObjects.h"
 
 #include <array>
 
@@ -146,7 +147,7 @@ bool Group::Create(ObjectGuid guid, const char * name)
         CharacterDatabase.PExecute("DELETE FROM `groups` WHERE groupId ='%u'", m_Id);
         CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId ='%u'", m_Id);
 
-        CharacterDatabase.PExecute("INSERT INTO groups(groupId,leaderGuid,mainTank,mainAssistant,lootMethod,looterGuid,lootThreshold,icon1,icon2,icon3,icon4,icon5,icon6,icon7,icon8,isRaid) "
+        CharacterDatabase.PExecute("INSERT INTO `groups`(groupId,leaderGuid,mainTank,mainAssistant,lootMethod,looterGuid,lootThreshold,icon1,icon2,icon3,icon4,icon5,icon6,icon7,icon8,isRaid) "
                                    "VALUES('%u','%u','%u','%u','%u','%u','%u','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','%u')",
                                    m_Id, m_leaderGuid.GetCounter(), m_mainTankGuid.GetCounter(), m_mainAssistantGuid.GetCounter(), uint32(m_lootMethod),
                                    m_looterGuid.GetCounter(), uint32(m_lootThreshold),
@@ -232,7 +233,7 @@ void Group::ConvertToRaid()
     _initRaidSubGroupsCounter();
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET isRaid = 1 WHERE groupId='%u'", m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET isRaid = 1 WHERE groupId='%u'", m_Id);
     SendUpdate();
 
     // update quest related GO states (quest activity dependent from raid membership)
@@ -432,6 +433,11 @@ bool Group::AddMember(ObjectGuid guid, const char* name, uint8 joinMethod)
         }
     }
 
+    ScriptRegistry<GroupScript>::ForEach([&](GroupScript* script)
+    {
+        script->OnAddMember(this, guid);
+    });
+
     return true;
 }
 
@@ -505,6 +511,11 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
             sLFGMgr.UpdateGroup(m_Id);
 
         SendUpdate();
+
+        ScriptRegistry<GroupScript>::ForEach([&](GroupScript* script)
+        {
+            script->OnRemoveMember(this, guid, removeMethod);
+        });
     }
     // if group before remove <= 2 disband it
     else
@@ -519,16 +530,27 @@ void Group::ChangeLeader(ObjectGuid guid)
     if (slot == m_memberSlots.end())
         return;
 
+    ObjectGuid oldLeaderGuid = m_leaderGuid;
     _setLeader(guid);
 
     WorldPacket data(SMSG_GROUP_SET_LEADER, slot->name.size() + 1);
     data << slot->name;
     BroadcastPacket(&data, true);
     SendUpdate();
+
+    ScriptRegistry<GroupScript>::ForEach([&](GroupScript* script)
+    {
+        script->OnChangeLeader(this, guid, oldLeaderGuid);
+    });
 }
 
 void Group::Disband(bool hideDestroy, ObjectGuid initiator)
 {
+    ScriptRegistry<GroupScript>::ForEach([&](GroupScript* script)
+    {
+        script->OnDisband(this);
+    });
+
     Player* player;
     Player* remainingPlayer = nullptr;
 
@@ -1001,6 +1023,16 @@ void Group::StartLootRoll(Creature* lootTarget, LootMethod method, Loot* loot, u
         loot->items[itemSlot].is_blocked = true;
         lootTarget->StartGroupLoot(this, LOOT_ROLL_TIMEOUT);
         RollId.push_back(r);
+
+        // The managed bots vote now rather than never. They have no client to
+        // send CMSG_LOOT_ROLL, so before this every roll they were part of ran
+        // its full thirty seconds and passed by default.
+        //
+        // After RollId.push_back on purpose: CountRollVote looks the roll up in
+        // that list, and a vote cast before it is in there finds nothing.
+        ScriptRegistry<GroupScript>::ForEach([&](GroupScript* s) {
+            s->OnLootRollStarted(this, lootTarget->GetObjectGuid(), itemSlot, lootItem.itemid);
+        });
     }
     else                                            // no looters??
         delete r;
@@ -1080,20 +1112,30 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
     }
 
     // Turtle:: Make raid looted items not appear soul bound.
-    const auto CheckSoulboundException = [this](Player* player, const LootItem& lootItem, Item* newitem, Creature* creature)
+    const auto CheckSoulboundException = [this](Player* player, const LootItem& lootItem, Item* newitem, Creature* creature, bool isGameObjectLoot)
     {
         auto itemProto = newitem->GetProto();
-        if (player->GetMap()->IsRaid() && creature && itemProto && (creature->IsWorldBoss() || itemProto->Quality >= ITEM_QUALITY_RARE))
+        if (player->GetMap()->IsRaid() && itemProto)
         {
-            if (!lootItem.freeforall && itemProto->Stackable <= 1)
+            bool canBeTemporarilyTraded = isGameObjectLoot && itemProto->Quality >= ITEM_QUALITY_RARE;
+            canBeTemporarilyTraded |= creature && (creature->IsWorldBoss() || itemProto->Quality >= ITEM_QUALITY_RARE);
+
+            if (canBeTemporarilyTraded && !lootItem.freeforall && itemProto->Stackable <= 1)
             {
                 newitem->SetCanTradeWithRaidUntil(sWorld.GetGameTime() + 10 * MINUTE, player->GetMapId());
                 for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
                 {
                     if (Player* pMember = itr->getSource())
                     {
-                        if (pMember->GetMapId() == player->GetMapId() && creature->WasPlayerPresentAtDeath(pMember))
+                        if (creature)
+                        {
+                            if (pMember->GetMapId() == player->GetMapId() && creature->WasPlayerPresentAtDeath(pMember))
+                                newitem->AddPlayerToAllowedTradeList(pMember->GetObjectGuid());
+                        }
+                        else if (pMember->GetMapId() == player->GetMapId() && pMember->GetInstanceId() == player->GetInstanceId())
+                        {
                             newitem->AddPlayerToAllowedTradeList(pMember->GetObjectGuid());
+                        }
                     }
                 }
                 //force refresh of soulbound-ness since we don't hook into CreateItem anymore.
@@ -1158,7 +1200,7 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
 
                     if (Item* newItem = player->StoreNewItem(dest, roll->itemid, true, item->randomPropertyId))
                     {
-                        CheckSoulboundException(player, *item, newItem, roll->lootedTargetGUID.IsCreature() ? player->GetMap()->GetCreature(roll->lootedTargetGUID) : nullptr);
+                        CheckSoulboundException(player, *item, newItem, roll->lootedTargetGUID.IsCreature() ? player->GetMap()->GetCreature(roll->lootedTargetGUID) : nullptr, roll->lootedTargetGUID.IsGameObject());
                         player->OnReceivedItem(newItem);
                     }
                 }
@@ -1228,7 +1270,7 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
 
                     if (Item* newItem = player->StoreNewItem(dest, roll->itemid, true, item->randomPropertyId))
                     {
-                        CheckSoulboundException(player, *item, newItem, roll->lootedTargetGUID.IsCreature() ? player->GetMap()->GetCreature(roll->lootedTargetGUID) : nullptr);
+                        CheckSoulboundException(player, *item, newItem, roll->lootedTargetGUID.IsCreature() ? player->GetMap()->GetCreature(roll->lootedTargetGUID) : nullptr, roll->lootedTargetGUID.IsGameObject());
                         player->OnReceivedItem(newItem);
                     }
                 }

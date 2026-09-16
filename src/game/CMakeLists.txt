@@ -22,12 +22,15 @@ set (game_SRCS
     Camera.cpp
     Conditions.cpp
     CreatureGroups.cpp
+    CustomMerchantMgr.cpp
     DynamicVisibilityMgr.cpp
     DynamicVisibilityMgr.h
     DailyQuestHandler.cpp
     GameEventMgr.cpp
     GuardMgr.cpp
     GMTicketMgr.cpp
+    HeadlessSessionMgr.cpp
+    HeadlessSessionMgr.h
     GossipDef.cpp
     PerformanceMonitor.cpp
     HardcodedEvents.cpp
@@ -40,8 +43,11 @@ set (game_SRCS
     ObjectMgr.cpp
     ObjectPosSelector.cpp
     PlayerDump.cpp
+    PlayerLoginQueryHolder.cpp
+    PlayerLoginQueryHolder.h
     QuestDef.cpp
     ReputationMgr.cpp
+    ScriptObjects.h
     ScriptMgr.cpp
     SocialMgr.cpp
     StatSystem.cpp
@@ -73,7 +79,6 @@ set (game_SRCS
     AI/ScriptedPetAI.cpp
     AI/TotemAI.cpp
 	Analysis/AccountAnalyser.cpp
-    Autoscaling/AutoScaler.cpp
     AuctionHouse/AuctionHouseMgr.cpp
     Battlegrounds/BattleGround.cpp
     Battlegrounds/BattleGroundAB.cpp
@@ -102,6 +107,8 @@ set (game_SRCS
     Handlers/BattleGroundHandler.cpp
     Handlers/ChannelBroadcaster.cpp
     Handlers/ChannelHandler.cpp
+    Handlers/CharacterCreation.cpp
+    Handlers/CharacterCreation.h
     Handlers/CharacterHandler.cpp
     Handlers/ChatHandler.cpp
     Handlers/CombatHandler.cpp
@@ -130,6 +137,9 @@ set (game_SRCS
     HttpApi/TransferController.cpp
     HttpApi/TransferController.hpp
     LFG/LFGMgr.cpp
+    LFT/LFTMgr.cpp
+    LFT/LFTQeueue.cpp
+    LFT/LFTUserGroups.cpp
     Logging/DatabaseLogger.hpp
     Logging/DatabaseLogger.cpp
     Mail/Mail.cpp
@@ -383,6 +393,7 @@ set (game_SRCS
     Camera.h
     Conditions.h
     CreatureGroups.h
+    CustomMerchantMgr.h
     Formulas.h
     GuidObjectScaling.h
     GameEventMgr.h
@@ -410,6 +421,7 @@ set (game_SRCS
     SharedDefines.h
     SocialMgr.h
     TransmogMgr.h
+    SessionTransport.h
     UnitEvents.h
     Weather.h
     World.h
@@ -474,6 +486,7 @@ set (game_SRCS
     Handlers/NPCHandler.h
     Handlers/LFGHandler.h
     LFG/LFGMgr.h
+    LFT/LFTMgr.h
     Mail/Mail.h
     Mail/MassMailMgr.h
     Maps/Cell.h
@@ -543,8 +556,6 @@ set (game_SRCS
     OutdoorPvP/OutdoorPvPSI.h
     PacketBroadcast/MovementBroadcaster.h
     PacketBroadcast/PlayerBroadcaster.h
-    PlayerBots/PlayerBotAI.h
-    PlayerBots/PlayerBotMgr.h
     Protocol/Opcodes.h
     Protocol/WorldSocket.h
     Protocol/WorldSocketMgr.h
@@ -675,6 +686,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/Guild
   ${CMAKE_CURRENT_SOURCE_DIR}/Handlers
   ${CMAKE_CURRENT_SOURCE_DIR}/LFG
+  ${CMAKE_CURRENT_SOURCE_DIR}/LFT
   ${CMAKE_CURRENT_SOURCE_DIR}/Mail
   ${CMAKE_CURRENT_SOURCE_DIR}/MapNodes
   ${CMAKE_CURRENT_SOURCE_DIR}/MapNodes/Handlers
@@ -829,5 +841,13 @@ else()
       ObjectMgr.h
       ScriptMgr.h
       )
+  endif()
+endif()
+
+if(NOT USE_PCH)
+  if(MSVC)
+    target_compile_options(game PRIVATE "/FI${CMAKE_CURRENT_SOURCE_DIR}/pchdef.h")
+  else()
+    target_compile_options(game PRIVATE "-include${CMAKE_CURRENT_SOURCE_DIR}/pchdef.h")
   endif()
 endif()

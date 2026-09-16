@@ -1,8 +1,10 @@
 #include "SpellEntry.h"
 #include "SharedDefines.h"
 #include "SpellAuraDefines.h"
+#include "SpellAuras.h"
 #include "SpellMgr.h"
 #include "Spell.h"
+#include "ScriptMgr.h"
 
 using namespace Spells;
 
@@ -100,8 +102,9 @@ SpellSpecific Spells::GetSpellSpecific(uint32 spellId)
             if (spellInfo->Dispel == DISPEL_POISON)
                 return SPELL_STING;
 
-            // only hunter aspects have this (one have generic family), if exclude Auto Shot
-            if (spellInfo->activeIconID == 122 && spellInfo->Id != 75)
+            // only hunter aspects have this (one have generic family), if exclude Auto Shot and Trueshot Aura
+            if (spellInfo->activeIconID == 122 && spellInfo->Id != 75 &&
+                    spellInfo->Id != 19506 && spellInfo->Id != 20905 && spellInfo->Id != 20906)
                 return SPELL_ASPECT;
 
             break;
@@ -114,7 +117,7 @@ SpellSpecific Spells::GetSpellSpecific(uint32 spellId)
             if (spellInfo->IsFitToFamilyMask(UI64LIT(0x0000000010000100)))
                 return SPELL_BLESSING;
 
-            if ((spellInfo->IsFitToFamilyMask(UI64LIT(0x180400))) && spellInfo->baseLevel != 0)
+            if (spellInfo->IsJudgementSpell() && spellInfo->baseLevel != 0)
                 return SPELL_JUDGEMENT;
 
             // Old Judgement of Command
@@ -735,25 +738,6 @@ float SpellEntry::CalculateCustomCoefficient(WorldObject const* caster, DamageEf
     {
         case SPELLFAMILY_PALADIN:
         {
-            // Seal of Righteousness
-            if (IsFitToFamilyMask(UI64LIT(0x0000000008000000)) && SpellIconID == 25)
-            {
-                coeff = 0.092f;
-                float speed = BASE_ATTACK_TIME;
-
-                if (caster->IsPlayer())
-                {
-                    if (Item *item = ((Player*)caster)->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND))
-                    {
-                        coeff = item->isOneHandedWeapon() ? 0.092f : 0.108f;
-                        speed = item->GetProto()->Delay;
-                    }
-                }
-
-                speed /= 1000.0f;
-
-                return speed * coeff;
-            }
             // Seal of Command
             if (Id == 20424)
             {
@@ -794,6 +778,17 @@ float SpellEntry::CalculateCustomCoefficient(WorldObject const* caster, DamageEf
     return coeff;
 }
 
+bool SpellEntry::CanTriggerWeaponProcs() const
+{
+    // All weapon based abilities can trigger weapon procs,
+    // even if they do no damage, or break on damage, like Sap.
+    // https://www.youtube.com/watch?v=klMsyF_Kz5o
+    if (EquippedItemClass == ITEM_CLASS_WEAPON && rangeIndex == SPELL_RANGE_IDX_COMBAT)
+        return true;
+
+    return Custom & SPELL_CUSTOM_TRIGGER_WEAPON_PROCS;
+}
+
 int32 SpellEntry::GetDuration() const
 {
     SpellDurationEntry const *du = sSpellDurationStore.LookupEntry(DurationIndex);
@@ -811,7 +806,7 @@ int32 SpellEntry::GetMaxDuration() const
     return (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
 }
 
-int32 SpellEntry::CalculateDuration(WorldObject const* caster) const
+int32 SpellEntry::CalculateDuration(WorldObject const* caster, Unit const* target, AuraScript* auraScript) const
 {
     int32 duration = GetDuration();
 
@@ -823,17 +818,34 @@ int32 SpellEntry::CalculateDuration(WorldObject const* caster) const
             if (Player const* pPlayer = caster->ToPlayer())
                 duration += int32((maxduration - duration) * pPlayer->GetComboPoints() / 5);
 
+        if (auraScript)
+            duration = auraScript->OnDurationCalculate(caster, target, duration);
+
         if (Unit const* pUnit = caster->ToUnit())
         {
             if (Player* modOwner = pUnit->GetSpellModOwner())
             {
+                int32 const durationBeforeSpellMods = duration;
                 modOwner->ApplySpellMod(Id, SPELLMOD_DURATION, duration);
+
+                Unit::AuraList const& overrideClassScripts = modOwner->GetAurasByType(SPELL_AURA_OVERRIDE_CLASS_SCRIPTS);
+                for (Aura const* aura : overrideClassScripts)
+                {
+                    if (aura->GetModifier()->m_miscvalue != 5066 ||
+                        modOwner->HasAura(51578) ||
+                        !aura->isAffectedOnSpell(this))
+                        continue;
+
+                    duration += int32(durationBeforeSpellMods * aura->GetModifier()->m_amount / 100.0f);
+                }
 
                 if (duration < 0)
                     duration = 0;
             }
         }
     }
+    else if (auraScript)
+        duration = auraScript->OnDurationCalculate(caster, target, duration);
 
     return duration;
 }
@@ -928,6 +940,7 @@ bool SpellEntry::IsPositiveEffect(SpellEffectIndex effIndex, WorldObject const* 
             }
         // non-positive aura use
         case SPELL_EFFECT_APPLY_AURA:
+        case SPELL_EFFECT_APPLY_AURA_PET:
         {
             switch (EffectApplyAuraName[effIndex])
             {

@@ -71,6 +71,8 @@ public:
         uint8              Flags;
         std::string        FullName;
         uint32             PermissionMask = 0;
+        // A module binds a free function here; Handler is the core's member pointer.
+        bool             (*ModuleHandler)(ChatHandler* handler, char* args) = nullptr;
 };
 
 enum ChatCommandSearchResult
@@ -331,6 +333,7 @@ class ChatHandler
         bool HandleReloadLocalesPointsOfInterestCommand(char* args);
         bool HandleReloadLocalesQuestCommand(char* args);
         bool HandleReloadLootTemplatesMailCommand(char* args);
+        bool HandleReloadModuleStringCommand(char* args);
         bool HandleReloadNpcGossipCommand(char* args);
         bool HandleReloadNpcTextCommand(char* args);
         bool HandleReloadNpcTrainerCommand(char* args);

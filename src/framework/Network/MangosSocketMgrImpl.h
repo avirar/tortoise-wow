@@ -102,6 +102,7 @@ public:
     void Stop()
     {
         m_Reactor->end_reactor_event_loop();
+        m_Reactor->notify();
     }
 
     int Start(int interval)
@@ -239,7 +240,7 @@ MangosSocketMgr<SocketType>::MangosSocketMgr():
 }
 
 template <typename SocketType>
-MangosSocketMgr<SocketType>::~MangosSocketMgr()
+MangosSocketMgr<SocketType>::~MangosSocketMgr() noexcept
 {
     delete [] m_NetThreads;
     delete m_Acceptor;

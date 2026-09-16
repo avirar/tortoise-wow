@@ -35,6 +35,7 @@
 #include "MapNodes/AbstractPlayer.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
+#include "HeadlessSessionMgr.h"
 #include "Utilities/robin_hood.h"
 
 //#include "Creature.h"
@@ -54,13 +55,14 @@ class WorldSession;
 class Player;
 class SqlResultQueue;
 class QueryResult;
+class LoginQueryHolder;
+class BanAccountHandler;
 class World;
 class ChannelBroadcaster;
 namespace DiscordBot
 {
     class Bot;
 }
-
 namespace HttpApi
 {
     class ApiServer;
@@ -228,6 +230,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_MAX_HONOR_POINTS,
     CONFIG_UINT32_START_HONOR_POINTS,
     CONFIG_UINT32_MIN_HONOR_KILLS,
+    CONFIG_UINT32_WEEKLY_HONOR_CAP,
     CONFIG_UINT32_INSTANCE_RESET_TIME_HOUR,
     CONFIG_UINT32_INSTANCE_UNLOAD_DELAY,
     CONFIG_UINT32_MAX_SPELL_CASTS_IN_CHAIN,
@@ -534,15 +537,6 @@ enum eConfigFloatValues
     CONFIG_FLOAT_SUSPICIOUS_MOVEMENTSPEED_REPORT_THRESHOLD,
     CONFIG_FLOAT_MAX_FACTION_IMBALANCE,
     CONFIG_FLOAT_OPEN_WORLD_HONOR_MULTIPLIER,
-    CONFIG_FLOAT_LEECH_AMOUNT,
-    CONFIG_FLOAT_SCALAR_MIN_5MAN_HP,
-    CONFIG_FLOAT_SCALAR_MIN_5MAN_DMG,
-    CONFIG_FLOAT_SCALAR_MIN_10MAN_HP,
-    CONFIG_FLOAT_SCALAR_MIN_10MAN_DMG,
-    CONFIG_FLOAT_SCALAR_MIN_20MAN_HP,
-    CONFIG_FLOAT_SCALAR_MIN_20MAN_DMG,
-    CONFIG_FLOAT_SCALAR_MIN_40MAN_HP,
-    CONFIG_FLOAT_SCALAR_MIN_40MAN_DMG,
     CONFIG_FLOAT_VALUE_COUNT
 };
 
@@ -714,8 +708,6 @@ enum eConfigBoolValues
     CONFIG_BOOL_BLOCK_ALL_HANZI,
     CONFIG_BOOL_HOLIDAY_EVENT,
     CONFIG_BOOL_PERFORMANCE_ENABLE,
-    CONFIG_BOOL_LEECH_ENABLE,
-    CONFIG_BOOL_AUTOSCALER_ENABLE,
     CONFIG_BOOL_VALUE_COUNT
 };
 
@@ -892,7 +884,9 @@ class World
         static volatile uint32 m_worldLoopCounter;
 
         friend class AccountDataWrapper;
-
+        friend class BanAccountHandler;
+        friend class CharacterHandler;
+        friend class WorldSession;
         World();
         ~World();
 
@@ -907,6 +901,16 @@ class World
         const SessionMap& GetAllSessions() const { return m_sessions; }
         WorldSession* FindSession(uint32 id) const;
         void AddSession(WorldSession *s);
+        // Trusted native-module interface. Calls must run on the world thread;
+        // the manager owns construction, callbacks, lifetime and reclaim.
+        HeadlessSessionStartResult StartHeadlessSession(uint32 accountId, ObjectGuid characterGuid,
+            LocaleConstant locale, std::string const& tag);
+        bool StopHeadlessSession(ObjectGuid characterGuid, bool save = true);
+        HeadlessSessionState GetHeadlessSessionState(ObjectGuid characterGuid) const;
+
+
+        // Network account state is independent of headless character sessions.
+        bool HasOtherSessionForAccount(uint32 accountId, WorldSession const* excluded = nullptr) const;
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
@@ -1268,6 +1272,10 @@ class World
         void _UpdateRealmCharCount(QueryResult *resultCharCount, uint32 accountId);
 
     private:
+        void HandleHeadlessLoginCallback(LoginQueryHolder* holder);
+        bool ReclaimHeadlessSession(ObjectGuid characterGuid, WorldSession* session,
+            WorldSession* replacement, uint32 accountId);
+        void StopHeadlessSessionsForAccount(uint32 accountId, bool save);
         void setConfig(eConfigUInt32Values index, char const* fieldname, uint32 defvalue);
         void setConfig(eConfigInt32Values index, char const* fieldname, int32 defvalue);
         void setConfig(eConfigFloatValues index, char const* fieldname, float defvalue);
@@ -1310,6 +1318,7 @@ class World
         uint32 m_lastDiff = 0;
         SessionMap m_sessions;
         SessionSet m_disconnectedSessions;
+        std::unique_ptr<HeadlessSessionMgr> m_headlessSessionMgr;
         robin_hood::unordered_map<uint32 /*accountId*/, time_t /*last logout*/> m_accountsLastLogout;
         bool CanSkipQueue(WorldSession const* session);
 

@@ -3,6 +3,7 @@
  * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
  * Copyright (C) 2011-2016 Nostalrius <https://nostalrius.org>
  * Copyright (C) 2016-2017 Elysium Project <https://github.com/elysium-project>
+ * Copyright (C) vMaNGOS contributors <https://github.com/vmangos/core>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +26,7 @@
 #include "SpellAuraDefines.h"
 #include "DBCEnums.h"
 #include "ObjectGuid.h"
+#include "UnitDefines.h"
 #include <vector>
 
 /**
@@ -75,7 +77,12 @@ struct HeartBeatData
 };
 
 class Unit;
+class Item;
+class WorldObject;
+class Player;
+class DynamicObject;
 class SpellEntry;
+struct AuraScript;
 struct SpellModifier;
 struct ProcTriggerSpell;
 
@@ -112,6 +119,7 @@ class SpellAuraHolder
 
         uint32 GetId() const { return m_spellProto->Id; }
         SpellEntry const* GetSpellProto() const { return m_spellProto; }
+        AuraScript* GetAuraScript() const { return m_auraScript; }
 
         ObjectGuid const& GetCasterGuid() const { return m_casterGuid; }
         void SetCasterGuid(ObjectGuid guid) { m_casterGuid = guid; }
@@ -152,6 +160,7 @@ class SpellAuraHolder
         bool IsWeaponBuffCoexistableWith(SpellAuraHolder const* ref) const;
         bool IsNeedVisibleSlot(Unit const* caster) const;
         bool IsRemovedOnShapeLost() const { return m_isRemovedOnShapeLost; }
+        void SetRemovedOnShapeLost(bool removed) { m_isRemovedOnShapeLost = removed; }
         bool IsInUse() const { return m_in_use;}
         bool IsDeleted() const { return m_deleted;}
         bool IsEmptyHolder() const;
@@ -226,7 +235,7 @@ class SpellAuraHolder
 
         void UpdateAuraDuration() const;
 
-        void SetAura(uint32 slot, bool remove) { m_target->SetUInt32Value(UNIT_FIELD_AURA + slot, remove ? 0 : GetId()); }
+        void SetAura(uint32 slot, bool remove);
         void SetAuraFlag(uint32 slot, bool add);
         void SetAuraLevel(uint32 slot, uint32 level);
 
@@ -251,6 +260,7 @@ class SpellAuraHolder
         time_t m_applyTime;
 
         SpellEntry const* m_spellProto;
+        AuraScript* m_auraScript;
 
         uint8 m_auraSlot;                                   // Aura slot on unit (for show in client)
         uint8 m_auraLevel;                                  // Aura level (store caster level for correct show level dep amount)
@@ -356,6 +366,7 @@ class Aura
         void HandleAuraModRoot(bool Apply, bool Real);
         void HandleAuraModSilence(bool Apply, bool Real);
         void HandleAuraModStat(bool Apply, bool Real);
+        void HandleAuraModPetStatsFromOwner(bool Apply, bool Real);
         void HandleAuraModIncreaseSpeed(bool Apply, bool Real);
         void HandleAuraModIncreaseMountedSpeed(bool Apply, bool Real);
         void HandleAuraModDecreaseSpeed(bool Apply, bool Real);
@@ -393,6 +404,7 @@ class Aura
         void HandleChannelDeathItem(bool Apply, bool Real);
         void HandlePeriodicDamagePCT(bool Apply, bool Real);
         void HandleAuraModAttackPower(bool Apply, bool Real);
+        void HandleAuraModAttackPowerArea(bool Apply, bool Real);
         void HandleAuraTransform(bool Apply, bool Real);
         void HandleModSpellCritChance(bool Apply, bool Real);
         void HandleAuraModIncreaseSwimSpeed(bool Apply, bool Real);
@@ -423,6 +435,7 @@ class Aura
         void HandleAuraModPacify(bool Apply, bool Real);
         void HandleAuraGhost(bool Apply, bool Real);
         void HandleAuraModAttackPowerPercent(bool apply, bool Real);
+        void HandleAuraModAttackPowerPercentArea(bool apply, bool Real);
         void HandleAuraModRangedAttackPowerPercent(bool apply, bool Real);
         void HandleSpiritOfRedemption(bool apply, bool Real);
         void HandleAuraAoeCharm(bool apply, bool real);
@@ -492,6 +505,12 @@ class Aura
             if(uint32 maxticks = GetAuraMaxTicks())
                 m_periodicTick = maxticks - GetAuraDuration() / m_modifier.periodictime;
         }
+        void SetPeriodicTimer(uint32 periodicTimerMs)
+        {
+            m_isPeriodic = true;
+            m_periodicTimer = periodicTimerMs;
+            m_modifier.periodictime = periodicTimerMs;
+        }
 
         bool IsPositive() const { return m_positive; }
         bool IsPersistent() const { return m_isPersistent; }
@@ -549,9 +568,11 @@ class Aura
         bool CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
 
         SpellAuraHolder* GetHolder() const { return m_spellAuraHolder; }
+        AuraScript* GetAuraScript() const { return GetHolder()->GetAuraScript(); }
 
         bool IsLastAuraOnHolder();
         SpellModifier* GetSpellModifier() const { return m_spellmod; }
+        void AddExtraSpellModifier(SpellModifier* mod) { m_extraSpellMods.push_back(mod); }
     protected:
         Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr);
 

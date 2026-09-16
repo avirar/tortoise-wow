@@ -32,12 +32,15 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_SOURCE_DIR}/cmake
 )
 
+include(ConfigureModules)
+
 set(SUPPORTED_CLIENT_BUILD "CLIENT_BUILD_1_12_1" CACHE STRING "Client version the core will support")
 option(USE_STD_MALLOC "Use standard malloc instead of TBB" ON)
 option(TBB_DEBUG "Use TBB debug librairies" OFF)
 option(USE_ANTICHEAT "Use anticheat" ON)
 option(USE_DISCORD_BOT "Use Discord Bot" OFF)
 option(USE_SCRIPTS "Compile scripts" ON)
+set(MODULES "disabled" CACHE STRING "Module build mode: disabled, static, dynamic, or default.")
 option(USE_EXTRACTORS "Compile extractors" OFF)
 option(USE_TRACY "Use Tracy Profiling" OFF)
 option(USE_LIBCURL "Compile with libcurl for email support" OFF)
@@ -46,8 +49,9 @@ option(USE_ADDRESS_SANITIZER "Enable clang address sanitizer - debug feature tha
 option(ENABLE_PROFILING "(Windows only) Enable Optick integration, which allows to profile CPU and Memory. Also disabling some async code" OFF)
 option(ENABLE_LSAN "Enables Leak Sanitizer" OFF)
 # Allow enabling official Turtle addon support
-option(ALLOW_TURTLE_ADDONS "Allow Turtle addons" OFF)
+option(ALLOW_TURTLE_ADDONS "Allow Turtle addons" ON)
 
+ConfigureModuleBuildOptions()
 
 if(UNIX)
   option(DEBUG_SYMBOLS "Include Debug Symbols" ON)
@@ -323,9 +327,18 @@ else()
     set(rev_date "1970-01-01 00:00:00 +0000")
     set(rev_hash "unknown")
   endif()
-  
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/revision.h.cmake ${CMAKE_CURRENT_SOURCE_DIR}/src/shared/revision.h)
 endif()
+
+# Keep generated revision metadata out of the tracked source tree.
+# The generated include directory is placed first so <revision.h>
+# resolves to this build-specific header rather than src/shared/revision.h.
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/revision.h.cmake"
+  "${CMAKE_BINARY_DIR}/generated/revision.h"
+  @ONLY
+)
+include_directories(BEFORE "${CMAKE_BINARY_DIR}/generated")
 
 message(STATUS "")
 message(STATUS "Core revision: ${rev_hash} ${rev_date} ")
@@ -384,6 +397,27 @@ else()
   message(STATUS "Build scripts         : No")
 endif()
 
+if(MODULES_MODULE_LIST)
+  message(STATUS "Build modules         : ${MODULES}")
+  foreach(SOURCE_MODULE ${MODULES_MODULE_LIST})
+    ModuleNameToVariable("${SOURCE_MODULE}" MODULE_VARIABLE)
+    if("${${MODULE_VARIABLE}}" STREQUAL "default")
+      set(MODULE_EFFECTIVE_LINKAGE "${MODULES_DEFAULT_LINKAGE}")
+    else()
+      set(MODULE_EFFECTIVE_LINKAGE "${${MODULE_VARIABLE}}")
+    endif()
+    message(STATUS "  ${SOURCE_MODULE}: ${MODULE_EFFECTIVE_LINKAGE} (${MODULE_VARIABLE}=${${MODULE_VARIABLE}})")
+  endforeach()
+else()
+  message(STATUS "Build modules         : ${MODULES} (no modules found)")
+endif()
+
+if(MODULES_DYNAMIC_LINKING_REQUIRED)
+  message(STATUS "Module dynamic linking: Required")
+else()
+  message(STATUS "Module dynamic linking: Not required")
+endif()
+
 if(USE_DISCORD_BOT)
   message(STATUS "Build Discord Bot     : Yes")
   add_compile_definitions(USING_DISCORD_BOT)
@@ -396,7 +430,7 @@ if(ALLOW_TURTLE_ADDONS)
   message(STATUS "Allow Turtle Addons   : Yes")
   set(DEFINITIONS ${DEFINITIONS} ALLOW_TURTLE_ADDONS)
 else()
-  message(STATUS "Allow Turtle Addons   : No (default)")
+  message(STATUS "Allow Turtle Addons   : No")
 endif()
 
 
@@ -475,16 +509,23 @@ set(CMAKE_INSTALL_RPATH ${LIBS_DIR})
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 if(WIN32)
+  if(DEP_ARCH STREQUAL "x64")
+    set(OPENSSL_DLL_SUFFIX "-x64")
+  else()
+    set(OPENSSL_DLL_SUFFIX "")
+  endif()
   install(
     FILES
-      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_release/libeay32.dll
+      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_release/libcrypto-1_1${OPENSSL_DLL_SUFFIX}.dll
+      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_release/libssl-1_1${OPENSSL_DLL_SUFFIX}.dll
       ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_release/libmySQL.dll
     DESTINATION ${LIBS_DIR}
     CONFIGURATIONS Release
   )
   install(
     FILES
-      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_debug/libeay32.dll
+      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_debug/libcrypto-1_1${OPENSSL_DLL_SUFFIX}.dll
+      ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_debug/libssl-1_1${OPENSSL_DLL_SUFFIX}.dll
       ${CMAKE_SOURCE_DIR}/dep/windows/lib/${DEP_ARCH}_debug/libmySQL.dll
     DESTINATION ${LIBS_DIR}
     CONFIGURATIONS Debug
@@ -520,6 +561,7 @@ endif()
 set(DEFINITIONS
   ${DEFINITIONS}
   DO_MYSQL
+  TW_SOURCE_MODULES_DIR="${CMAKE_SOURCE_DIR}/modules"
 )
 
 if(WIN32)
@@ -528,6 +570,13 @@ if(WIN32)
 else()
   set(DEFINITIONS ${DEFINITIONS} SYSCONFDIR="${CONF_DIR}/")
 endif()
+
+if(TW_MODULE_CONFIG_LIST)
+  string(REPLACE ";" "," TW_MODULE_CONFIG_LIST_CSV "${TW_MODULE_CONFIG_LIST}")
+else()
+  set(TW_MODULE_CONFIG_LIST_CSV "")
+endif()
+set(DEFINITIONS ${DEFINITIONS} TW_MODULE_CONFIG_LIST="${TW_MODULE_CONFIG_LIST_CSV}")
 
 if(USE_STD_MALLOC)
   set(DEFINITIONS ${DEFINITIONS} USE_STANDARD_MALLOC)
@@ -551,6 +600,41 @@ message(STATUS "Build flags (DEBUG)   : ${CMAKE_CXX_FLAGS_DEBUG}")
 
 add_subdirectory(src)
 add_subdirectory(dep)
+add_subdirectory(modules)
+
+if(TARGET mangosd AND TARGET modules)
+  target_link_libraries(mangosd modules)
+endif()
+
+if(TARGET mangosd AND WORLDSERVER_DYNAMIC_MODULES_DEPENDENCIES)
+  add_dependencies(mangosd ${WORLDSERVER_DYNAMIC_MODULES_DEPENDENCIES})
+endif()
+
+if(TARGET mangosd)
+  if(WORLDSERVER_DYNAMIC_MODULES)
+    string(REPLACE ";" "," TW_DYNAMIC_MODULES_CSV "${WORLDSERVER_DYNAMIC_MODULES}")
+  else()
+    set(TW_DYNAMIC_MODULES_CSV "")
+  endif()
+
+  if(WORLDSERVER_ENABLED_MODULES)
+    string(REPLACE ";" "," TW_ENABLED_MODULES_CSV "${WORLDSERVER_ENABLED_MODULES}")
+  else()
+    set(TW_ENABLED_MODULES_CSV "")
+  endif()
+
+  target_compile_definitions(mangosd
+    PRIVATE
+      TW_DYNAMIC_MODULES="${TW_DYNAMIC_MODULES_CSV}"
+      TW_MODULES_BUILD_DIRECTIVE="${CMAKE_BUILD_TYPE}"
+      TW_DYNAMIC_MODULES_INSTALL_DIR="${MODULES_INSTALL_RUNTIME_DIR}")
+
+  if(TARGET shared)
+    target_compile_definitions(shared
+      PRIVATE
+        TW_ENABLED_MODULES="${TW_ENABLED_MODULES_CSV}")
+  endif()
+endif()
 
 
 if (USE_EXTRACTORS OR USE_REALMMERGE)

@@ -641,7 +641,7 @@ enum BuyBackSlots                                           // 12 slots
 enum KeyRingSlots                                           // 32 slots
 {
     KEYRING_SLOT_START          = 81,
-    KEYRING_SLOT_END            = 97
+    KEYRING_SLOT_END            = KEYRING_SLOT_START + 32
 };
 
 struct ItemPosCount
@@ -722,6 +722,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADSPELLS,
     PLAYER_LOGIN_QUERY_LOADQUESTSTATUS,
     PLAYER_LOGIN_QUERY_LOADHONORCP,
+    PLAYER_LOGIN_QUERY_LOADPVPCURRENCY,
     PLAYER_LOGIN_QUERY_LOADREPUTATION,
     PLAYER_LOGIN_QUERY_LOADTRANSMOGS,
     PLAYER_LOGIN_QUERY_LOADINVENTORY,
@@ -801,15 +802,36 @@ enum PlayerTitles : uint8
     TITLE_AVENGER_OF_QUELTHALAS = 10,
     TITLE_BLOOD_RING_CHAMPION = 11,
     TITLE_DEVELOPER = 12,
+    TITLE_EVERLOOK_BROADCASTING_DJ = 13,
+    TITLE_THE_NEWS_ANCHOR_ORC = 14,
     TITLE_SCARAB_LORD = 15,
     TITLE_CONQUEROR_OF_NAXXRAMAS = 16,
     TITLE_CARTOGRAPHER = 17,
     TITLE_STILL_ALIVE = 18,
+    TITLE_ACTIVISION_BLIZZARD_SPY = 19,
     TITLE_CONQUEROR_OF_THE_FLAMES = 20,
     TITLE_CONQUEROR_OF_THE_DRAGONS = 21,
     TITLE_CONQUEROR_OF_THE_QIRAJI = 22,
     TITLE_CONQUEROR_OF_THE_SCOURGE = 23,
+    TITLE_ASCENDED_CHAMPION = 24,
+    TITLE_CONQUEROR_OF_DESOLATION = 25,
+    TITLE_BANE_OF_THE_NATHREZIM = 26,
+    TITLE_THE_JOLLY = 27,
+    TITLE_ELUNES_CHOSEN = 28,
+    TITLE_CRAFTMASTER = 29,
+    TITLE_THE_WEE_WARLORD = 30,
+    TITLE_PINT_SIZED_POLITICIAN = 31,
+    TITLE_ARENAS_SMALLEST_SMASHER = 32,
+    TITLE_LAZY_PEONS_FOREMAN = 33,
+    TITLE_HERO_OF_GOLDSHIRE = 34,
+    TITLE_PET_ROCK_STAR = 35,
+    TITLE_FISHLAYER = 36,
+    TITLE_THE_ADDONS_ARCHITECT = 37,
+    TITLE_AZEROTHS_MOST_UNLUCKY_TOURIST = 38,
+    TITLE_THE_HEROIC = 39,
+    TITLE_THE_HAMBRINGER = 40,
     TITLE_SWINE_SLAYER = 40,
+    TITLE_GUARDIAN_OF_THE_FLAME = 41,
     TITLE_SEEKER_OF_KNOWLEDGE = 42,
     TITLE_GRAND_FROGUS = 43,
     TITLE_THE_WANDERER = 44,
@@ -819,11 +841,20 @@ enum PlayerTitles : uint8
     TITLE_STORMWIELDER = 48,
     TITLE_SULFURON_CHAMPION = 49,
     TITLE_GUARDIAN_OF_TIRISFAL = 50,
-    TITLE_BANE_OF_THE_SCARLET_CRUSADE = 50,
+    TITLE_BANE_OF_THE_SCARLET_CRUSADE = 51,
     TITLE_IMMORTAL = 52,
+    TITLE_LOCAL_DRUNK = 53,
+    TITLE_THE_ITSY_BITSY_HERO = 54,
+    TITLE_BLACKWINGS_BANE = 55,
+    TITLE_DRAGONSLAYER = 56,
+    TITLE_CHAMPION_OF_THE_SHIFTING_SANDS = 57,
+    TITLE_CHAMPION_OF_THE_FROZEN_CITADEL = 58,
     TITLE_LOREKEEPER = 63,
     TITLE_DIPLOMAT = 64,
-    TITLE_MAX_LIMIT = 64
+    TITLE_GODSLAYER_OF_HAKKAR = 65,
+    TITLE_DESTROYER_OF_DREAMS = 66,
+    TITLE_HERO_OF_AZEROTH = 67,
+    TITLE_MAX_LIMIT = 68
 };
 
 // Player summoning auto-decline time (in secs)
@@ -1309,6 +1340,8 @@ class Player final: public Unit
         void RemoveItem(const uint8 bag, const uint8 slot, const bool update = true);
         void MailHardcoreModeRewards(uint32 level);
         void MailVagrantModeRewards(uint32 level);
+        void MailBoaringModeRewards(uint32 level);
+        void MailBrewmasterModeRewards();
         void AnnounceHardcoreModeLevelUp(uint32 level);
         // Titles
         bool IsCityProtector();
@@ -1343,7 +1376,7 @@ class Player final: public Unit
         void RemoveItemFromBuyBackSlot(uint32 slot, bool del);
         uint32 GetBuyBackItemPrice(uint32 slot) const { return GetUInt32Value(PLAYER_FIELD_BUYBACK_PRICE_1 + slot - BUYBACK_SLOT_START); }
 
-        uint32 GetMaxKeyringSize() const { return GetLevel() < 40 ? 4 : (GetLevel() < 50 ? 8 : 12); }
+        uint32 GetMaxKeyringSize() const { return KEYRING_SLOT_END - KEYRING_SLOT_START; }
 
         void SendEquipError(InventoryResult msg, Item* pItem, Item* pItem2 = nullptr, uint32 itemid = 0) const;
         void SendBuyError(BuyResult msg, Creature* pCreature, uint32 item, uint32 param) const;
@@ -1371,6 +1404,11 @@ class Player final: public Unit
 
         Player* GetTrader() const { return m_trade ? m_trade->GetTrader() : nullptr; }
         TradeData* GetTradeData() const { return m_trade; }
+        // Server-side / scriptable trade initiation: opens the trade window with
+        // `other` using the same preconditions as the CMSG_INITIATE_TRADE handler,
+        // then leaves items, gold and acceptance to the normal trade path. Purely
+        // additive -- changes no existing behaviour. False if a precondition fails.
+        bool BeginTradeWith(Player* other);
         void TradeCancel(bool sendback, TradeStatus status = TRADE_STATUS_TRADE_CANCELED);
 
         uint32 GetTimeLoggedIn() const { return m_timeLoggedIn; }
@@ -1378,13 +1416,7 @@ class Player final: public Unit
 
         uint32 GetMoney() const { return GetUInt32Value(PLAYER_FIELD_COINAGE); }
         void LogModifyMoney(int32 d, const char* type, ObjectGuid fromGuid = ObjectGuid(), uint32 data = 0);
-        void ModifyMoney(int32 d)
-        {
-            if (d < 0)
-                SetMoney(GetMoney() > uint32(-d) ? GetMoney() + d : 0);
-            else
-                SetMoney(GetMoney() < uint32(MAX_MONEY_AMOUNT - d) ? GetMoney() + d : MAX_MONEY_AMOUNT);
-        }
+        void ModifyMoney(int32 d);
         void LootMoney(int32 g, Loot* loot);
         std::string GetShortDescription() const; // "player:guid [username:accountId@IP]"
 
@@ -1863,6 +1895,7 @@ class Player final: public Unit
         void _ApplyWeaponDependentAuraMods(Item* item, WeaponAttackType attackType, bool apply);
         void _ApplyWeaponDependentAuraCritMod(Item* item, WeaponAttackType attackType, Aura* aura, bool apply);
         void _ApplyWeaponDependentAuraDamageMod(Item* item, WeaponAttackType attackType, Aura* aura, bool apply);
+        void _ApplyWeaponDependentAuraResistanceMod(Item* item, WeaponAttackType attackType, Aura* aura, bool apply);
 
         void InitDataForForm(bool reapplyMods = false);
         void ApplyItemEquipSpell(Item* item, bool apply, bool form_change = false);
@@ -2153,6 +2186,7 @@ class Player final: public Unit
 
         uint32 GetHomeBindMap() const { return m_homebindMapId; }
         uint16 GetHomeBindAreaId() const { return m_homebindAreaId; }
+        WorldLocation GetHomeBindLocation() const { return WorldLocation(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ); }
 
         void SendSummonRequest(ObjectGuid summonerGuid, uint32 mapId, uint32 zoneId, float x, float y, float z);
         void SetSummonPoint(uint32 mapid, float x, float y, float z)
@@ -2236,7 +2270,16 @@ class Player final: public Unit
         * \param: bool inRestPlace  > if it was offline, is the player was in city/tavern/inn?
         * \returns: float
         **/
+        static constexpr float RESTED_XP_TAVERN_CAP = 1.0f;
+        static constexpr float RESTED_XP_TENT_CAP = 0.25f;
+        static constexpr float RESTED_XP_CLIENT_RATIO = 0.5f;
+        static constexpr float RESTED_XP_TENT_RATE = 0.000575f;
+        static constexpr uint32 RESTED_XP_KILL_BONUS_PCT = 50;
+
         float ComputeRest(time_t timePassed, bool offline = false, bool inRestPlace = false);
+        float GetRestBonusCap(float visibleRestedLevelFraction) const;
+        uint32 GetRestedKillBonusForXP(uint32 xp) const;
+        void AddRestBonus(float rest_bonus, float rest_bonus_cap);
         float GetRestBonus() const { return m_rest_bonus; }
         void SetRestBonus(float rest_bonus_new);
         RestType GetRestType() const { return rest_type; }

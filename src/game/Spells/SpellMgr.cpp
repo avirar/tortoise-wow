@@ -26,6 +26,7 @@
 #include "World.h"
 #include "Chat.h"
 #include "Spell.h"
+#include "ScriptMgr.h"
 #include "BattleGroundMgr.h"
 #include "MapManager.h"
 #include "Unit.h"
@@ -464,7 +465,7 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const * spellP
         return false;
 
     // Always trigger for this
-    if (EventProcFlag & (PROC_FLAG_HEARTBEAT | PROC_FLAG_KILL | PROC_FLAG_ON_TRAP_ACTIVATION))
+    if (EventProcFlag & procFlags & (PROC_FLAG_HEARTBEAT | PROC_FLAG_KILL | PROC_FLAG_ON_TRAP_ACTIVATION))
         return true;
 
     if (spellProcEvent)     // Exist event data
@@ -1050,8 +1051,12 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             if (spellInfo_2->SpellFamilyName == SPELLFAMILY_WARRIOR)
             {
                 // Rend and Deep Wound
-                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x20)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x1000000000))) ||
-                        ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x20)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x1000000000))))
+                if (((spellInfo_1->SpellIconID == 243 && spellInfo_2->SpellIconID == 245) ||
+                        (spellInfo_2->SpellIconID == 243 && spellInfo_1->SpellIconID == 245)) &&
+                        spellInfo_1->Effect[EFFECT_INDEX_0] == SPELL_EFFECT_APPLY_AURA &&
+                        spellInfo_2->Effect[EFFECT_INDEX_0] == SPELL_EFFECT_APPLY_AURA &&
+                        spellInfo_1->EffectApplyAuraName[EFFECT_INDEX_0] == SPELL_AURA_PERIODIC_DAMAGE &&
+                        spellInfo_2->EffectApplyAuraName[EFFECT_INDEX_0] == SPELL_AURA_PERIODIC_DAMAGE)
                     return false;
 
                 // Battle Shout and Rampage
@@ -1135,6 +1140,26 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 // Serpent Sting & (Immolation/Explosive Trap Effect)
                 if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x00000004000))) ||
                         ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x00000004000))))
+                    return false;
+
+                // Poison Spit & Immolation Trap Effect
+                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x8000000000))) ||
+                        ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x8000000000))))
+                    return false;
+
+                // Lacerate & Immolation Trap Effect
+                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x4000000000))) ||
+                        ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x4)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x4000000000))))
+                    return false;
+
+                // Lacerate & Poison Spit
+                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x8000000000)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x4000000000))) ||
+                        ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x8000000000)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x4000000000))))
+                    return false;
+
+                // Serpent Sting & Lacerate
+                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x00000004000)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x4000000000))) ||
+                        ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x00000004000)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x4000000000))))
                     return false;
 
                 // Bestial Wrath
@@ -2646,8 +2671,90 @@ void SpellMgr::LoadSkillRaceClassInfoMap()
 {
     mSkillRaceClassInfoMap.clear();
 
+    std::map<uint32, SkillRaceClassInfoEntry> overrides;
+
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `Id`, `SkillLineDbcRecord`, `RaceMask`, `ClassMask`, `Flags`, `MinLevel`, `SkillTierId`, `SkillCostIndex` FROM `skill_race_class_info_mod` ORDER BY `Id`"));
+
+    if (result)
+    {
+        constexpr int32 UseDbcValue = -1;
+
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 id = fields[0].GetUInt32();
+            SkillRaceClassInfoEntry const* dbcSkillRCInfo = sSkillRaceClassInfoStore.LookupEntry(id);
+            SkillRaceClassInfoEntry skillRCInfo = dbcSkillRCInfo ? *dbcSkillRCInfo : SkillRaceClassInfoEntry();
+
+            bool hasMissingBaseField = false;
+            bool hasInvalidField = false;
+            auto applyOverride = [&](uint32& field, uint8 fieldIndex)
+            {
+                int32 value = fields[fieldIndex].GetInt32();
+                if (value == UseDbcValue)
+                {
+                    if (!dbcSkillRCInfo)
+                        hasMissingBaseField = true;
+
+                    return;
+                }
+
+                if (value < 0)
+                {
+                    hasInvalidField = true;
+                    return;
+                }
+
+                field = uint32(value);
+            };
+
+            applyOverride(skillRCInfo.skillId, 1);
+            applyOverride(skillRCInfo.raceMask, 2);
+            applyOverride(skillRCInfo.classMask, 3);
+            applyOverride(skillRCInfo.flags, 4);
+            applyOverride(skillRCInfo.reqLevel, 5);
+            applyOverride(skillRCInfo.skillTierId, 6);
+
+            if (fields[7].GetInt32() != UseDbcValue)
+            {
+                sLog.outErrorDb("Table `skill_race_class_info_mod` has row %u with SkillCostIndex override, but this field is not loaded by the server, ignore", id);
+                continue;
+            }
+
+            if (hasMissingBaseField)
+            {
+                sLog.outErrorDb("Table `skill_race_class_info_mod` has row %u with -1 field overrides but no matching SkillRaceClassInfo.dbc row, ignore", id);
+                continue;
+            }
+
+            if (hasInvalidField)
+            {
+                sLog.outErrorDb("Table `skill_race_class_info_mod` has row %u with negative field value other than -1, ignore", id);
+                continue;
+            }
+
+            if (!sSkillLineStore.LookupEntry(skillRCInfo.skillId))
+            {
+                sLog.outErrorDb("Table `skill_race_class_info_mod` has row %u for nonexistent SkillLine.dbc id %u, ignore", id, skillRCInfo.skillId);
+                continue;
+            }
+
+            overrides[id] = skillRCInfo;
+        }
+        while (result->NextRow());
+    }
+
     for (uint32 i = 0; i < sSkillRaceClassInfoStore.GetNumRows(); ++i)
     {
+        auto overrideItr = overrides.find(i);
+        if (overrideItr != overrides.end())
+        {
+            mSkillRaceClassInfoMap.insert(SkillRaceClassInfoValueMap::value_type(overrideItr->second.skillId, overrideItr->second));
+            overrides.erase(overrideItr);
+            continue;
+        }
+
         SkillRaceClassInfoEntry const *skillRCInfo = sSkillRaceClassInfoStore.LookupEntry(i);
         if (!skillRCInfo)
             continue;
@@ -2656,8 +2763,27 @@ void SpellMgr::LoadSkillRaceClassInfoMap()
         if (!sSkillLineStore.LookupEntry(skillRCInfo->skillId))
             continue;
 
-        mSkillRaceClassInfoMap.insert(SkillRaceClassInfoMap::value_type(skillRCInfo->skillId, skillRCInfo));
+        mSkillRaceClassInfoMap.insert(SkillRaceClassInfoValueMap::value_type(skillRCInfo->skillId, *skillRCInfo));
     }
+
+    for (auto const& overrideEntry : overrides)
+        mSkillRaceClassInfoMap.insert(SkillRaceClassInfoValueMap::value_type(overrideEntry.second.skillId, overrideEntry.second));
+}
+
+SkillRaceClassInfoEntry const* SpellMgr::GetSkillRaceClassInfo(uint32 skillId, uint8 race, uint8 class_) const
+{
+    SkillRaceClassInfoMapBounds bounds = GetSkillRaceClassInfoMapBounds(skillId);
+    for (SkillRaceClassInfoValueMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+    {
+        if (itr->second.raceMask && !(itr->second.raceMask & (1 << (race - 1))))
+            continue;
+        if (itr->second.classMask && !(itr->second.classMask & (1 << (class_ - 1))))
+            continue;
+
+        return &itr->second;
+    }
+
+    return nullptr;
 }
 
 void SpellMgr::CheckUsedSpells(char const* table)
@@ -3069,6 +3195,7 @@ namespace SpellInternal
                 case SPELL_EFFECT_APPLY_AREA_AURA_ENEMY:
                 case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
                 case SPELL_EFFECT_APPLY_AREA_AURA_OWNER:
+                case SPELL_EFFECT_APPLY_AURA_PET:
                 return true;
                 default:
                     break;
@@ -3126,7 +3253,9 @@ namespace SpellInternal
 
         for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
-            if (SpellEffects(spellInfo->Effect[i]) == SPELL_EFFECT_APPLY_AURA || SpellEffects(spellInfo->Effect[i]) == SPELL_EFFECT_APPLY_AREA_AURA_PARTY)
+            if (SpellEffects(spellInfo->Effect[i]) == SPELL_EFFECT_APPLY_AURA ||
+                SpellEffects(spellInfo->Effect[i]) == SPELL_EFFECT_APPLY_AURA_PET ||
+                SpellEffects(spellInfo->Effect[i]) == SPELL_EFFECT_APPLY_AREA_AURA_PARTY)
                 return false;
         }
 
@@ -3514,6 +3643,7 @@ void SpellMgr::LoadSpells()
         spell->DmgMultiplier[1] = fields[143].GetFloat();
         spell->DmgMultiplier[2] = fields[144].GetFloat();
         spell->Custom = fields[148].GetUInt32();
+        spell->ScriptId = sScriptMgr.GetScriptId(fields[149].GetString());
         ParseTooltip(spell.get());
 
      

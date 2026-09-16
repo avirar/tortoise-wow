@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
+ * Copyright (C) vMaNGOS contributors <https://github.com/vmangos/core>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,20 +22,32 @@
 #define _SCRIPTMGR_H
 
 #include "Common.h"
+#include <string>
+#include "Log.h"
 #include "Policies/Singleton.h"
 #include "ObjectGuid.h"
 #include "DBCEnums.h"
+#include "SharedDefines.h"
+#include "UnitDefines.h"
 #include <atomic>
 #include "SpellDefines.h"
 
+#include <algorithm>
+#include <list>
+#include <map>
 #include <memory>
+#include <optional>
+#include <set>
 
 struct AreaTriggerEntry;
+struct CleanDamage;
 class Aura;
 class Object;
 class Unit;
 class Player;
 class Creature;
+class Pet;
+class Totem;
 class CreatureAI;
 class GameObject;
 class WorldObject;
@@ -43,8 +56,10 @@ class InstanceData;
 class Item;
 class Map;
 class Quest;
+class SpellAuraHolder;
 class SpellCastTargets;
 class SpellEntry;
+class Spell;
 
 // Legend:
 // source - the type of object which executes the command
@@ -362,6 +377,8 @@ enum eScriptCommand
     SCRIPT_COMMAND_START_SCRIPT_ON_ZONE     = 92,           // source = Map
                                                             // datalong = generic_script_id
                                                             // datalong2 = zone_id
+    SCRIPT_COMMAND_TAKE_MONEY               = 93,           // source = Player (from provided source or target)
+                                                            // datalong = copper amount
 
     SCRIPT_COMMAND_MAX,
 
@@ -1089,6 +1106,11 @@ struct ScriptInfo
             uint32 zoneId;                                  // datalong2
         } startScriptOnZone;
 
+        struct                                              // SCRIPT_COMMAND_TAKE_MONEY (93)
+        {
+            uint32 amount;                                  // datalong
+        } takeMoney;
+
         struct
         {
             uint32 data[9];
@@ -1175,10 +1197,11 @@ enum CastFlags
     CF_ONLY_IN_MELEE = 0x040, // Only casts if the creature is in melee range of the target
     CF_NOT_IN_MELEE = 0x080, // Only casts if the creature is not in melee range of the target
     CF_TARGET_CASTING = 0x100, // Only casts if the target is currently casting a spell
-	CF_IGNORE_LOS = 0x200, // Ignore Line of Sight. Turtle Specific
+    CF_IGNORE_LOS = 0x200, // Ignore Line of Sight. Turtle Specific
+    CF_IGNORE_HARDCORE_TARGETS = 0x400, // Prevent charm/possess spells from targeting Hardcore players
 };
 
-#define ALL_CAST_FLAGS (CF_INTERRUPT_PREVIOUS | CF_TRIGGERED | CF_FORCE_CAST | CF_MAIN_RANGED_SPELL | CF_TARGET_UNREACHABLE | CF_AURA_NOT_PRESENT | CF_ONLY_IN_MELEE | CF_NOT_IN_MELEE | CF_TARGET_CASTING)
+#define ALL_CAST_FLAGS (CF_INTERRUPT_PREVIOUS | CF_TRIGGERED | CF_FORCE_CAST | CF_MAIN_RANGED_SPELL | CF_TARGET_UNREACHABLE | CF_AURA_NOT_PRESENT | CF_ONLY_IN_MELEE | CF_NOT_IN_MELEE | CF_TARGET_CASTING | CF_IGNORE_LOS | CF_IGNORE_HARDCORE_TARGETS)
 
 // Values used in target_type column
 enum ScriptTarget
@@ -1368,6 +1391,79 @@ protected:
     ObjectGuid PlayerGuid;
 };
 
+struct SpellScript
+{
+    virtual ~SpellScript() = default;
+
+    virtual void OnInit(Spell* /*spell*/) {}
+    virtual void OnSuccessfulStart(Spell* /*spell*/) const {}
+    virtual void OnSuccessfulFinish(Spell* /*spell*/) const {}
+    virtual void OnFinish(Spell* /*spell*/, bool /*ok*/) const {}
+    virtual void OnComboPointsSpent(Spell* /*spell*/, uint8 /*comboPoints*/) const {}
+    virtual SpellCastResult OnCheckCast(Spell* /*spell*/, bool /*strict*/) const { return SPELL_CAST_OK; }
+    virtual bool OnCanCastNonCombatSpellInCombat(Spell* /*spell*/) const { return false; }
+    virtual std::optional<uint32> OnCalculatePowerCost(SpellEntry const* /*spellInfo*/, Unit* /*caster*/, Spell* /*spell*/, Item* /*castItem*/) const { return std::nullopt; }
+    virtual bool OnTakePower(Spell* /*spell*/) const { return true; }
+    virtual bool OnTakeAmmo(Spell* /*spell*/) const { return true; }
+    virtual void OnEffectDamageCalculate(Spell* /*spell*/, SpellEffectIndex /*effIdx*/, float& /*damage*/) const {}
+    virtual void OnSpellCritChanceCalculate(Spell* /*spell*/, Unit const* /*victim*/, float& /*critChance*/) const {}
+    virtual bool OnEffectHealCalculate(Spell* /*spell*/, SpellEffectIndex /*effIdx*/, int32& /*heal*/) const { return true; }
+    virtual bool OnEffectExecute(Spell* /*spell*/, SpellEffectIndex /*effIdx*/) const { return true; }
+    virtual void OnEffectExecuted(Spell* /*spell*/, SpellEffectIndex /*effIdx*/) const {}
+    virtual std::optional<SpellCastResult> OnCheckMount(Spell* /*spell*/) const { return std::nullopt; }
+    virtual void OnSetTargetMap(Spell* /*spell*/, SpellEffectIndex /*effIdx*/, uint32& /*targetMode*/, float& /*radius*/, uint32& /*unMaxTargets*/, bool& /*selectClosestTargets*/) const {}
+    virtual void OnTargetMapFilled(Spell* /*spell*/, SpellEffectIndex /*effIdx*/, uint32 /*targetMode*/, std::list<Unit*>& /*targets*/) const {}
+    virtual bool OnCheckTarget(Spell const* /*spell*/, GameObject* /*target*/, SpellEffectIndex /*eff*/) const { return true; }
+    virtual bool OnCheckTarget(Spell const* /*spell*/, Unit* /*target*/, SpellEffectIndex /*eff*/) const { return true; }
+    virtual void OnCast(Spell* /*spell*/) const {}
+    virtual void OnPrepareProcFlags(Spell* /*spell*/, bool& /*canTrigger*/, uint32& /*procAttacker*/, uint32& /*procVictim*/) const {}
+    virtual void OnBeforeProc(Spell* /*spell*/, Unit* /*target*/, SpellMissInfo /*missInfo*/, uint32& /*procAttacker*/, uint32& /*procVictim*/, uint32& /*procEx*/, bool& /*triggerWeaponProcs*/) const {}
+    virtual void OnHit(Spell* /*spell*/, SpellMissInfo /*missInfo*/) const {}
+    virtual void OnAfterHeal(Spell* /*spell*/, Unit* /*target*/, uint32 /*heal*/, int32 /*gain*/, bool /*crit*/) const {}
+    virtual void OnAfterHit(Spell* /*spell*/) const {}
+    virtual bool OnSendLoot(Spell* /*spell*/, GameObject* /*target*/, uint32 /*lootType*/, LockType /*lockType*/) const { return false; }
+    virtual void OnSummonBeforeAdd(Spell* /*spell*/, Pet* /*summon*/, uint32 /*summonIndex*/) const {}
+    virtual void OnSummon(Spell* /*spell*/, Creature* /*summon*/) const {}
+    virtual void OnSummon(Spell* /*spell*/, GameObject* /*summon*/) const {}
+    virtual void OnSuccessfulDispel(Spell* /*spell*/, SpellEffectIndex /*effIdx*/) const {}
+    virtual void OnSuccessfulSpecificDispel(Spell* spell, SpellEffectIndex effIdx, uint32 /*removedAura*/, ObjectGuid const& /*removedAuraCasterGuid*/, uint32 /*dispelCount*/) const { OnSuccessfulDispel(spell, effIdx); }
+    virtual void OnDestroyTotem(Spell* /*spell*/, Totem* /*totem*/) const {}
+};
+
+struct AuraScript
+{
+    virtual ~AuraScript() = default;
+
+    virtual void OnHolderInit(SpellAuraHolder* /*holder*/, WorldObject* /*caster*/) {}
+    virtual void OnAuraInit(Aura* /*aura*/) {}
+    virtual int32 OnAuraValueCalculate(Aura* /*aura*/, Unit* /*caster*/, Unit* /*target*/, SpellEntry const* /*spellProto*/, SpellEffectIndex /*effIdx*/, Item* /*castItem*/, int32 value) { return value; }
+    virtual int32 OnDurationCalculate(WorldObject const* /*caster*/, Unit const* /*target*/, int32 duration) { return duration; }
+    virtual void OnBeforeApply(Aura* /*aura*/, bool /*apply*/) {}
+    virtual void OnAfterApply(Aura* /*aura*/, bool /*apply*/) {}
+    virtual void OnCharmStateChanged(Aura* /*aura*/, Unit* /*caster*/, Unit* /*target*/, bool /*apply*/) {}
+    virtual void OnAfterShapeshift(Aura* /*aura*/, ShapeshiftForm /*oldForm*/, ShapeshiftForm /*newForm*/) {}
+    virtual void OnCastSpeedChanged(Aura* /*aura*/) {}
+    virtual void OnDispel(SpellAuraHolder* /*holder*/, Unit* /*target*/, Spell* /*dispelSpell*/, uint32 /*dispelCount*/) {}
+    virtual std::optional<SpellProcEventTriggerCheck> OnCheckProc(Unit const* /*owner*/, Unit* /*victim*/, SpellAuraHolder* /*holder*/, SpellEntry const* /*procSpell*/, uint32 /*procFlag*/, uint32 /*procExtra*/, WeaponAttackType /*attType*/, bool /*isVictim*/) { return std::nullopt; }
+    virtual std::optional<SpellAuraProcResult> OnProc(Unit* /*owner*/, Unit* /*victim*/, uint32 /*amount*/, int32 /*originalAmount*/, Aura* /*triggeredByAura*/, SpellEntry const* /*procSpell*/, uint32 /*procFlag*/, uint32 /*procEx*/, uint32 /*cooldown*/) { return std::nullopt; }
+    virtual void OnAbsorb(Aura* /*aura*/, int32& /*currentAbsorb*/, int32& /*remainingDamage*/, bool& /*dropCharge*/, DamageEffectType /*damageType*/) {}
+    virtual void OnManaAbsorb(Aura* /*aura*/, int32& /*currentAbsorb*/, int32& /*remainingDamage*/) {}
+    virtual void OnPeriodicCalculateAmount(Aura* /*aura*/, float& /*amount*/) {}
+    virtual void OnPeriodicDamageCalculateAmount(Aura* /*aura*/, float& /*amount*/) {}
+    virtual void OnPeriodicDamageBeforeDeal(Aura* /*aura*/, uint32 /*damage*/, CleanDamage const* /*cleanDamage*/, bool& /*addThreat*/) {}
+    virtual void OnPeriodicDamageAfterDeal(Aura* /*aura*/, uint32 /*damage*/, CleanDamage const* /*cleanDamage*/) {}
+    virtual void OnPeriodicHealingBonus(Aura* /*periodicAura*/, Aura* /*modifierAura*/, Unit* /*caster*/, Unit* /*target*/, uint32& /*amount*/) {}
+    virtual void OnSpellHealingBonusTaken(Aura* /*aura*/, WorldObject* /*caster*/, SpellEntry const* /*spellInfo*/, SpellEffectIndex /*effIdx*/, int32 /*healAmount*/, DamageEffectType /*damageType*/, uint32 /*stack*/, Spell* /*spell*/, float& /*takenTotalMod*/) {}
+    virtual void OnManaRegenCalculate(Aura* /*aura*/, float& /*baseRegen*/, float& /*mp5Regen*/) {}
+    virtual void OnAuraChargesChanged(SpellAuraHolder* /*holder*/) {}
+    virtual void OnThreatCalculate(Aura* /*aura*/, SpellEntry const* /*threatSpell*/, SpellSchoolMask /*schoolMask*/, float& /*threat*/) {}
+    virtual void OnPeriodicTick(Aura* /*aura*/) {}
+    virtual void OnPeriodicTrigger(Aura* /*aura*/, Unit* /*caster*/, Unit* /*target*/, WorldObject* /*targetObject*/, SpellEntry const*& /*spellInfo*/) {}
+    virtual void OnPeriodicDummy(Aura* /*aura*/) {}
+    virtual void OnPeriodicTickEnd(Aura* /*aura*/) {}
+    virtual bool OnAreaAuraCheckTarget(Aura const* /*aura*/, Unit* /*target*/) { return true; }
+};
+
 struct Script
 {
     Script() :
@@ -1378,7 +1474,7 @@ struct Script
         pProcessEventId(nullptr), pItemQuestAccept(nullptr), pGOQuestAccept(nullptr),
         pItemUse(nullptr), pItemUseSpell(nullptr), pEffectDummyCreature(nullptr), pEffectDummyGameObj(nullptr),
         pEffectAuraDummy(nullptr), GOOpen(nullptr),
-        GOGetAI(nullptr), GetAI(nullptr), GetQuestInstance(nullptr), GetInstanceData(nullptr)
+        GOGetAI(nullptr), GetAI(nullptr), GetQuestInstance(nullptr), GetInstanceData(nullptr), GetSpellScript(nullptr), GetAuraScript(nullptr)
     {}
 
     std::string Name;
@@ -1416,9 +1512,13 @@ struct Script
     CreatureAI* (*GetAI)(Creature*);
     QuestInstance* (*GetQuestInstance)(ObjectGuid PlayerGuid);
     InstanceData* (*GetInstanceData)(Map*);
+    SpellScript* (*GetSpellScript)(SpellEntry const*);
+    AuraScript* (*GetAuraScript)(SpellEntry const*);
 
     void RegisterSelf(bool reportUnused = true);
 };
+
+class WorldPacket;
 
 class ScriptMgr
 {
@@ -1453,6 +1553,12 @@ class ScriptMgr
         
         void Initialize();
         void LoadDatabase();
+
+        typedef void(*ScriptLoaderCallbackType)();
+        typedef void(*ModulesLoaderCallbackType)();
+
+        void SetScriptLoader(ScriptLoaderCallbackType scriptLoaderCallback) { m_scriptLoaderCallback = scriptLoaderCallback; }
+        void SetModulesLoader(ModulesLoaderCallbackType modulesLoaderCallback) { m_modulesLoaderCallback = modulesLoaderCallback; }
 
         void LoadScriptTexts();
         void LoadScriptWaypoints();
@@ -1500,9 +1606,14 @@ class ScriptMgr
         CreatureAI* GetCreatureAI(Creature* pCreature);
         GameObjectAI* GetGameObjectAI(GameObject* pGob);
         InstanceData* CreateInstanceData(Map* pMap);
+        SpellScript* GetSpellScript(SpellEntry const* pSpell);
+        AuraScript* GetAuraScript(SpellEntry const* pSpell);
 
         bool OnGossipHello(Player* pPlayer, Creature* pCreature);
         bool OnGossipHello(Player* pPlayer, GameObject* pGameObject);
+        bool IsBotManaged(Player* who);
+        uint8 GetBotRoles(Player* who);
+        bool OnAddonMessage(Player* from, std::string const& msg);
         bool OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action, const char* code);
         bool OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action, const char* code);
         bool OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const* pQuest);
@@ -1559,9 +1670,268 @@ class ScriptMgr
 
         //atomic op counter for active scripts amount
         std::atomic<int> m_scheduledScripts;
+        ScriptLoaderCallbackType m_scriptLoaderCallback;
+        ModulesLoaderCallbackType m_modulesLoaderCallback;
 };
 
 extern ScriptMgr sScriptMgr;
+extern int num_sc_scripts;
+
+class ScriptObject
+{
+    public:
+        virtual bool IsDatabaseBound() const { return false; }
+        virtual bool IsAfterDatabaseLoad() const { return IsDatabaseBound(); }
+        virtual void CheckValidity() {}
+
+        std::string const& GetName() const { return m_name; }
+        uint16 GetTotalAvailableHooks() const { return m_totalAvailableHooks; }
+
+    protected:
+        explicit ScriptObject(char const* name, uint16 totalAvailableHooks = 0)
+            : m_name(name), m_totalAvailableHooks(totalAvailableHooks)
+        {
+        }
+
+        virtual ~ScriptObject() = default;
+
+    private:
+        std::string const m_name;
+        uint16 const m_totalAvailableHooks;
+};
+
+template<class TScript>
+class ScriptRegistry
+{
+    public:
+        typedef std::map<uint32, TScript*> ScriptMap;
+        typedef std::vector<std::pair<TScript*, std::vector<uint16>>> AfterDatabaseLoadScriptList;
+        typedef std::vector<std::vector<TScript*>> EnabledHooksList;
+
+        static ScriptMap ScriptPointerList;
+        static AfterDatabaseLoadScriptList AfterDatabaseLoadScripts;
+        static EnabledHooksList EnabledHooks;
+
+        static void InitEnabledHooksIfNeeded(uint16 totalAvailableHooks)
+        {
+            if (EnabledHooks.size() < totalAvailableHooks)
+                EnabledHooks.resize(totalAvailableHooks);
+        }
+
+        static void AddScript(TScript* script, std::vector<uint16> enabledHooks = {})
+        {
+            if (!script)
+                return;
+
+            if (!CheckMemory(script))
+                return;
+
+            InitEnabledHooksIfNeeded(script->GetTotalAvailableHooks());
+
+            if (script->IsAfterDatabaseLoad())
+            {
+                AfterDatabaseLoadScripts.emplace_back(script, std::move(enabledHooks));
+                return;
+            }
+
+            AddLoadedScript(script, _scriptIdCounter++, std::move(enabledHooks));
+        }
+
+        static void AddAfterDatabaseLoadScripts()
+        {
+            for (auto& scriptData : AfterDatabaseLoadScripts)
+            {
+                TScript* script = scriptData.first;
+
+                if (!script)
+                    continue;
+
+                if (!CheckMemory(script, script))
+                {
+                    scriptData.first = nullptr;
+                    continue;
+                }
+
+                if (script->IsDatabaseBound())
+                {
+                    uint32 const scriptId = sScriptMgr.GetScriptId(script->GetName().c_str());
+                    if (!scriptId)
+                    {
+                        sLog.outError("Script named %s is not assigned in the database.", script->GetName().c_str());
+                        delete script;
+                        scriptData.first = nullptr;
+                        continue;
+                    }
+
+                    TScript* oldScript = GetScriptByName(script->GetName());
+                    if (oldScript)
+                        RemoveScript(oldScript);
+
+                    AddLoadedScript(script, scriptId, std::move(scriptData.second));
+                    scriptData.first = nullptr;
+                }
+                else
+                {
+                    AddLoadedScript(script, _scriptIdCounter++, std::move(scriptData.second));
+                    scriptData.first = nullptr;
+                }
+            }
+
+            AfterDatabaseLoadScripts.clear();
+        }
+
+        static TScript* GetScriptById(uint32 id)
+        {
+            auto itr = ScriptPointerList.find(id);
+            return itr != ScriptPointerList.end() ? itr->second : nullptr;
+        }
+
+        static TScript* GetScriptByName(std::string const& name)
+        {
+            for (auto const& scriptPair : ScriptPointerList)
+                if (scriptPair.second && scriptPair.second->GetName() == name)
+                    return scriptPair.second;
+
+            return nullptr;
+        }
+
+        template<class Callback>
+        static void ForEach(Callback&& callback)
+        {
+            for (auto const& scriptPair : ScriptPointerList)
+                if (scriptPair.second)
+                    callback(scriptPair.second);
+        }
+
+        template<class Callback>
+        static void ForEachEnabledHook(uint16 hook, Callback&& callback)
+        {
+            if (hook >= EnabledHooks.size())
+                return;
+
+            for (TScript* script : EnabledHooks[hook])
+                if (script)
+                    callback(script);
+        }
+
+        template<class Callback>
+        static bool ForEachWithReturn(Callback&& callback)
+        {
+            for (auto const& scriptPair : ScriptPointerList)
+                if (scriptPair.second && callback(scriptPair.second))
+                    return true;
+
+            return false;
+        }
+
+        template<class Callback>
+        static bool ForEachEnabledHookWithReturn(uint16 hook, Callback&& callback)
+        {
+            if (hook >= EnabledHooks.size())
+                return false;
+
+            for (TScript* script : EnabledHooks[hook])
+                if (script && callback(script))
+                    return true;
+
+            return false;
+        }
+
+        static void Unload()
+        {
+            std::set<TScript*> deletedScripts;
+
+            for (auto const& scriptPair : ScriptPointerList)
+            {
+                TScript* script = scriptPair.second;
+                if (script && deletedScripts.insert(script).second)
+                    delete script;
+            }
+
+            for (auto const& scriptData : AfterDatabaseLoadScripts)
+            {
+                TScript* script = scriptData.first;
+                if (script && deletedScripts.insert(script).second)
+                    delete script;
+            }
+
+            ScriptPointerList.clear();
+            AfterDatabaseLoadScripts.clear();
+            EnabledHooks.clear();
+            _scriptIdCounter = 0;
+        }
+
+    private:
+        static bool CheckMemory(TScript* script, TScript* allowedDuplicate = nullptr)
+        {
+            for (auto const& scriptPair : ScriptPointerList)
+            {
+                if (scriptPair.second == script && scriptPair.second != allowedDuplicate)
+                {
+                    sLog.outError("Script %s uses the same memory pointer as an already registered script.", script->GetName().c_str());
+                    return false;
+                }
+            }
+
+            for (auto const& scriptData : AfterDatabaseLoadScripts)
+            {
+                if (scriptData.first == script && scriptData.first != allowedDuplicate)
+                {
+                    sLog.outError("Script %s uses the same memory pointer as an already registered after-load script.", script->GetName().c_str());
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        static void AddLoadedScript(TScript* script, uint32 scriptId, std::vector<uint16> enabledHooks)
+        {
+            script->CheckValidity();
+            RegisterEnabledHooks(script, enabledHooks);
+            ScriptPointerList[scriptId] = script;
+            ++num_sc_scripts;
+        }
+
+        static void RegisterEnabledHooks(TScript* script, std::vector<uint16> const& enabledHooks)
+        {
+            InitEnabledHooksIfNeeded(script->GetTotalAvailableHooks());
+
+            for (uint16 hook : enabledHooks)
+            {
+                if (hook >= EnabledHooks.size())
+                {
+                    sLog.outError("Script %s tried to register invalid hook index %u.", script->GetName().c_str(), hook);
+                    continue;
+                }
+
+                EnabledHooks[hook].push_back(script);
+            }
+        }
+
+        static void RemoveScript(TScript* script)
+        {
+            for (auto itr = ScriptPointerList.begin(); itr != ScriptPointerList.end();)
+            {
+                if (itr->second == script)
+                    itr = ScriptPointerList.erase(itr);
+                else
+                    ++itr;
+            }
+
+            for (std::vector<TScript*>& hookScripts : EnabledHooks)
+                hookScripts.erase(std::remove(hookScripts.begin(), hookScripts.end(), script), hookScripts.end());
+
+            delete script;
+        }
+
+        static uint32 _scriptIdCounter;
+};
+
+template<class TScript> typename ScriptRegistry<TScript>::ScriptMap ScriptRegistry<TScript>::ScriptPointerList;
+template<class TScript> typename ScriptRegistry<TScript>::AfterDatabaseLoadScriptList ScriptRegistry<TScript>::AfterDatabaseLoadScripts;
+template<class TScript> typename ScriptRegistry<TScript>::EnabledHooksList ScriptRegistry<TScript>::EnabledHooks;
+template<class TScript> uint32 ScriptRegistry<TScript>::_scriptIdCounter = 0;
 
 uint32 GetAreaTriggerScriptId(uint32 triggerId);
 uint32 GetEventIdScriptId(uint32 eventId);

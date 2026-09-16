@@ -137,12 +137,15 @@ dungeons/molten_core/boss_baron_geddon.cpp
 dungeons/molten_core/boss_garr.cpp
 dungeons/molten_core/boss_gehennas.cpp
 dungeons/molten_core/boss_golemagg.cpp
+dungeons/molten_core/boss_incindis.cpp
 dungeons/molten_core/boss_lucifron.cpp
 dungeons/molten_core/boss_magmadar.cpp
 dungeons/molten_core/boss_majordomo_executus.cpp
 dungeons/molten_core/boss_ragnaros.cpp
 dungeons/molten_core/boss_shazzrah.cpp
 dungeons/molten_core/boss_sulfuron_harbinger.cpp
+dungeons/molten_core/boss_thane.cpp
+dungeons/molten_core/boss_twin_golems.cpp
 dungeons/molten_core/instance_molten_core.cpp
 dungeons/molten_core/molten_core.cpp
 dungeons/molten_core/molten_core.h
@@ -268,6 +271,7 @@ dungeons/wailing_caverns/def_wailing_caverns.h
 dungeons/wailing_caverns/instance_wailing_caverns.cpp
 dungeons/wailing_caverns/wailing_caverns.cpp
 dungeons/zulfarrak/instance_zulfarrak.cpp
+dungeons/zulfarrak/farraki_arena.cpp
 dungeons/zulfarrak/zulfarrak.cpp
 dungeons/zulfarrak/zulfarrak.h
 dungeons/zulgurub/boss_arlokk.cpp
@@ -329,11 +333,25 @@ miscellaneous/random_scripts_3.cpp
 miscellaneous/custom_exploration_triggers.cpp
 miscellaneous/jewelcrafting.cpp
 
+spells/spell_druid.cpp
+spells/spell_hunter.cpp
+spells/spell_item.cpp
+spells/spell_mage.cpp
+spells/spell_paladin.cpp
+spells/spell_priest.cpp
+spells/spell_rogue.cpp
+spells/spell_shaman.cpp
+spells/spell_special.cpp
+spells/spells_turtle.cpp
+spells/spell_warlock.cpp
+spells/spell_warrior.cpp
+
 world/alterac_mountains.cpp
 world/arathi_highlands.cpp
 world/ashenvale.cpp
 world/alahthalas.cpp
 world/azshara.cpp
+world/balor.cpp
 world/blasted_lands.cpp
 world/boss_omen.cpp
 world/boss_omen.h
@@ -356,6 +374,7 @@ world/loch_modan.cpp
 world/moonglade.cpp
 world/moonwhisper_coast.cpp
 world/mulgore.cpp
+world/northwind.cpp
 world/orgrimmar.cpp
 world/redridge_mountains.cpp
 world/searing_gorge.cpp
@@ -451,7 +470,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/game/Movement/spline
   ${CMAKE_SOURCE_DIR}/src/game/Objects
   ${CMAKE_SOURCE_DIR}/src/game/OutdoorPvP
-  ${CMAKE_SOURCE_DIR}/src/game/PlayerBots
   ${CMAKE_SOURCE_DIR}/src/game/Protocol
   ${CMAKE_SOURCE_DIR}/src/game/Spells
   ${CMAKE_SOURCE_DIR}/src/game/Threat
@@ -540,5 +558,13 @@ else()
       target_precompile_headers(${LIBRARY_NAME} PRIVATE
           ${PCHS}
           )
+  endif()
+endif()
+
+if(NOT USE_PCH)
+  if(MSVC)
+    target_compile_options(${LIBRARY_NAME} PRIVATE "/FI${CMAKE_CURRENT_SOURCE_DIR}/scriptPCH.h")
+  else()
+    target_compile_options(${LIBRARY_NAME} PRIVATE "-include${CMAKE_CURRENT_SOURCE_DIR}/scriptPCH.h")
   endif()
 endif()

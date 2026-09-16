@@ -1011,12 +1011,12 @@ void BattleGroundAV::EndBattleGround(Team winner)
     bool isBGWeekend = BattleGroundMgr::IsBGWeekend(GetTypeID());
     if (isBGWeekend)
     {
-        RewardHonorToTeam(1584, ALLIANCE);
-        RewardHonorToTeam(1584, HORDE);
+        RewardHonorToTeam(158, ALLIANCE);
+        RewardHonorToTeam(158, HORDE);
         if (winner == HORDE)
-            RewardHonorToTeam(396, HORDE);
+            RewardHonorToTeam(40, HORDE);
         if (winner == ALLIANCE)
-            RewardHonorToTeam(396, ALLIANCE);
+            RewardHonorToTeam(40, ALLIANCE);
     }
     BattleGround::EndBattleGround(winner);
 }
@@ -1458,7 +1458,7 @@ WorldSafeLocsEntry const* BattleGroundAV::GetClosestGraveYard(Player *plr)
     // repop players at the entrance GY if BG is not started yet
     if (GetStatus() != STATUS_IN_PROGRESS && !plr->IsGameMaster())
     {
-        if (WorldSafeLocsEntry const* gEntry = sWorldSafeLocsStore.LookupEntry(plr->GetTeam() == ALLIANCE ? 611 : 610))
+        if (WorldSafeLocsEntry const* gEntry = sWorldSafeLocsStore.LookupEntry(plr->GetTeam() == ALLIANCE ? BG_AV_GRAVE_MAIN_ALLIANCE : BG_AV_GRAVE_MAIN_HORDE))
             return gEntry;
     }
 

@@ -37,6 +37,7 @@
 #include "WorldRunnable.h"
 #include "World.h"
 #include "Log.h"
+#include "ScriptObjects.h"
 #include "Timer.h"
 #include "Policies/SingletonImp.h"
 #include "SystemConfig.h"
@@ -282,8 +283,15 @@ int Master::Run()
         World::StopNow(ERROR_EXIT_CODE);
         // go down and shutdown the server
     }
+    else
+    {
+        ScriptRegistry<ServerScript>::ForEachEnabledHook(SERVERHOOK_ON_NETWORK_START, [](ServerScript* script)
+        {
+            script->OnNetworkStart();
+        });
+    }
 
-    sWorldSocketMgr->Wait();
+    world_thread.join();
 
     ///- Stop freeze protection before shutdown tasks
     if (freeze_thread)
@@ -294,10 +302,6 @@ int Master::Run()
 
     ///- Remove signal handling before leaving
     _UnhookSignals();
-
-    // when the main thread closes the singletons get unloaded
-    // since worldrunnable uses them, it will crash if unloaded after master
-    world_thread.join();
 
     ///- Clean account database before leaving
     sLog.outString("Cleaning character database...");

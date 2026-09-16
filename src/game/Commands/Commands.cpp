@@ -29,6 +29,7 @@
 #include "GuildMgr.h"
 #include "GuidObjectScaling.h"
 #include "HardcodedEvents.h"
+#include "HonorMgr.h"
 #include "InstanceData.h"
 #include "Item.h"
 #include "ItemEnchantmentMgr.h"
@@ -236,6 +237,13 @@ bool ChatHandler::HandleReloadMangosStringCommand(char* /*args*/)
 {
     sObjectMgr.LoadMangosStrings();
     SendSysMessage("DB table `mangos_string` reloaded.");
+    return true;
+}
+
+bool ChatHandler::HandleReloadModuleStringCommand(char* /*args*/)
+{
+    sObjectMgr.LoadModuleStrings();
+    SendSysMessage("DB tables `module_string` and `module_string_locale` reloaded.");
     return true;
 }
 
@@ -983,7 +991,7 @@ bool ChatHandler::HandleListAurasCommand(char* /*args*/)
             {
                 PSendSysMessage(LANG_COMMAND_TARGET_AURADETAIL, holder->GetId(), aur->GetEffIndex(),
                     aur->GetModifier()->m_auraname, aur->GetAuraDuration(), aur->GetAuraMaxDuration(), aur->GetAuraPeriodicTimer(), aur->GetStackAmount(),
-                    name,
+                    name.c_str(),           // std::string through a printf vararg is an error under clang
                     (holder->IsPassive() ? passiveStr : ""), (talent ? talentStr : ""),
                     holder->GetCasterGuid().GetString().c_str());
             }
@@ -2636,7 +2644,7 @@ bool ChatHandler::HandleGuildHouseCommand(char* args)
     {
         CharacterDatabase.PExecute("REPLACE INTO guild_house VALUES (%u, %u, %f, %f, %f, %f);",
             guild_id, player->GetMapId(), player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation());
-        PSendSysMessage("The guild house teleport for %s was created.", sGuildMgr.GetGuildNameById(guild_id));
+        PSendSysMessage("The guild house teleport for %s was created.", sGuildMgr.GetGuildNameById(guild_id).c_str());
     }
     else
     {
@@ -5341,7 +5349,7 @@ bool ChatHandler::HandleInstanceStatsCommand(char* /*args*/)
 bool ChatHandler::HandleGMListFullCommand(char* /*args*/)
 {
     ///- Get the accounts with GM Level >0
-    QueryResult *result = LoginDatabase.Query("SELECT username, rank FROM account"
+    QueryResult *result = LoginDatabase.Query("SELECT username, `rank` FROM account"
                           " WHERE rank > 0");
     if (result)
     {
@@ -6332,7 +6340,7 @@ bool ChatHandler::HandleUnstuckCommand(char* /*args*/)
         WorldSafeLocsEntry const* ClosestGrave = sObjectMgr.GetClosestGraveYard(pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ(), pPlayer->GetMapId(), pPlayer->GetTeam());
 
         if (!ClosestGrave) //No nearby graveyards (stuck in void?). Send ally to Westfall, Horde to Barrens.
-            ClosestGrave = pPlayer->GetTeamId() ? sWorldSafeLocsStore.LookupEntry(10) : sWorldSafeLocsStore.LookupEntry(4);
+            ClosestGrave = pPlayer->GetTeamId() ? sWorldSafeLocsStore.LookupEntry(9) : sWorldSafeLocsStore.LookupEntry(4);
 
         if (ClosestGrave)
             pPlayer->TeleportTo(ClosestGrave->map_id, ClosestGrave->x, ClosestGrave->y, ClosestGrave->z, sObjectMgr.GetWorldSafeLocFacing(ClosestGrave->ID), 0);
@@ -11566,7 +11574,13 @@ bool ChatHandler::HandleModifyHonorCommand(char* args)
         return false;
 
     // hack code
-    if (hasStringAbbr(field, "points"))
+    if (hasStringAbbr(field, "currency"))
+    {
+        target->GetHonorMgr().ModifySpendableHonor(amount);
+        PSendSysMessage("Honor currency of %s is now %u.", target->GetName(), target->GetHonorMgr().GetSpendableHonor());
+        return true;
+    }
+    else if (hasStringAbbr(field, "points"))
     {
         if (amount < 0 || amount > 255)
             return false;
@@ -11645,11 +11659,18 @@ bool ChatHandler::HandleKickPlayerCommand(char* args)
 
     // send before target pointer invalidate
     PSendSysMessage(LANG_COMMAND_KICKMESSAGE, GetNameLink(target).c_str());
+    WorldSession* targetSession = target->GetSession();
+    if (targetSession->IsHeadless())
+    {
+        sWorld.StopHeadlessSession(target->GetObjectGuid(), true);
+        return true;
+    }
+
     // First kick: close socket but keep player online
-    if (target->GetSession()->IsConnected())
-        target->GetSession()->KickPlayer();
+    if (targetSession->IsConnected())
+        targetSession->KickPlayer();
     else
-        target->GetSession()->KickDisconnectedFromWorld();
+        targetSession->KickDisconnectedFromWorld();
 
     return true;
 }
@@ -16247,7 +16268,18 @@ bool ChatHandler::HandleCartographerCommand(char* args)
     {
         PSendSysMessage("You have %u areas left to explore.", count);
         if (AreaEntry const* pAreaEntry = sObjectMgr.GetAreaEntryByExploreFlag(lastUnexploredFlag))
+        {
+            if (pAreaEntry->ZoneId)
+            {
+                if (AreaEntry const* pZoneEntry = AreaEntry::GetById(pAreaEntry->ZoneId))
+                {
+                    PSendSysMessage("Next: %s (%s)", pAreaEntry->Name, pZoneEntry->Name);
+                    return true;
+                }
+            }
+
             PSendSysMessage("Next: %s", pAreaEntry->Name);
+        }
     }
     else
         SendSysMessage("You have explored all areas.");

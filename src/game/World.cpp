@@ -26,11 +26,13 @@
 #include "World.h"
 #include "Database/DatabaseEnv.h"
 #include "Config/Config.h"
+#include "CustomMerchantMgr.h"
 #include "Platform/Define.h"
 #include "SystemConfig.h"
 #include "Log.h"
 #include "Opcodes.h"
 #include "WorldSession.h"
+#include "HeadlessSessionMgr.h"
 #include "WorldPacket.h"
 #include "Weather.h"
 #include "Player.h"
@@ -47,6 +49,7 @@
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
 #include "ScriptMgr.h"
+#include "ScriptObjects.h"
 #include "CreatureAIRegistry.h"
 #include "Policies/SingletonImp.h"
 #include "BattleGroundMgr.h"
@@ -63,6 +66,7 @@
 #include "Util.h"
 #include "CharacterDatabaseCleaner.h"
 #include "LFGMgr.h"
+#include "LFTMgr.h"
 #include "AutoBroadCastMgr.h"
 #include "Transports/TransportMgr.h"
 #include "PlayerBotMgr.h"
@@ -184,6 +188,7 @@ World::World():
 
     m_timeRate = 1.0f;
     m_charDbWorkerThread    = nullptr;
+    m_headlessSessionMgr = std::make_unique<HeadlessSessionMgr>(*this);
 }
 
 /// World destructor
@@ -193,6 +198,11 @@ World::~World()
 
 void World::Shutdown()
 {
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_SHUTDOWN, [](WorldScript* script)
+    {
+        script->OnShutdown();
+    });
+
 	sGuildMgr.SaveGuildBanks();
     sWorld.KickAll();                                       // save and kick all players
     sWorld.UpdateSessions(1);                               // real players unload required UpdateSessions call
@@ -219,6 +229,8 @@ void World::InternalShutdown()
 		delete m_sessions.begin()->second;
 		m_sessions.erase(m_sessions.begin());
 	}
+
+    m_headlessSessionMgr->Shutdown();
 
 	CliCommandHolder* command = nullptr;
 	while (cliCmdQueue.next(command))
@@ -284,6 +296,50 @@ bool World::RemoveSession(uint32 id)
 void World::AddSession(WorldSession* s)
 {
     addSessQueue.add(s);
+}
+
+HeadlessSessionStartResult World::StartHeadlessSession(uint32 accountId, ObjectGuid characterGuid,
+    LocaleConstant locale, std::string const& tag)
+{
+    return m_headlessSessionMgr->Start(accountId, characterGuid, locale, tag);
+}
+
+bool World::StopHeadlessSession(ObjectGuid characterGuid, bool save)
+{
+    return m_headlessSessionMgr->Stop(characterGuid, save);
+}
+
+HeadlessSessionState World::GetHeadlessSessionState(ObjectGuid characterGuid) const
+{
+    return m_headlessSessionMgr->GetState(characterGuid);
+}
+
+void World::HandleHeadlessLoginCallback(LoginQueryHolder* holder)
+{
+    m_headlessSessionMgr->HandleLoginCallback(holder);
+}
+
+bool World::ReclaimHeadlessSession(ObjectGuid characterGuid, WorldSession* session,
+    WorldSession* replacement, uint32 accountId)
+{
+    return m_headlessSessionMgr->ReclaimForNetwork(characterGuid, session, replacement, accountId);
+}
+
+void World::StopHeadlessSessionsForAccount(uint32 accountId, bool save)
+{
+    m_headlessSessionMgr->StopForAccount(accountId, save);
+}
+
+bool World::HasOtherSessionForAccount(uint32 accountId, WorldSession const* excluded) const
+{
+    for (auto const& entry : m_sessions)
+    {
+        if (entry.second && entry.second != excluded &&
+            entry.second->GetAccountId() == accountId)
+            return true;
+    }
+
+    return false;
 }
 
 void World::AddSession_(WorldSession* s)
@@ -589,6 +645,10 @@ void World::LoadConfigSettingsCommonPart(bool reload)
     ///- Read the player limit and the Message of the day from the config file
     SetPlayerLimit(sConfig.GetIntDefault("PlayerLimit", DEFAULT_PLAYER_LIMIT), true);
     SetMotd(sConfig.GetStringDefault("Motd", "Welcome to the Massive Network Game Object Server."));
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_MOTD_CHANGE, [&](WorldScript* script)
+    {
+        script->OnMotdChange(m_motd);
+    });
 
     if (reload)
         sMapMgr.SetGridCleanUpDelay(getConfig(CONFIG_UINT32_INTERVAL_GRIDCLEAN));
@@ -725,8 +785,6 @@ void World::LoadConfigSettingsCommonPart(bool reload)
     sLog.outString("VMap support included. LineOfSight: %i | getHeight: %i | indoorCheck: %i.", enableLOS, enableHeight, getConfig(CONFIG_BOOL_VMAP_INDOOR_CHECK) ? 1 : 0);
     sLog.outString("MMap pathfinding %sabled.", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
 
-    sPlayerBotMgr.LoadConfig();
-
     sLog.outString("Anticrash: 0x%x rearm after %u seconds.", getConfig(CONFIG_UINT32_ANTICRASH_OPTIONS), getConfig(CONFIG_UINT32_ANTICRASH_REARM_TIMER) / 1000);
     sLog.outString("Pathfinding: [%s]", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "Enabled" : "Disabled");
 
@@ -825,11 +883,22 @@ void World::LoadConfigSettingsCommonPart(bool reload)
 
 void World::LoadConfigSettings(bool reload)
 {
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_BEFORE_CONFIG_LOAD, [&](WorldScript* script)
+    {
+        script->OnBeforeConfigLoad(reload);
+    });
+
     if (reload)
     {
         if (!sConfig.Reload())
         {
             sLog.outError("World settings reload fail: can't read settings from %s.", sConfig.GetFilename().c_str());
+            return;
+        }
+
+        if (!sConfig.LoadModulesConfigs())
+        {
+            sLog.outError("World settings reload fail: can't read module settings for %s.", sConfig.GetFilename().c_str());
             return;
         }
     }
@@ -861,6 +930,11 @@ void World::LoadConfigSettings(bool reload)
     LoadConfigSettingsFromFile();
 
     LoadConfigSettingsCommonPart(reload);
+
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_AFTER_CONFIG_LOAD, [&](WorldScript* script)
+    {
+        script->OnAfterConfigLoad(reload);
+    });
 }
 
 bool World::LoadConfigSettingsFromDB(bool reload)
@@ -1040,16 +1114,6 @@ void World::LoadConfigSettingsFromFile(bool reload)
     setConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_ADD_FRIEND,          "AllowTwoSide.AddFriend", false);
 
     setConfig(CONFIG_FLOAT_MAX_FACTION_IMBALANCE, "MaxFactionImbalance", 0.1f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_5MAN_HP,  "ScalarMin5ManHP",  0.6f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_5MAN_DMG, "ScalarMin5ManDMG", 0.4f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_10MAN_HP,  "ScalarMin10ManHP",  0.6f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_10MAN_DMG, "ScalarMin10ManDMG", 0.4f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_20MAN_HP,  "ScalarMin20ManHP",  0.6f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_20MAN_DMG, "ScalarMin20ManDMG", 0.4f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_40MAN_HP,  "ScalarMin40ManHP",  0.6f);
-    setConfig(CONFIG_FLOAT_SCALAR_MIN_40MAN_DMG, "ScalarMin40ManDMG", 0.4f);
-
-    setConfig(CONFIG_BOOL_AUTOSCALER_ENABLE, "AutoScalerEnable", false);
 
     setConfig(CONFIG_UINT32_STRICT_PLAYER_NAMES,  "StrictPlayerNames",  0);
     setConfig(CONFIG_UINT32_STRICT_CHARTER_NAMES, "StrictCharterNames", 0);
@@ -1072,6 +1136,7 @@ void World::LoadConfigSettingsFromFile(bool reload)
     setConfigPos(CONFIG_UINT32_MAX_HONOR_POINTS, "MaxHonorPoints", 75000);
     setConfigMinMax(CONFIG_UINT32_START_HONOR_POINTS, "StartHonorPoints", 0, 0, getConfig(CONFIG_UINT32_MAX_HONOR_POINTS));
     setConfigMin(CONFIG_UINT32_MIN_HONOR_KILLS, "MinHonorKills", MIN_HONOR_KILLS, 1);
+    setConfig(CONFIG_UINT32_WEEKLY_HONOR_CAP, "WeeklyHonorCap", 20000);
     setConfigMinMax(CONFIG_UINT32_MAINTENANCE_DAY, "MaintenanceDay", 4, 0, 6);
     setConfig(CONFIG_BOOL_AUTO_HONOR_RESTART, "AutoHonorRestart", true);
     setConfig(CONFIG_BOOL_ALL_TAXI_PATHS, "AllFlightPaths", false);
@@ -1411,7 +1476,6 @@ void World::LoadConfigSettingsFromFile(bool reload)
     setConfig(CONFIG_UINT32_TRANSMOG_REQ_ITEM, "Transmog.ReqItemID", 0);
     setConfig(CONFIG_UINT32_TRANSMOG_REQ_ITEM_COUNT, "Transmog.ReqItemCount", 1);
     setConfig(CONFIG_FLOAT_TRANSMOG_REQ_MONEY_RATE, "Transmog.ReqMoneyRate", 0.0);
-    setConfig(CONFIG_FLOAT_LEECH_AMOUNT, "Leech.Amount", 0.10f);
     setConfig(CONFIG_BOOL_STATIC_OBJECT_LOS, "StaticObjectLOS", true);
     setConfig(CONFIG_BOOL_DUAL_SPEC, "DualSpec", false);
     
@@ -1468,7 +1532,6 @@ void World::LoadConfigSettingsFromFile(bool reload)
     setConfig(CONFIG_UINT32_AUTO_PDUMP_DELETE_AFTER_DAYS, "AutoPDump.DeleteAfterDays", 60);
 
     setConfig(CONFIG_BOOL_PERFORMANCE_ENABLE, "Perf.Enable", true);
-    setConfig(CONFIG_BOOL_LEECH_ENABLE, "Leech.Enable", false);
 
     setConfig(CONFIG_UINT32_PERFORMANCE_REPORT_INTERVAL, "Perf.ReportInterval", 600);
     setConfig(CONFIG_UINT32_MAX_GOLD_TRANSFERRED, "Transfer.MaxGold", 300000);
@@ -1891,6 +1954,13 @@ void LoadPlayerEggLoot();
         exit(1);
     }
 
+    sLog.outString("Loading module strings...");
+    if (!sObjectMgr.LoadModuleStrings())
+    {
+        Log::WaitBeforeContinueIfNeed();
+        exit(1);
+    }
+
     CheckEggExploit();
 
     ///- Loads existing IDs in the database.
@@ -1916,6 +1986,8 @@ void LoadPlayerEggLoot();
 
     sLog.outString("Loading chat channels...");
     sObjectMgr.LoadChatChannels();
+    sLog.outString("Loading script names...");
+    sScriptMgr.LoadScriptNames();
     sLog.outString("Loading spells...");
     sSpellMgr.LoadSpells();
     sLog.outString("Loading factions...");
@@ -1938,8 +2010,6 @@ void LoadPlayerEggLoot();
     LoadDBCStores(m_dataPath);
     DetectDBCLang();
     sObjectMgr.SetDBCLocaleIndex(GetDefaultDbcLocale());    // Get once for all the locale index of DBC language (console/broadcasts)
-    sLog.outString("Loading script names...");
-    sScriptMgr.LoadScriptNames();
     sLog.outString("Loading map templates...");
     sObjectMgr.LoadMapTemplate();
     sLog.outString("Loading area templates...");
@@ -2108,6 +2178,8 @@ void LoadPlayerEggLoot();
     sObjectMgr.LoadVendorTemplates();                       // must be after load ItemTemplate
     sLog.outString("Loading vendors...");
     sObjectMgr.LoadVendors();                               // must be after load CreatureTemplate, VendorTemplate, and ItemTemplate
+    sLog.outString("Loading custom merchants...");
+    sCustomMerchantMgr.Load();
     sLog.outString("Loading trainer templates...");
     sObjectMgr.LoadTrainerTemplates();                      // must be after load CreatureTemplate
     sLog.outString("Loading trainers...");
@@ -2181,6 +2253,14 @@ void LoadPlayerEggLoot();
     sLog.outString("Loading creature EventAI events...");
     sEventAIMgr.LoadCreatureEventAI_Events();
     sScriptMgr.Initialize();
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_LOAD_CUSTOM_DATABASE_TABLE, [](WorldScript* script)
+    {
+        script->OnLoadCustomDatabaseTable();
+    });
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_BEFORE_WORLD_INITIALIZED, [](WorldScript* script)
+    {
+        script->OnBeforeWorldInitialized();
+    });
     sLog.outString("Loading aura removal handler...");
     sAuraRemovalMgr.LoadFromDB();
     sLog.outString("Loading daily quests handler...");
@@ -2363,6 +2443,11 @@ void LoadPlayerEggLoot();
             honorUpdateFile << "0";
     }
 
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_STARTUP, [](WorldScript* script)
+    {
+        script->OnStartup();
+    });
+
     sLog.outString("Current content phase is set to %u.", GetContentPhase() + 1);
     uint32 uStartInterval = WorldTimer::getMSTimeDiff(uStartTime, WorldTimer::getMSTime());
     sLog.outString("World server is up and running! Loading time: %i minutes %i seconds", uStartInterval / 60000, (uStartInterval % 60000) / 1000);
@@ -2409,7 +2494,6 @@ void World::DetectDBCLang()
     m_defaultDbcLocale = LocaleConstant(default_locale);
 
     sLog.outString("Using %s DBC locale as default.", localeNames[m_defaultDbcLocale]);
-    
 }
 
 void World::ApiServerDeleter::operator()(HttpApi::ApiServer* p)
@@ -2455,6 +2539,7 @@ void TotalMoneyCallback(QueryResult* result, uint32 money)
 void World::Update(uint32 diff)
 {
     XScopeStatTimer ScopeStatTimer(sPerfMonitor.WorldTick);
+
     ///- Update the different timers
     for (auto& timer : m_timers)
     {
@@ -2531,6 +2616,7 @@ void World::Update(uint32 diff)
     sMapMgr.Update(diff);
     sBattleGroundMgr.Update(diff);
     sLFGMgr.Update(diff);
+    sLFTMgr.Update(diff);
     sGuardMgr.Update(diff);
     sZoneScriptMgr.Update(diff);
     sDynamicVisMgr.UpdateVisibility(diff);
@@ -2658,8 +2744,6 @@ void World::Update(uint32 diff)
     else
         m_MaintenanceTimeChecker -= diff;
 
-    //Update PlayerBotMgr
-    sPlayerBotMgr.Update(diff);
     // Update AutoBroadcast
     sAutoBroadCastMgr.Update(diff);
     // Update liste des ban si besoin
@@ -2697,6 +2781,15 @@ void World::Update(uint32 diff)
             sWorld.ShutdownServ(900, SHUTDOWN_MASK_RESTART, SHUTDOWN_EXIT_CODE);
         }
     }
+
+    // Moved here from the head of this function. Firing first meant a module acted
+    // before UpdateSessions, sMapMgr, sBattleGroundMgr and sLFTMgr had run, so every
+    // module tick decided on the PREVIOUS tick's world -- a module may hold several
+    // WorldScripts and was steering sixty crews on stale positions.
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_UPDATE, [&](WorldScript* script)
+    {
+        script->OnUpdate(diff);
+    });
 }
 
 /// Send a packet to all players (except self if mentioned)
@@ -3004,6 +3097,8 @@ void World::BanAccount(uint32 accountId, uint32 duration, std::string reason, st
     else
         sAccountMgr.BanAccount(accountId, 0xFFFFFFFF);
 
+    StopHeadlessSessionsForAccount(accountId, true);
+
     if (WorldSession* sess = FindSession(accountId))
     {
         if (std::string(sess->GetPlayerName()) != author)
@@ -3076,6 +3171,8 @@ public:
                     sAccountMgr.BanAccount(account, time(nullptr) + holder->GetDuration());
                 else
                     sAccountMgr.BanAccount(account, 0xFFFFFFFF);
+
+                sWorld.StopHeadlessSessionsForAccount(account, true);
             }
             // Don't immediately kick if we're banning ourselves (destroys session, crash)
             if (account != holder->GetAuthorAccountId())
@@ -3219,6 +3316,11 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode)
     if (m_stopEvent)
         return;
 
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_SHUTDOWN_INITIATE, [&](WorldScript* script)
+    {
+        script->OnShutdownInitiate(options, exitcode);
+    });
+
     m_ShutdownMask = options;
     m_ExitCode = exitcode;
 
@@ -3274,6 +3376,11 @@ void World::ShutdownCancel()
     // nothing cancel or too later
     if (!m_ShutdownTimer || m_stopEvent)
         return;
+
+    ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_SHUTDOWN_CANCEL, [](WorldScript* script)
+    {
+        script->OnShutdownCancel();
+    });
 
     ServerMessageType msgid = (m_ShutdownMask & SHUTDOWN_MASK_RESTART) ? SERVER_MSG_RESTART_CANCELLED : SERVER_MSG_SHUTDOWN_CANCELLED;
 
@@ -3447,6 +3554,8 @@ void World::UpdateSessions(uint32 diff)
     while (addSessQueue.next(sess))
         AddSession_(sess);
 
+    m_headlessSessionMgr->PromotePending();
+
     ///- Then send an update signal to remaining ones
     time_t time_now = time(nullptr);
 
@@ -3489,6 +3598,8 @@ void World::UpdateSessions(uint32 diff)
             itr++;
         }
     }
+
+    m_headlessSessionMgr->Update(diff);
 }
 
 // This handles the issued and queued CLI/RA commands
@@ -3663,6 +3774,9 @@ void World::SetPlayerLimit(int32 limit, bool needUpdate)
     if (limit < -SEC_ADMINISTRATOR)
         limit = -SEC_ADMINISTRATOR;
 
+    bool const wasOpen = m_playerLimit >= 0;
+    bool const isOpen = limit >= 0;
+
     // lock update need
     bool db_update_need = needUpdate || (limit < 0) != (m_playerLimit < 0) || (limit < 0 && m_playerLimit < 0 && limit != m_playerLimit);
 
@@ -3671,6 +3785,14 @@ void World::SetPlayerLimit(int32 limit, bool needUpdate)
     if (db_update_need)
         LoginDatabase.PExecute("UPDATE realmlist SET allowedSecurityLevel = '%u' WHERE id = '%u'",
                                uint32(GetPlayerSecurityLimit()), realmID);
+
+    if (wasOpen != isOpen)
+    {
+        ScriptRegistry<WorldScript>::ForEachEnabledHook(WORLDHOOK_ON_OPEN_STATE_CHANGE, [&](WorldScript* script)
+        {
+            script->OnOpenStateChange(isOpen);
+        });
+    }
 }
 
 void World::UpdateMaxSessionCounters()

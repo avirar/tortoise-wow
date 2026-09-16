@@ -18,9 +18,11 @@
 set(EXECUTABLE_NAME mangosd)
 set (EXECUTABLE_SRCS 
 	CliRunnable.h
+	DynamicModules.h
 	Master.h
 	WorldRunnable.h
 	CliRunnable.cpp
+	DynamicModules.cpp
 	Main.cpp
 	Master.cpp
 	WorldRunnable.cpp
@@ -61,7 +63,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/game/Movement/spline
   ${CMAKE_SOURCE_DIR}/src/game/Objects
   ${CMAKE_SOURCE_DIR}/src/game/OutdoorPvP
-  ${CMAKE_SOURCE_DIR}/src/game/PlayerBots
   ${CMAKE_SOURCE_DIR}/src/game/Protocol
   ${CMAKE_SOURCE_DIR}/src/game/Spells
   ${CMAKE_SOURCE_DIR}/src/game/Threat
@@ -158,6 +159,7 @@ if(UNIX)
     ${OPENSSL_LIBRARIES}
     ${OPENSSL_EXTRA_LIBRARIES}
     ${ZLIB_LIBRARIES}
+    ${CMAKE_DL_LIBS}
   )
 endif()
 
