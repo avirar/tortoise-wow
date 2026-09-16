@@ -248,4 +248,62 @@ public:
     virtual bool IsActive() override;
 };
 
+// ============================================================================
+// Fury / Protection spec triggers (complete the spec strategy trees)
+// ============================================================================
+
+// Bloodthirst ready (Fury talent): target + spell known + no CD + rage >= 15
+class BloodthirstReadyTrigger : public Trigger
+{
+public:
+    BloodthirstReadyTrigger(PlayerBotAI* botAI);
+    virtual ~BloodthirstReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// Whirlwind ready (Fury): target + spell known + no CD + rage >= 20
+class WhirlwindReadyTrigger : public Trigger
+{
+public:
+    WhirlwindReadyTrigger(PlayerBotAI* botAI);
+    virtual ~WhirlwindReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// Shield Slam ready (Prot talent): target + spell known + no CD + rage >= 15
+class ShieldSlamReadyTrigger : public Trigger
+{
+public:
+    ShieldSlamReadyTrigger(PlayerBotAI* botAI);
+    virtual ~ShieldSlamReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// Revenge ready (Prot): target + spell known + no CD + rage >= 10
+class RevengeReadyTrigger : public Trigger
+{
+public:
+    RevengeReadyTrigger(PlayerBotAI* botAI);
+    virtual ~RevengeReadyTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// Taunt needed (Prot): alive target + spell known + no CD (maintain threat)
+class TauntNeededTrigger : public Trigger
+{
+public:
+    TauntNeededTrigger(PlayerBotAI* botAI);
+    virtual ~TauntNeededTrigger() {}
+    virtual bool IsActive() override;
+};
+
+// Demoralizing Shout needed (Prot): alive target + spell known + no CD
+class DemoralizingShoutNeededTrigger : public Trigger
+{
+public:
+    DemoralizingShoutNeededTrigger(PlayerBotAI* botAI);
+    virtual ~DemoralizingShoutNeededTrigger() {}
+    virtual bool IsActive() override;
+};
+
 #endif // _PLAYERBOT_WARRIOR_TRIGGERS_H

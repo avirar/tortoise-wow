@@ -483,3 +483,139 @@ bool IntimidatingShoutReadyTrigger::IsActive()
     return !bot->HasSpellCooldown(12730) &&
            bot->GetDistance(target) <= 8.0f;
 }
+
+// ============================================================================
+// Fury / Protection spec triggers (complete the spec strategy trees)
+// ============================================================================
+//
+// Bloodthirst (23880) and Shield Slam (23922) are talent spells (absent from
+// skill_line_ability at the base rank the bots lack), and these high-level
+// abilities are not learned by level 10-20 bots. FindSpellIdByName returns 0
+// when the bot doesn't hold the spell, so these triggers are harmless dead
+// branches until the bot actually learns the ability (level/talent up).
+
+BloodthirstReadyTrigger::BloodthirstReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "bloodthirst ready")
+{
+}
+
+bool BloodthirstReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "bloodthirst");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+    // Bloodthirst costs 15 rage
+    return bot->GetPower(POWER_RAGE) >= 15;
+}
+
+WhirlwindReadyTrigger::WhirlwindReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "whirlwind ready")
+{
+}
+
+bool WhirlwindReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "whirlwind");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+    // Whirlwind costs 20 rage
+    return bot->GetPower(POWER_RAGE) >= 20;
+}
+
+ShieldSlamReadyTrigger::ShieldSlamReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "shield slam ready")
+{
+}
+
+bool ShieldSlamReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "shield slam");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+    // Shield Slam costs 15 rage
+    return bot->GetPower(POWER_RAGE) >= 15;
+}
+
+RevengeReadyTrigger::RevengeReadyTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "revenge ready")
+{
+}
+
+bool RevengeReadyTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target)
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "revenge");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+    // Revenge costs 10 rage
+    return bot->GetPower(POWER_RAGE) >= 10;
+}
+
+TauntNeededTrigger::TauntNeededTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "taunt needed")
+{
+}
+
+bool TauntNeededTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target || !target->IsAlive())
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "taunt");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+
+    // Maintain threat: only re-taunt when the target is NOT currently
+    // focused on this bot (i.e. the bot is not the target's incoming
+    // attacker -> aggro likely lost).
+    Unit* attacking = target->GetVictim();
+    return attacking != bot;
+}
+
+DemoralizingShoutNeededTrigger::DemoralizingShoutNeededTrigger(PlayerBotAI* botAI)
+    : Trigger(botAI, "demoralizing shout needed")
+{
+}
+
+bool DemoralizingShoutNeededTrigger::IsActive()
+{
+    Unit* target = GetCurrentTarget(botAI);
+    if (!target || !target->IsAlive())
+        return false;
+
+    uint32 spellId = FindSpellIdByName(bot, "demoralizing shout");
+    if (!spellId)
+        return false;
+    if (bot->HasSpellCooldown(spellId))
+        return false;
+
+    // Demoralizing Shout is an attack-power debuff; re-apply when the target
+    // no longer carries it (any rank, via the spell chain).
+    return !botAI->TargetHasAuraFromChain(target, 1160);
+}

@@ -64,6 +64,12 @@ public:
         creators["death wish ready"] = &TriggerContext::CreateDeathWishReady;
         creators["shield block ready"] = &TriggerContext::CreateShieldBlockReady;
         creators["intimidating shout ready"] = &TriggerContext::CreateIntimidatingShoutReady;
+        creators["bloodthirst ready"] = &TriggerContext::CreateBloodthirstReady;
+        creators["whirlwind ready"] = &TriggerContext::CreateWhirlwindReady;
+        creators["shield slam ready"] = &TriggerContext::CreateShieldSlamReady;
+        creators["revenge ready"] = &TriggerContext::CreateRevengeReady;
+        creators["taunt needed"] = &TriggerContext::CreateTauntNeeded;
+        creators["demoralizing shout needed"] = &TriggerContext::CreateDemoralizingShoutNeeded;
         creators["execute ready"] = &TriggerContext::CreateExecuteReady;
         creators["mortal strike ready"] = &TriggerContext::CreateMortalStrikeReady;
         creators["sunder armor needed"] = &TriggerContext::CreateSunderArmorNeeded;
@@ -124,6 +130,12 @@ private:
     static Trigger* CreateDeathWishReady(PlayerBotAI* botAI) { return new DeathWishReadyTrigger(botAI); }
     static Trigger* CreateShieldBlockReady(PlayerBotAI* botAI) { return new ShieldBlockReadyTrigger(botAI); }
     static Trigger* CreateIntimidatingShoutReady(PlayerBotAI* botAI) { return new IntimidatingShoutReadyTrigger(botAI); }
+    static Trigger* CreateBloodthirstReady(PlayerBotAI* botAI) { return new BloodthirstReadyTrigger(botAI); }
+    static Trigger* CreateWhirlwindReady(PlayerBotAI* botAI) { return new WhirlwindReadyTrigger(botAI); }
+    static Trigger* CreateShieldSlamReady(PlayerBotAI* botAI) { return new ShieldSlamReadyTrigger(botAI); }
+    static Trigger* CreateRevengeReady(PlayerBotAI* botAI) { return new RevengeReadyTrigger(botAI); }
+    static Trigger* CreateTauntNeeded(PlayerBotAI* botAI) { return new TauntNeededTrigger(botAI); }
+    static Trigger* CreateDemoralizingShoutNeeded(PlayerBotAI* botAI) { return new DemoralizingShoutNeededTrigger(botAI); }
     static Trigger* CreateExecuteReady(PlayerBotAI* botAI) { return new ExecuteReadyTrigger(botAI); }
     static Trigger* CreateMortalStrikeReady(PlayerBotAI* botAI) { return new MortalStrikeReadyTrigger(botAI); }
     static Trigger* CreateSunderArmorNeeded(PlayerBotAI* botAI) { return new SunderArmorNeededTrigger(botAI); }
