@@ -69,10 +69,13 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] AC client data installed (wowgaming v20.0 → `env/dist/bin`) for acore-data reference runs
 - [ ] Update `AGENTS.md` hub, supersede port-plan scope, commit docs
 
-### R1 — Base sync & stabilization
-- Rebase `playerbot-engine-port` onto current Penqle `main` (`d886113+`). Resolve conflicts in `World.cpp`, `WorldSession.cpp`, `CharacterHandler.cpp`, `CMakeLists.txt`, `GridNotifiers.h`, `Player.cpp`, `Unit.cpp/h`, `Chat.cpp/h` (our 58 commits' core touchpoints).
-- Re-verify build + 100-bot soak (login, grind, no crashes, 30 min).
-- Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup.
+### R1 — Base sync & stabilization (IN PROGRESS — see `r1-base-sync-log.md` for issues & solutions)
+- [x] Merge of Penqle `main` onto `playerbot-engine-port` (merge `a473d4f5`; backup branch `playerbot-engine-port-pre-r1`)
+- [x] Build fix: WorldSession bot plumbing re-added (`GetBot/SetBot/m_bot`, friend for private `LoginPlayer`)
+- [x] DB auto-updater fixed (config key rename + duplicate-key removal; 146 world + 1 char migration reconciled idempotently)
+- [x] mangosd boots on new base; 100 bots queued at startup
+- [ ] Bot login soak — uncaught `std::runtime_error("false")` after boot (investigation in progress)
+- [ ] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup
 - **Exit criteria:** soak passes on new base; review table all-green.
 
 ### R2 — Class parity (AC strategies, 8 classes)
@@ -122,7 +125,8 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 | `bot-master-plan.md` | This file — strategy, decisions, roadmap |
 | `playerbot-port-plan.md` | Historical: engine port detail, phase 0-3 internals (scope-limited) |
 | `playerbot-review.md` | Local-AI critical review (2026-06-26) + reconciliation table above |
-| `tortoise-data-plan.md` | tortoise-native data tool (`tw` CLI) — new build, not an acore-data fork |
+| `r1-base-sync-log.md` | R1 issues & solutions (merge conflicts, WorldSession plumbing, updater keys, migration reconciler) |
+| `tortoise-data-plan.md` | tortoise-native data tool (`tw` CLI) — new build, not an acore-data fork; **live as global pi extension** (`~/.pi/agent/extensions/tortoise-data.ts`, tool `tw`, works from any directory) |
 | `agent-bot-interface-plan.md` | bot-buddy logic port — agent↔bot control surface |
 | `pi-websearch-extension.md` | **RESOLVED** — web search/fetch via `pi-web-access` package (Exa zero-config); history retained |
 | `AGENTS.md` | Hub: server ops, working notes, doc pointers |
