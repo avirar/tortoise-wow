@@ -21,6 +21,9 @@
 #include "../Ai/Class/Warrior/Strategy/ArmsWarriorStrategy.h"
 #include "../Ai/Class/Warrior/Strategy/FuryWarriorStrategy.h"
 #include "../Ai/Class/Warrior/Strategy/TankWarriorStrategy.h"
+#include "../Util/SpecDetect.h"
+#include "../Ai/Class/Warrior/Strategy/FuryWarriorStrategy.h"
+#include "../Ai/Class/Warrior/Strategy/TankWarriorStrategy.h"
 #include "../Ai/Class/Warrior/WarriorAiObjectContext.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
@@ -78,15 +81,22 @@ void PlayerbotAIBase::Initialize()
     uint8 botClass = botAI->me->GetClass();
     if (botClass == CLASS_WARRIOR)
     {
-        // Class-specific warrior strategies (modular, AC pattern)
-        // For now, use Arms strategy as default. Spec detection via talents
-        // will be added when talent parsing is implemented.
-        engines[BOT_STATE_COMBAT]->AddStrategy(new ArmsWarriorStrategy(botAI));
+        // P1-3: select the spec strategy from the dominant talent tree
+        // (Warrior tabs: 0=Arms, 1=Fury, 2=Protection). Chosen at login;
+        // re-talents apply on next login (AC resolves this per tick via
+        // GrindTarget values — revisit if bots start re-talenting).
+        uint8 specTab = PlayerbotSpec::DetectSpecTab(botAI->me);
+        switch (specTab)
+        {
+            case 1:  engines[BOT_STATE_COMBAT]->AddStrategy(new FuryWarriorStrategy(botAI)); break;
+            case 2:  engines[BOT_STATE_COMBAT]->AddStrategy(new TankWarriorStrategy(botAI)); break;
+            default: engines[BOT_STATE_COMBAT]->AddStrategy(new ArmsWarriorStrategy(botAI)); break;
+        }
 
         // Register warrior-specific context values
         BuildWarriorAiObjectContext(botAI);
 
-        LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine: ArmsWarriorStrategy for warrior");
+        LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine: warrior spec tab %u for %s", specTab, botAI->me->GetName());
     }
     else if (botClass == CLASS_ROGUE ||
              botClass == CLASS_PALADIN || botClass == CLASS_DRUID)
@@ -206,6 +216,19 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
         static std::map<uint32, uint32> lastReportTime;
         uint32 now = getMSTime();
         uint32 botGuid = bot->GetGUIDLow();
+        // P3-4: prune entries for bots that stopped reporting (logout/cleanup)
+        // so the static map doesn't grow unboundedly across bot recreation
+        if (lastReportTime.size() > 200)
+        {
+            std::map<uint32, uint32>::iterator it = lastReportTime.begin();
+            while (it != lastReportTime.end())
+            {
+                if (now - it->second > 600000) // 10 min
+                    it = lastReportTime.erase(it);
+                else
+                    ++it;
+            }
+        }
         if (lastReportTime.find(botGuid) == lastReportTime.end() || now - lastReportTime[botGuid] >= 30000)
         {
             lastReportTime[botGuid] = now;

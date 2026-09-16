@@ -1,4 +1,5 @@
 #include "StatsWeightCalculator.h"
+#include "../../Util/SpecDetect.h"
 #include "ItemPrototype.h"
 #include "ObjectMgr.h"
 #include "Player.h"
@@ -19,65 +20,16 @@
 // Shaman: 0=Elemental, 1=Enhancement, 2=Restoration
 // Druid: 0=Feral Combat, 1=Restoration, 2=Balance
 
-// Get talent points per tab for a player
+// Shared implementation lives in Util/SpecDetect.h (P1-3) — thin
+// delegates keep the existing call sites unchanged.
 static std::map<uint8, uint32> GetPlayerSpecTabs(Player* player)
 {
-    std::map<uint8, uint32> tabs = {{0, 0}, {1, 0}, {2, 0}};
-    
-    PlayerSpellMap const& spellMap = player->GetSpellMap();
-    for (PlayerSpellMap::const_iterator itr = spellMap.begin(); itr != spellMap.end(); ++itr)
-    {
-        uint32 spellId = itr->first;
-        TalentSpellPos const* talentPos = GetTalentSpellPos(spellId);
-        if (!talentPos)
-            continue;
-        
-        TalentEntry const* talentInfo = sTalentStore.LookupEntry(talentPos->talent_id);
-        if (!talentInfo)
-            continue;
-        
-        uint8 tab = static_cast<uint8>(talentInfo->TalentTab);
-        tabs[tab] += talentPos->rank;
-    }
-    
-    return tabs;
+    return PlayerbotSpec::GetTalentPointsPerTab(player);
 }
 
-// Get the primary spec tab (most points invested)
 static uint8 GetPlayerSpecTab(Player* player)
 {
-    std::map<uint8, uint32> tabs = GetPlayerSpecTabs(player);
-    
-    if (player->GetLevel() < 10)
-    {
-        // Default specs for low-level players
-        switch (player->GetClass())
-        {
-            case CLASS_WARRIOR:   return 0; // Arms
-            case CLASS_PALADIN:   return 2; // Retribution
-            case CLASS_HUNTER:    return 1; // Marksmanship
-            case CLASS_ROGUE:     return 1; // Combat
-            case CLASS_PRIEST:    return 0; // Holy
-            case CLASS_SHAMAN:    return 0; // Elemental
-            case CLASS_MAGE:      return 2; // Frost
-            case CLASS_WARLOCK:   return 0; // Affliction
-            case CLASS_DRUID:     return 2; // Balance
-            default:              return 0;
-        }
-    }
-    
-    uint8 bestTab = 0;
-    uint32 bestPoints = 0;
-    for (std::map<uint8, uint32>::iterator itr = tabs.begin(); itr != tabs.end(); ++itr)
-    {
-        if (itr->second > bestPoints)
-        {
-            bestPoints = itr->second;
-            bestTab = itr->first;
-        }
-    }
-    
-    return bestTab;
+    return PlayerbotSpec::DetectSpecTab(player);
 }
 
 // Role detection based on class + spec
