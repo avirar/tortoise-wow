@@ -20,6 +20,7 @@ public:
     virtual ~GenericWarriorStrategy() {}
 
     virtual void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+    virtual std::vector<NextAction> getDefaultActions() override;
 
 protected:
     // Spec override hook: child classes add their own triggers here

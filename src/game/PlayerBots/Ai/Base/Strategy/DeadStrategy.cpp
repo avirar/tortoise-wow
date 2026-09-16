@@ -24,4 +24,8 @@ void DeadStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
         "resurrect request", { NextAction("accept resurrect", 100.0f) }));
     triggers.push_back(
         new TriggerNode("falling far", { NextAction("repop", 101.0f) }));
+    // AC pattern: spirit healer fires when bot is a ghost (after releasing spirit)
+    // This gives bots a resurrection path when corpse is unreachable
+    triggers.push_back(
+        new TriggerNode("dead", { NextAction("spirit healer", 98.0f) }));
 }

@@ -2,6 +2,7 @@
 
 #include "Logging.h"
 #include "Log.h"
+#include "World.h"
 #include "PerfMonitor.h"
 #include "Timer.h"
 #include "Unit.h"
@@ -121,6 +122,11 @@ void PlayerbotAIBase::Initialize()
 void PlayerbotAIBase::UpdateAI(uint32 diff)
 {
     if (!enabled || !botAI)
+        return;
+
+    // Skip AI processing during server shutdown to avoid accessing
+    // destroyed singletons (MovementBroadcaster, etc.)
+    if (sWorld.IsStopped())
         return;
 
     // AC pattern: finish previous FullTick, start new one

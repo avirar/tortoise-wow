@@ -8,10 +8,11 @@ CombatStrategy::CombatStrategy(PlayerBotAI* botAI) : Strategy(botAI)
 
 std::vector<NextAction> CombatStrategy::getDefaultActions()
 {
-    // AC pattern: CombatStrategy has no default actions.
-    // Solo bots retarget via "no target" → "attack anything" (reads "grind target").
-    // Group bots use DpsAssistStrategy "not dps target active" trigger.
-    return std::vector<NextAction>{};
+    // AC pattern: CombatStrategy provides "cast spell" as default action.
+    // CastSpellAction calls SelectOffensiveSpell() which covers all 9 classes.
+    // Falls back to melee auto-attack if no spell is available.
+    // Relevance ACTION_DEFAULT so positioning triggers fire first.
+    return std::vector<NextAction>{ NextAction("cast spell", ACTION_DEFAULT) };
 }
 
 void CombatStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)

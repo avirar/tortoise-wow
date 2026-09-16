@@ -22,7 +22,8 @@ bool ReleaseSpiritAction::Execute(Event event)
         return false;
 
     LOG_DEBUG("playerbots", "%s: releasing spirit", bot->GetName());
-    bot->DurabilityRepairAll(false, 1.0f);
+    // AC pattern: no free repair on release — death costs 10% durability
+    // DurabilityRepairAll(false, 1.0f) was a free-repair exploit
 
     WorldPacket packet(CMSG_REPOP_REQUEST);
     packet << uint8(0);
@@ -35,7 +36,8 @@ bool ReleaseSpiritAction::Execute(Event event)
 bool AutoReleaseSpiritAction::Execute(Event event)
 {
     LOG_DEBUG("playerbots", "%s: auto releasing spirit", bot->GetName());
-    bot->DurabilityRepairAll(false, 1.0f);
+    // AC pattern: no free repair on auto-release — death costs 10% durability
+    // DurabilityRepairAll(false, 1.0f) was a free-repair exploit
 
     WorldPacket packet(CMSG_REPOP_REQUEST);
     packet << uint8(0);
@@ -85,7 +87,9 @@ bool RepopAction::Execute(Event event)
 
 bool RepopAction::isUseful()
 {
-    return bot->IsDead() && !bot->IsAlive();
+    // AC pattern: RepopAction is useful when bot is dead and not in battleground
+    // (in BG, repop is handled differently via spirit healer)
+    return bot->IsDead() && !bot->InBattleGround();
 }
 
 // SelfResurrectAction

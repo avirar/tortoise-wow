@@ -15,6 +15,18 @@ GenericWarriorStrategy::GenericWarriorStrategy(PlayerBotAI* botAI)
 {
 }
 
+std::vector<NextAction> GenericWarriorStrategy::getDefaultActions()
+{
+    // AC pattern: spec strategies define default action priorities via GetSpecDefaultActions()
+    // CombatStrategy::getDefaultActions() provides "cast spell" — we add spec actions on top
+    std::vector<NextAction> actions = CombatStrategy::getDefaultActions();
+    for (auto const& pair : GetSpecDefaultActions())
+    {
+        actions.push_back(NextAction(pair.first, pair.second));
+    }
+    return actions;
+}
+
 void GenericWarriorStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
     CombatStrategy::InitTriggers(triggers);

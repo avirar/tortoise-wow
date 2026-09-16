@@ -1,6 +1,7 @@
 #include "ActionContext.h"
 
 #include "PlayerBotAI.h"
+#include "Actions/CastSpellAction.h"
 #include "Actions/LootAction.h"
 #include "Actions/ReleaseSpiritActions.h"
 #include "Actions/ReviveFromCorpseActions.h"
@@ -27,6 +28,7 @@ public:
         creators["set behind"] = &ActionContext::CreateSetBehindAction;
         creators["enter combat"] = &ActionContext::CreateEnterCombatAction;
         creators["leave combat"] = &ActionContext::CreateLeaveCombatAction;
+        creators["cast spell"] = &ActionContext::CreateCastSpellAction;
         creators["move random"] = &ActionContext::CreateMoveRandomAction;
         creators["attack anything"] = &ActionContext::CreateAttackAnythingAction;
         creators["loot"] = &ActionContext::CreateLootAction;
@@ -90,6 +92,7 @@ private:
     static Action* CreateSetBehindAction(PlayerBotAI* botAI) { return new SetBehindAction(botAI); }
     static Action* CreateEnterCombatAction(PlayerBotAI* botAI) { return new EnterCombatAction(botAI); }
     static Action* CreateLeaveCombatAction(PlayerBotAI* botAI) { return new LeaveCombatAction(botAI); }
+    static Action* CreateCastSpellAction(PlayerBotAI* botAI) { return new CastSpellAction(botAI); }
     static Action* CreateMoveRandomAction(PlayerBotAI* botAI) { return new MoveRandomAction(botAI); }
     static Action* CreateAttackAnythingAction(PlayerBotAI* botAI) { return new AttackAnythingAction(botAI); }
     static Action* CreateLootAction(PlayerBotAI* botAI) { return new LootAction(botAI); }

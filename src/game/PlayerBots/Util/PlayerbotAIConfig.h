@@ -51,6 +51,9 @@ public:
     uint32 errorDelay;
     uint32 lootDelay;
 
+    // Equip upgrade threshold (AC: equipUpgradeThreshold, default 1.1 = 10% improvement)
+    float equipUpgradeThreshold;
+
     // Random
     uint32 randomChangeMultiplier;
 

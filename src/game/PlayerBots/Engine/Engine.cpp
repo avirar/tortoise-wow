@@ -106,12 +106,22 @@ bool Engine::DoNextAction()
     LOG_DEBUG("playerbots", "[DoNextAction] queue size=%u", queue.Size());
 
     uint32 iterations = 0;
-    uint32 iterationsPerTick = queue.Size() * 2;
-    if (iterationsPerTick < 1)
-        iterationsPerTick = 1;
+    // AC pattern: iterationsPerTick refreshes each iteration to account for
+    // prerequisite chains that grow the queue during the loop
+    uint32 iterationsPerTick = 0;
 
-    while (++iterations <= iterationsPerTick)
+    while (true)
     {
+        ++iterations;
+        iterationsPerTick = queue.Size() * 2;
+        if (iterationsPerTick < 1)
+            iterationsPerTick = 1;
+        if (iterations > iterationsPerTick)
+        {
+            LOG_DEBUG("playerbots", "%s [DoNextAction] reached iteration cap %u after %u iterations", botAI->me->GetName(), iterationsPerTick, iterations);
+            break;
+        }
+
         basket = queue.Peek();
         if (!basket)
         {

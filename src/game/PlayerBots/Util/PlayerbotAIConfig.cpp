@@ -37,6 +37,9 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     errorDelay = 5000;
     lootDelay = 1000;
 
+    // Equip upgrade threshold (AC default 1.1 = 10% improvement needed)
+    equipUpgradeThreshold = 1.1f;
+
     // Random
     randomChangeMultiplier = 1;
 
@@ -93,6 +96,7 @@ bool PlayerbotAIConfig::Initialize()
     repeatDelay = sConfig.GetIntDefault("PlayerBot.RepeatDelay", repeatDelay);
     errorDelay = sConfig.GetIntDefault("PlayerBot.ErrorDelay", errorDelay);
     lootDelay = sConfig.GetIntDefault("PlayerBot.LootDelay", lootDelay);
+    equipUpgradeThreshold = sConfig.GetFloatDefault("PlayerBot.EquipUpgradeThreshold", equipUpgradeThreshold);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

@@ -40,8 +40,8 @@ bool AttackAction::DoAttack(Unit* target)
     if (!bot->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
         return false;
 
-    // AC pattern: set selection, save old target, set current target, add to loot stack
-    bot->SetTargetGuid(target->GetGUID());
+    // AC pattern: save old target, set current target, add to loot stack
+    // Note: SetSelectionGuid already calls SetTargetGuid internally (tortoise Player::SetSelectionGuid)
     GetAiObjectContext()->GetValue<Unit*>("old target")->Set(
         GetAiObjectContext()->GetValue<Unit*>("current target")->Get());
     GetAiObjectContext()->GetValue<Unit*>("current target")->Set(target);
@@ -83,8 +83,15 @@ bool AttackAction::DoAttack(Unit* target)
 
     // AC pattern: check WaitForAttack before attacking
     // For solo bots, ShouldWait always returns false (attack immediately)
+    // AC: bool shouldMelee = bot->IsWithinMeleeRange(target) || botAI->IsMelee(bot);
+    // Tortoise: use CanReachWithMeleeAutoAttack + class check
     if (!WaitForAttackStrategy::ShouldWait(botAI))
-        bot->Attack(target, bot->CanReachWithMeleeAutoAttack(target) || true);
+    {
+        bool shouldMelee = bot->CanReachWithMeleeAutoAttack(target) ||
+            (bot->GetClass() == CLASS_WARRIOR || bot->GetClass() == CLASS_ROGUE ||
+             bot->GetClass() == CLASS_PALADIN || bot->GetClass() == CLASS_DRUID);
+        bot->Attack(target, shouldMelee);
+    }
 
     // AC pattern: switch to COMBAT engine when attacking
     botAI->ChangeEngine(BOT_STATE_COMBAT);
@@ -125,8 +132,9 @@ bool DropTargetAction::Execute([[maybe_unused]] Event event)
         return false;
 
     // AC pattern: if target is dead, add to loot stack before clearing
+    // Defensive: validate target is still in world before dereferencing (prevents dangling pointer crash)
     Unit* target = GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
-    if (target && target->IsDead())
+    if (target && target->IsInWorld() && !target->IsDeleted() && target->IsDead())
     {
         LootObjectStack* lootStack = GetAiObjectContext()->GetValue<LootObjectStack*>("available loot")->Get();
         if (lootStack)
