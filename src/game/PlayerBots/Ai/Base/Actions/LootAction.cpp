@@ -36,7 +36,10 @@ bool LootAction::Execute([[maybe_unused]] Event event)
 
 bool LootAction::isUseful()
 {
-    if (bot->GetGroup() && bot->GetGroup()->GetLootMethod() == FREE_FOR_ALL)
+    // AC semantics: bots avoid FREE_FOR_ALL group loot by default; opt in with
+    // PlayerBot.FreeMethodLoot=1 (AC: freeMethodLoot || !group || method != FFA || IsSelfBot)
+    if (bot->GetGroup() && bot->GetGroup()->GetLootMethod() == FREE_FOR_ALL
+        && !sPlayerbotAIConfig.freeMethodLoot)
         return false;
     return true;
 }
@@ -302,7 +305,8 @@ bool StoreLootAction::Execute(Event event)
         LOG_DEBUG("playerbots", "StoreLoot: %s storing item %u '%s' count=%u",
             bot->GetName(), iter->itemid, proto->Name1, iter->count);
 
-        iter->is_looted = true;
+        // P2-3: no direct is_looted mutation — the opcode handler marks the
+        // item looted server-side; trust the authoritative result.
         ++storedCount;
         botAI->SetNextCheckDelay(sPlayerbotAIConfig.lootDelay);
     }
