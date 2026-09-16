@@ -96,6 +96,8 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - **Sources:** AC `strategy/<class>/`; cross-check spell availability tables against `tw_world` via tortoise-data (R0 tool) and `twow-class-spells-reference.md`.
 
 ### R3 — Item & loot pipeline hardening
+- **Loot-pipeline investigation (2026-09-17)**: The "open loot FAILED 98%" is largely the **benign re-entry guard** — `OpenLootAction` returns false while a loot window is already open (`GetLootGuid()` set) waiting for `StoreLootAction`; `StoreLootAction` correctly clears the loot guid + loot target on every exit path (processed/not-tapped/empty) and replicates AC's `lootslot_type` permission logic. The code is sound; the pipeline is **content-limited**, not buggy.
+- **"No gear" root cause (→ R5)**: bots are level 10-12 in starting zones (EKKK map 0 / Kalimdor map 1) fighting **appropriate-level beasts** (Mudpaw, Thalassian Stag — drop meat/junk, no equipment) instead of **humanoids** (gnolls/trolls/forsaken — drop gear). `ServerFacade::SelectNearestSafeTarget` picks the **nearest** target by pure distance with no creature-type preference. Fix = prefer gear-dropping humanoids (an R5 depth-behavior change to core grind logic — deferred pending prioritization). Until then `equip upgrades` stays 100% failing (no equippable drops).
 - Full AC `ItemUsage` semantics on top of our scorer: need/greed/pass group decisions, sell gray, quest items, bag slots, consumables.
 - Group loot roles (ML distribution, roll participation) — extend the `lootslot_type` work.
 - Vendor/sell cycles + gold accumulation for bots.
