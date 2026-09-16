@@ -49,6 +49,7 @@ private:
     static void ApplyGear(Player* player, uint8 level, uint8 class_);
     static void ApplyTalents(Player* player, uint8 level, uint8 class_);
     static void TrainClassSpells(Player* player);
+    static void TrainClassSkills(Player* player);
 
     // Gear sets per level bracket (item entry IDs)
     struct GearSet { uint8 minLevel; uint8 maxLevel; uint32 items[19]; };

@@ -352,8 +352,20 @@ void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPref
             }
         }
 
-        // Human warriors only at level 10
-        uint8 race = 1; // Human
+        // Spread bots across all 10 races (Alliance + Horde)
+        static const uint8 allRaces[] = {
+            RACE_HUMAN,     // 1 - Goldshire
+            RACE_ORC,       // 2 - Razor Hill
+            RACE_DWARF,     // 3 - Kharanos
+            RACE_NIGHTELF,  // 4 - Dolanaar
+            RACE_UNDEAD,    // 5 - Brill
+            RACE_TAUREN,    // 6 - Bloodhoof Village
+            RACE_GNOME,     // 7 - Kharanos
+            RACE_TROLL,     // 8 - Razor Hill
+            RACE_GOBLIN,    // 9 - near Teste
+            RACE_HIGH_ELF   // 10 - near Testy
+        };
+        uint8 race = allRaces[i % 10];
         uint8 class_ = CLASS_WARRIOR;
 
         // Pick gender (0=male, 1=female)
@@ -458,8 +470,12 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId, uint8 race, uint8 
         // Train class spells (AC InitClassSpells pattern)
         TrainClassSpells(newChar);
 
+        // Train armor/weapon skills (bots can't equip without these)
+        TrainClassSkills(newChar);
+
         // Apply gear appropriate for level
-        ApplyGear(newChar, level, class_);
+        // DISABLED: bots start with empty equipment slots so looted gear is always an upgrade
+        // ApplyGear(newChar, level, class_);
 
         // Apply talents (starts at level 10)
         ApplyTalents(newChar, level, class_);
@@ -682,6 +698,187 @@ void PlayerbotFactory::TrainClassSpells(Player* bot)
             bot->LearnSpell(5176, false);  // Travel Form
             bot->LearnSpell(5185, false);  // Cat Form
             break;
+        default:
+            break;
+    }
+}
+
+// ============================================================================
+// Armor/Weapon skill training
+// Bots can't equip items without the appropriate skills
+// Skill values from ItemPrototype::GetProficiencySkill() (Item.cpp:654)
+// Skill cap: level * 5, min 75 for levels 1-9, max 300
+// ============================================================================
+void PlayerbotFactory::TrainClassSkills(Player* bot)
+{
+    if (!bot)
+        return;
+
+    uint8 level = bot->GetLevel();
+    uint8 class_ = bot->GetClass();
+
+    // Vanilla WoW skill cap: level * 5, min 75 for levels 1-9, max 300
+    uint16 skillVal = (level < 10) ? 75 : std::min<uint16>(level * 5, 300);
+
+    // Helper lambda to set a skill
+    auto setSkill = [&bot, skillVal](uint16 skill) {
+        bot->SetSkill(skill, skillVal, skillVal);
+    };
+
+    switch (class_)
+    {
+        // DBC-verified from SkillRaceClassInfo.dbc (node-dbc-reader)
+        // Bit mapping: (1 << (class_id - 1)) from SharedDefines.h + DBCStores.cpp:642
+        // CLASS_WARRIOR=1(1), PALADIN=2(2), HUNTER=3(4), ROGUE=4(8), PRIEST=5(16),
+        //   SHAMAN=7(64), MAGE=8(128), WARLOCK=9(256), DRUID=11(1024)
+
+        case CLASS_WARRIOR: {
+            // Armor (all types): Plate(40), Mail, Leather, Cloth
+            setSkill(SKILL_PLATE_MAIL);     // 293 minLvl=40
+            setSkill(SKILL_MAIL);           // 413 minLvl=0
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Swords, Axes, Maces, 2H Swords, 2H Maces, 2H Axes,
+            //   Staves, Polearms(20), Daggers, Thrown, Bows, Guns, Crossbows, Shield, Fist
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_AXES);           // 44 minLvl=0
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_2H_SWORDS);      // 55 minLvl=0
+            setSkill(SKILL_2H_MACES);       // 160 minLvl=0
+            setSkill(SKILL_2H_AXES);        // 172 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_POLEARMS);       // 229 minLvl=20
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_THROWN);         // 176 minLvl=0
+            setSkill(SKILL_BOWS);           // 45 minLvl=0
+            setSkill(SKILL_GUNS);           // 46 minLvl=0
+            setSkill(SKILL_CROSSBOWS);      // 226 minLvl=0
+            setSkill(SKILL_SHIELD);         // 433 minLvl=0
+            setSkill(SKILL_FIST_WEAPONS);   // 473 minLvl=0
+            break;
+        }
+
+        case CLASS_PALADIN: {
+            // Armor (all types): Plate(40), Mail, Leather, Cloth
+            setSkill(SKILL_PLATE_MAIL);     // 293 minLvl=40
+            setSkill(SKILL_MAIL);           // 413 minLvl=0
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Swords, Axes, Maces, 2H Swords, 2H Maces, 2H Axes, Polearms(20), Shield
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_AXES);           // 44 minLvl=0
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_2H_SWORDS);      // 55 minLvl=0
+            setSkill(SKILL_2H_MACES);       // 160 minLvl=0
+            setSkill(SKILL_2H_AXES);        // 172 minLvl=0
+            setSkill(SKILL_POLEARMS);       // 229 minLvl=20
+            setSkill(SKILL_SHIELD);         // 433 minLvl=0
+            break;
+        }
+
+        case CLASS_HUNTER: {
+            // Armor: Mail(40), Leather, Cloth
+            setSkill(SKILL_MAIL);           // 413 minLvl=40
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Bows, Guns, Crossbows, Axes, Swords, 2H Swords, 2H Axes,
+            //   Daggers, Staves, Thrown, Polearms(20), Fist
+            setSkill(SKILL_BOWS);           // 45 minLvl=0
+            setSkill(SKILL_GUNS);           // 46 minLvl=0
+            setSkill(SKILL_CROSSBOWS);      // 226 minLvl=0
+            setSkill(SKILL_AXES);           // 44 minLvl=0
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_2H_SWORDS);      // 55 minLvl=0
+            setSkill(SKILL_2H_AXES);        // 172 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_THROWN);         // 176 minLvl=0
+            setSkill(SKILL_POLEARMS);       // 229 minLvl=20
+            setSkill(SKILL_FIST_WEAPONS);   // 473 minLvl=0
+            break;
+        }
+
+        case CLASS_ROGUE: {
+            // Armor: Leather, Cloth
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Daggers, Swords, Axes, Maces, Bows, Guns, Crossbows, Thrown, Fist
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_AXES);           // 44 minLvl=0
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_BOWS);           // 45 minLvl=0
+            setSkill(SKILL_GUNS);           // 46 minLvl=0
+            setSkill(SKILL_CROSSBOWS);      // 226 minLvl=0
+            setSkill(SKILL_THROWN);         // 176 minLvl=0
+            setSkill(SKILL_FIST_WEAPONS);   // 473 minLvl=0
+            break;
+        }
+
+        case CLASS_PRIEST: {
+            // Armor: Cloth
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Maces, Staves, Daggers, Wands
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_WANDS);          // 228 minLvl=0
+            break;
+        }
+
+        case CLASS_SHAMAN: {
+            // Armor: Mail(40), Leather, Cloth
+            setSkill(SKILL_MAIL);           // 413 minLvl=40
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Axes, Maces, Staves, 2H Maces, 2H Axes, Daggers, Shield, Fist
+            setSkill(SKILL_AXES);           // 44 minLvl=0
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_2H_MACES);       // 160 minLvl=0
+            setSkill(SKILL_2H_AXES);        // 172 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_SHIELD);         // 433 minLvl=0
+            setSkill(SKILL_FIST_WEAPONS);   // 473 minLvl=0
+            break;
+        }
+
+        case CLASS_MAGE: {
+            // Armor: Cloth
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Swords, Daggers, Staves, Wands
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_WANDS);          // 228 minLvl=0
+            break;
+        }
+
+        case CLASS_WARLOCK: {
+            // Armor: Cloth
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Swords, Daggers, Staves, Wands
+            setSkill(SKILL_SWORDS);         // 43 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_WANDS);          // 228 minLvl=0
+            break;
+        }
+
+        case CLASS_DRUID: {
+            // Armor: Leather, Cloth (NO mail, NO plate!)
+            setSkill(SKILL_LEATHER);        // 414 minLvl=0
+            setSkill(SKILL_CLOTH);          // 415 minLvl=0
+            // Weapons: Maces, Staves, 2H Maces, Daggers, Polearms(20), Fist
+            setSkill(SKILL_MACES);          // 54 minLvl=0
+            setSkill(SKILL_STAVES);         // 136 minLvl=0
+            setSkill(SKILL_2H_MACES);       // 160 minLvl=0
+            setSkill(SKILL_DAGGERS);        // 173 minLvl=0
+            setSkill(SKILL_POLEARMS);       // 229 minLvl=20
+            setSkill(SKILL_FIST_WEAPONS);   // 473 minLvl=0
+            break;
+        }
+
         default:
             break;
     }

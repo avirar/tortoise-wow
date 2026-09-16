@@ -180,16 +180,45 @@ public:
         if (session->GetPlayer())
         {
             Player* bot = session->GetPlayer();
-            // Teleport bot to Goldshire (Elwynn Forest) after login
-            float tx = -9493.0f, ty = 65.0f, tz = 56.10f, to = 0.0f;
+            // Teleport bot to their race's starting town after login
+            uint8 race = bot->GetRace();
+            uint32 mapId = 0;
+            float tx = 0, ty = 0, tz = 0, to = 0;
+
+            switch (race)
+            {
+                case 1: // Human - Goldshire, Elwynn Forest
+                    mapId = 0; tx = -8882.0f; ty = 565.4f; tz = 93.3f; to = 0.5f; break;
+                case 2: // Orc - Razor Hill, Durotar
+                    mapId = 1; tx = -591.9f; ty = -4300.3f; tz = 40.4f; to = 2.5f; break;
+                case 3: // Dwarf - Kharanos, Dun Morogh
+                    mapId = 0; tx = -5910.5f; ty = 57.5f; tz = 373.0f; to = 1.5f; break;
+                case 4: // Night Elf - Dolanaar, Teldrassil
+                    mapId = 1; tx = 10374.6f; ty = 743.2f; tz = 1322.2f; to = 4.0f; break;
+                case 5: // Undead - Brill, Tirisfal Glades
+                    mapId = 0; tx = 1804.0f; ty = -363.6f; tz = 31.1f; to = 3.0f; break;
+                case 6: // Tauren - Bloodhoof Village, Mulgore
+                    mapId = 1; tx = -2895.7f; ty = 194.8f; tz = 72.4f; to = 1.0f; break;
+                case 7: // Gnome - Kharanos, Dun Morogh
+                    mapId = 0; tx = -5910.5f; ty = 57.5f; tz = 373.0f; to = 1.5f; break;
+                case 8: // Troll - Razor Hill, Durotar
+                    mapId = 1; tx = -591.9f; ty = -4300.3f; tz = 40.4f; to = 2.5f; break;
+                case 9: // Goblin - near Teste's start
+                    mapId = 1; tx = -124.9f; ty = -7550.3f; tz = 40.7f; to = 3.5f; break;
+                case 10: // High Elf - near Testy's start
+                    mapId = 0; tx = 3626.7f; ty = -2433.6f; tz = 67.0f; to = 2.0f; break;
+                default: // Fallback to Goldshire
+                    mapId = 0; tx = -8882.0f; ty = 565.4f; tz = 93.3f; to = 0.5f; break;
+            }
+
             Map* m = bot->GetMap();
             if (m)
             {
                 tz = m->GetHeight(tx, ty, tz);
                 sLog.outString("[BOT_LOGIN] '%s' ground height at (%f,%f) = %f", bot->GetName(), tx, ty, tz);
             }
-            sLog.outString("[BOT_LOGIN] '%s' before: map=%u pos=(%f,%f,%f)",
-                bot->GetName(), bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
+            sLog.outString("[BOT_LOGIN] '%s' race=%u -> map=%u pos=(%f,%f,%f)",
+                bot->GetName(), race, mapId, tx, ty, tz);
             bot->SetPosition(tx, ty, tz, to, true);
             sLog.outString("[BOT_LOGIN] '%s' after:  map=%u pos=(%f,%f,%f)",
                 bot->GetName(), bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
