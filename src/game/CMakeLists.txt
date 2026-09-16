@@ -365,6 +365,17 @@ set (game_SRCS
     PlayerBots/Ai/Class/Mage/MageActions.cpp
     PlayerBots/Ai/Class/Mage/MageTriggers.cpp
     PlayerBots/Ai/Class/Mage/Strategy/GenericMageStrategy.cpp
+
+    PlayerBots/Ai/Base/Actions/SelfHealAction.cpp
+    PlayerBots/Ai/Class/Warlock/WarlockActions.cpp
+    PlayerBots/Ai/Class/Warlock/WarlockTriggers.cpp
+    PlayerBots/Ai/Class/Warlock/Strategy/GenericWarlockStrategy.cpp
+    PlayerBots/Ai/Class/Paladin/PaladinActions.cpp
+    PlayerBots/Ai/Class/Paladin/PaladinTriggers.cpp
+    PlayerBots/Ai/Class/Paladin/Strategy/GenericPaladinStrategy.cpp
+    PlayerBots/Ai/Class/Priest/Strategy/GenericPriestStrategy.cpp
+    PlayerBots/Ai/Class/Shaman/Strategy/GenericShamanStrategy.cpp
+    PlayerBots/Ai/Class/Druid/Strategy/GenericDruidStrategy.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp
@@ -717,6 +728,13 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Value
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warlock
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warlock/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Paladin
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Paladin/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Priest/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Shaman/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Druid/Strategy
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/WorldPacket
   ${CMAKE_CURRENT_SOURCE_DIR}/Protocol
   ${CMAKE_CURRENT_SOURCE_DIR}/Spells

@@ -1,4 +1,4 @@
-<!-- Canonical copy: /root/bot-master-plan.md — edit there, then re-copy -->
+<!-- Canonical copy: /root/bot-master-plan.md (single source of truth; edits go there, then re-sync) -->
 
 # Tortoise Bot Master Plan — "Best of Both"
 
@@ -87,7 +87,9 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] **Class enum is non-vanilla** (`ChrClasses.dbc`): 7=Shaman, 8=Mage, 9=Warlock, 11=Druid. `characters.class` and `skill_line_ability.class_mask` are consistent via `GetClassMask()=1<<(c-1)` — use `tw dbc ChrClasses` for ground truth, never assume vanilla numbering.
 - [x] Spec detection: talent-tab detection in `Util/SpecDetect.h`, warrior spec strategy selected at login (P1-3, 2026-09-16) — extend to other classes as their strategy trees land
 - [x] **Mage v1 (2026-09-17, commit `3e5932cf`)**: all-spec `GenericMageStrategy` — Polymorph CC action + `can polymorph` trigger, cast-spell nukes via `SelectOffensiveSpell` per-class table, inherits `RangedCombatStrategy` flee-when-close. Blink deferred (positioning risk).
-- [ ] Remaining 7 class strategy trees: rogue, priest, warlock, hunter, shaman, paladin, druid (currently fall back to `RangedCombatStrategy`/`MeleeCombatStrategy`). Now feasible — spells are learned.
+- [x] **5 more class strategies (2026-09-17)**: `GenericWarlockStrategy` (Fear CC), `GenericPriestStrategy` / `GenericShamanStrategy` / `GenericDruidStrategy` (combat self-heal), `GenericPaladinStrategy` (Hammer of Justice CC + self-heal). Shared `SelfHealAction` (`Ai/Base/Actions/`) resolves the per-class heal spell and casts on self, gated by the `low health` trigger (≤30%) on the COMBAT engine (no conflict with the NON_COMBAT food system). Verified live: `fear` + `heal self` actions firing, 100/100 online, 0 crashes.
+- [x] **Learnable-spell lesson (2026-09-17)**: CC/self-heal spells must be ones the bots actually learn — `AutoLearnSpellsForLevel` only grants spells present in `skill_line_ability` (by `class_mask`). **Hex (11641) is `spellLevel=30` and ABSENT from `skill_line_ability`** → never learned → warlock CC uses **Fear (5782)** instead. Self-heal base IDs had to match `character_spell` ground truth: Priest **2053** (not 2060), Shaman **332** (not 331), Paladin **639** (not 635), Druid **5186 Healing Touch** (not 3734 Regrowth). `GetHighestKnownSpell(base)` walks the whole chain, so any ID in the chain works.
+- [ ] Rogue/Hunter: rely on the class offensive table (Eviscerate/Sinister Strike/Garrote; Auto Shot/Arcane Shot/Serpent Sting) — no low-level class CC to add; generic `Melee`/`Ranged` fallback. Defer dedicated trees until higher-level (poison/aspect) features matter.
 - [ ] Warrior: 6 missing Fury/Tank triggers (bloodthirst ready, demoralizing shout needed, revenge ready, shield slam ready, taunt needed, whirlwind ready) — harmless dead branches today.
 - Per-class verification: rotation logs show ability usage per class at level-appropriate targets.
 - **Sources:** AC `strategy/<class>/`; cross-check spell availability tables against `tw_world` via tortoise-data (R0 tool) and `twow-class-spells-reference.md`.

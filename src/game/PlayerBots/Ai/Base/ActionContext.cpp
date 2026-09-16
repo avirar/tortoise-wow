@@ -10,6 +10,9 @@
 // Class-specific actions (modular registration)
 #include "../Class/Warrior/WarriorActions.h"
 #include "../Class/Mage/MageActions.h"
+#include "../Class/Warlock/WarlockActions.h"
+#include "../Class/Paladin/PaladinActions.h"
+#include "Actions/SelfHealAction.h"
 
 class ActionContext : public NamedObjectContext<Action>
 {
@@ -40,6 +43,11 @@ public:
         creators["move to loot"] = &ActionContext::CreateMoveToLootAction;
         creators["food"] = &ActionContext::CreateEatAction;
         creators["drink"] = &ActionContext::CreateDrinkAction;
+        creators["heal self"] = &ActionContext::CreateSelfHealAction;
+        // === Warlock class actions ===
+        creators["fear"] = &ActionContext::CreateCastFearAction;
+        // === Paladin class actions ===
+        creators["hammer of justice"] = &ActionContext::CreateCastHammerOfJusticeAction;
         // Death/resurrection actions
         creators["release"] = &ActionContext::CreateReleaseSpiritAction;
         creators["auto release"] = &ActionContext::CreateAutoReleaseSpiritAction;
@@ -147,6 +155,15 @@ private:
 
     // === Mage class action factories ===
     static Action* CreateCastPolymorphAction(PlayerBotAI* botAI) { return new CastPolymorphAction(botAI); }
+
+// === Self-heal (shared healer classes) ===
+    static Action* CreateSelfHealAction(PlayerBotAI* botAI) { return new SelfHealAction(botAI); }
+
+// === Warlock class action factories ===
+    static Action* CreateCastFearAction(PlayerBotAI* botAI) { return new CastFearAction(botAI); }
+
+// === Paladin class action factories ===
+    static Action* CreateCastHammerOfJusticeAction(PlayerBotAI* botAI) { return new CastHammerOfJusticeAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

@@ -9,6 +9,8 @@
 // Class-specific triggers (modular registration)
 #include "../Class/Warrior/WarriorTriggers.h"
 #include "../Class/Mage/MageTriggers.h"
+#include "../Class/Warlock/WarlockTriggers.h"
+#include "../Class/Paladin/PaladinTriggers.h"
 
 class TriggerContext : public NamedObjectContext<Trigger>
 {
@@ -70,6 +72,8 @@ public:
 
         // === Mage class triggers ===
         creators["can polymorph"] = &TriggerContext::CreateCanPolymorph;
+        creators["can fear"] = &TriggerContext::CreateCanFear;
+        creators["can hammer of justice"] = &TriggerContext::CreateCanHammerOfJustice;
     }
 
 private:
@@ -128,6 +132,12 @@ private:
 
     // === Mage class trigger factories ===
     static Trigger* CreateCanPolymorph(PlayerBotAI* botAI) { return new CanPolymorphTrigger(botAI); }
+
+// === Warlock class trigger factories ===
+    static Trigger* CreateCanFear(PlayerBotAI* botAI) { return new CanFearTrigger(botAI); }
+
+// === Paladin class trigger factories ===
+    static Trigger* CreateCanHammerOfJustice(PlayerBotAI* botAI) { return new CanHammerOfJusticeTrigger(botAI); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

@@ -27,6 +27,11 @@
 #include "../Ai/Class/Warrior/WarriorAiObjectContext.h"
 // R2: mage class strategy
 #include "../Ai/Class/Mage/Strategy/GenericMageStrategy.h"
+#include "../Ai/Class/Warlock/Strategy/GenericWarlockStrategy.h"
+#include "../Ai/Class/Priest/Strategy/GenericPriestStrategy.h"
+#include "../Ai/Class/Shaman/Strategy/GenericShamanStrategy.h"
+#include "../Ai/Class/Paladin/Strategy/GenericPaladinStrategy.h"
+#include "../Ai/Class/Druid/Strategy/GenericDruidStrategy.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
     : botAI(botAI),
@@ -100,19 +105,46 @@ void PlayerbotAIBase::Initialize()
 
         LOG_DEBUG("playerbots", "[3ENGINE] COMBAT engine: warrior spec tab %u for %s", specTab, botAI->me->GetName());
     }
-    else if (botClass == CLASS_ROGUE ||
-             botClass == CLASS_PALADIN || botClass == CLASS_DRUID)
+    else if (botClass == CLASS_PALADIN)
     {
-        engines[BOT_STATE_COMBAT]->AddStrategy(new MeleeCombatStrategy(botAI));
+        // R2: paladin strategy (melee + Hammer of Justice CC + self-heal)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericPaladinStrategy(botAI));
+    }
+    else if (botClass == CLASS_DRUID)
+    {
+        // R2: druid strategy (melee/caster + self-heal; roots via offensive table)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericDruidStrategy(botAI));
     }
     else if (botClass == CLASS_MAGE)
     {
         // R2: mage strategy (cast-spell nukes + Polymorph CC; inherits flee-when-close)
         engines[BOT_STATE_COMBAT]->AddStrategy(new GenericMageStrategy(botAI));
     }
-    else if (botClass == CLASS_PRIEST || botClass == CLASS_WARLOCK ||
-              botClass == CLASS_HUNTER || botClass == CLASS_SHAMAN)
+    else if (botClass == CLASS_WARLOCK)
     {
+        // R2: warlock strategy (cast-spell nukes + Hex CC)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericWarlockStrategy(botAI));
+    }
+    else if (botClass == CLASS_PRIEST)
+    {
+        // R2: priest strategy (cast-spell nukes + self-heal)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericPriestStrategy(botAI));
+    }
+    else if (botClass == CLASS_SHAMAN)
+    {
+        // R2: shaman strategy (cast-spell nukes + self-heal)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericShamanStrategy(botAI));
+    }
+    else if (botClass == CLASS_ROGUE)
+    {
+        // R2: rogue — no low-level class CC; relies on the class offensive
+        // table (Eviscerate/Sinister Strike/Garrote). Melee base.
+        engines[BOT_STATE_COMBAT]->AddStrategy(new MeleeCombatStrategy(botAI));
+    }
+    else if (botClass == CLASS_HUNTER)
+    {
+        // R2: hunter — Auto Shot/Arcane Shot/Serpent Sting via the class
+        // offensive table. Ranged base (Auto Shot has a minRange).
         engines[BOT_STATE_COMBAT]->AddStrategy(new RangedCombatStrategy(botAI));
     }
     else
