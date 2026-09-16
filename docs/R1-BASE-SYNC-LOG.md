@@ -2,7 +2,7 @@
 
 # R1 Base Sync — Issues & Solutions Log
 
-**Status:** IN PROGRESS — core boots with 100 bots queued; one uncaught-exception crash under investigation
+**Status:** COMMITTED & PUSHED (commits `2136011f`, `ddb7f9d0`, `7fc65ea9`, `dff5ce37` on top of merge `a473d4f5`) — core boots, **100/100 bots online**. Remaining: soak stability + P2 review fixes.
 **Date:** 2026-09-16
 **Parent:** `bot-master-plan.md` §5 R1 (merge 251 upstream commits onto `playerbot-engine-port`)
 
@@ -67,19 +67,45 @@ First collision: `20260526123433_world.sql` (Dragonmaw Retreat spawns) — `Dupl
 
 **Result:** all 146 world migrations applied (98 pending → 0), 2 DDL files passed verbatim. Character DB's single migration (`20260817151028_character`) had already been applied by the updater run.
 
-## 5. Verification status
+## 5. The bot-login saga — upstream session architecture changes (RESOLVED via HeadlessSessionMgr)
+
+Upstream rebuilt session handling: socketless sessions can no longer live in `World::m_sessions`.
+
+1. **`WorldSession::Update()` returns false for non-connected sessions** → `World::UpdateSessions` deletes them within a tick. Our old flow (create session + `AddSession` + `LoginPlayer`) was silently destroyed before the async login callback could run → 0 bots online, `loading=100` forever.
+2. **`WorldSession::HandlePlayerLogin` now gates on `IsLoginRequest(guid, transport, token)`** — the old direct `HandlePlayerLogin` call from our bot callback could never pass.
+3. **`World::AddSession` is a queue** (`addSessQueue` drained in `UpdateSessions`) — racing the SQL callback either way.
+
+**Solution — use upstream's `HeadlessSessionMgr`** (built exactly for socketless logins):
+
+| Change | File | Detail |
+|---|---|---|
+| `ScheduleBotLogin` rewritten | `CharacterHandler.cpp` | `sWorld.StartHeadlessSession(accountId, guid, LOCALE_enUS, botName)` — creates `SessionTransport::Headless` session, `InitHeadlessSession()` sets `m_connected=true` (survives the socketless purge), `LoginPlayer` queues the holder. The callback routes via `HandleHeadlessLoginCallback` → manager resolves by (guid, accountId, token) — **no FindSession race** |
+| `HeadlessSessionMgr::GetSession(guid)` | `HeadlessSessionMgr.h` (new inline accessor) | lets us attach the `PlayerBotEntry` right after `Start` (searches `m_pendingSessions` then `m_sessions`) |
+| `World::GetHeadlessSessionMgr()` | `World.h` (new accessor) | exposes the manager |
+| Bot completion block | `CharacterHandler.cpp`, end of `HandlePlayerLogin` | `if (PlayerBotEntry* e = GetBot())` → decrement loadingCount, `OnBotLogin`, then `TeleportTo` race start town (per-race switch, same coords as the old callback) |
+| `LoginPlayer` made public | `WorldSession.h` | was private in new core (not strictly needed now, kept for cleanliness) |
+
+**Result:** `[BOT_LOGIN]` ×300 lines, `characters.online = 100` via `tw sql`.
+
+## 6. Verification status
 
 - [x] Merge compiles (only 1 build fix needed, §2)
-- [x] mangosd boots fully on the new base; DB checks pass
-- [x] `PlayerBotMgr` queues all 100 bots for async login at boot
-- [ ] Bot login soak — **BLOCKED**: uncaught `std::runtime_error("false")` → SIGABRT shortly after boot (stdout: `terminate called after throwing an instance of 'std::runtime_error' what(): false`). Backtrace capture pending (gdb.txt shows only thread exits). Suspects: our PlayerBotAI/PlayerBotMgr vs new core session/transport changes, or upstream subsystem hitting an unhandled case.
-- [ ] Review P2 fixes (P1-3 spec wiring, P2-3 loot mutation, P2-6 FFA, P2-5 %s audit) — still queued after soak.
+- [x] DB auto-updater fixed (config key rename + duplicate-key removal; 146 world + 1 char migration reconciled idempotently)
+- [x] mangosd boots on new base
+- [x] **100/100 bots online** (headless-session flow, §5)
+- [~] **Soak in progress**: 100 bots online, world stable at time of writing (14:30+). One earlier crash (pre-gdb-upgrade, uncaught exception `what(): false` + one SIGSEGV) is NOT yet root-caused. GDB capture upgraded (§6a) — if it crashes again, `server/logs/gdb.txt` will contain the backtrace.
+- [ ] Fix open review items: P1-3 spec wiring, P2-3 loot mutation, P2-6 FFA, P2-5 %s audit, P3 cleanup
+- **Exit criteria:** soak passes on new base; review table all-green.
 
-## 6. Key file states
+### 6a. GDB crash capture upgraded (`/root/wow-server.sh`)
 
-| File | Change |
-|---|---|
-| `src/game/WorldSession.h` | bot plumbing restored + friend decl |
-| `server/etc/mangosd.conf` | AutoUpdate keys fixed, duplicates removed (uncommitted runtime conf) |
-| `tw_world` DB | 146 migrations reconciled; `migrations` table now tracks new hashes |
-| branch | merge commit `a473d4f5` (uncommitted WorldSession.h fix pending) |
+`wow-server.sh` regenerates `server/.gdb_cmds` on each start; the template now catches **SIGSEGV + SIGABRT + C++ `throw`** with `bt full` into `server/logs/gdb.txt`. Note: `catch throw` fires on *every* C++ exception (even caught ones) — the game throws many, so expect noise; the real crash backtrace is the last one before `Program terminated`.
+
+## 7. Handover checklist (next session)
+
+1. [x] ~~Strip debug traces~~ (done — `[BOT_DBG]` removed before commits; `[BOT_LOGIN]` kept)
+2. [x] ~~Commit R1 fixes + push~~ (commits `2136011f`…`dff5ce37` pushed to `avirar/playerbot-engine-port`)
+3. [x] Rebuild + install + restart with committed source (tmux session `r1build` chains build→install→restart; check `/tmp/build-r1.log` for `RESTART_DONE`)
+4. [ ] **Finish soak**: ≥30 min no crash with bots grinding. If crash: read `server/logs/gdb.txt` (now catches SIGSEGV + SIGABRT + C++ throws with `bt full`), root-cause.
+5. [ ] **P2 review fixes** (master plan §4 open items): P1-3 spec wiring (Arms hardcode; `GetPlayerSpecTab` exists in StatsWeightCalculator), P2-3 StoreLootAction direct `is_looted` mutation, P2-6 FFA inversion, P2-5 `GetName()` `%s` audit, P3 cleanup.
+6. Continue master-plan roadmap: R2 class parity → R3 item pipeline → R4 Shyalya lifts.
