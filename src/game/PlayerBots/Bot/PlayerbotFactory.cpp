@@ -366,7 +366,18 @@ void PlayerbotFactory::GenerateBots(uint32 count, std::string const& accountPref
             RACE_HIGH_ELF   // 10 - near Testy
         };
         uint8 race = allRaces[i % 10];
+        // playerbot-engine-port R2: pick a random class valid for this race
+        // (s_validRaceClass is loaded from playercreateinfo; previously
+        // hardcoded CLASS_WARRIOR — all 100 bots were warriors)
         uint8 class_ = CLASS_WARRIOR;
+        {
+            std::vector<uint8> validClasses;
+            for (const auto& rc : s_validRaceClass)
+                if (rc.first == race)
+                    validClasses.push_back(rc.second);
+            if (!validClasses.empty())
+                class_ = validClasses[urand(0, (uint32)validClasses.size() - 1)];
+        }
 
         // Pick gender (0=male, 1=female)
         uint8 gender = urand(0, 1);
