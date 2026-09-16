@@ -25,6 +25,8 @@
 #include "../Ai/Class/Warrior/Strategy/FuryWarriorStrategy.h"
 #include "../Ai/Class/Warrior/Strategy/TankWarriorStrategy.h"
 #include "../Ai/Class/Warrior/WarriorAiObjectContext.h"
+// R2: mage class strategy
+#include "../Ai/Class/Mage/Strategy/GenericMageStrategy.h"
 
 PlayerbotAIBase::PlayerbotAIBase(PlayerBotAI* botAI)
     : botAI(botAI),
@@ -103,9 +105,13 @@ void PlayerbotAIBase::Initialize()
     {
         engines[BOT_STATE_COMBAT]->AddStrategy(new MeleeCombatStrategy(botAI));
     }
-    else if (botClass == CLASS_MAGE || botClass == CLASS_PRIEST ||
-              botClass == CLASS_WARLOCK || botClass == CLASS_HUNTER ||
-              botClass == CLASS_SHAMAN)
+    else if (botClass == CLASS_MAGE)
+    {
+        // R2: mage strategy (cast-spell nukes + Polymorph CC; inherits flee-when-close)
+        engines[BOT_STATE_COMBAT]->AddStrategy(new GenericMageStrategy(botAI));
+    }
+    else if (botClass == CLASS_PRIEST || botClass == CLASS_WARLOCK ||
+              botClass == CLASS_HUNTER || botClass == CLASS_SHAMAN)
     {
         engines[BOT_STATE_COMBAT]->AddStrategy(new RangedCombatStrategy(botAI));
     }

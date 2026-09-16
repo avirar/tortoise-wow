@@ -9,6 +9,7 @@
 
 // Class-specific actions (modular registration)
 #include "../Class/Warrior/WarriorActions.h"
+#include "../Class/Mage/MageActions.h"
 
 class ActionContext : public NamedObjectContext<Action>
 {
@@ -76,6 +77,9 @@ public:
         creators["taunt"] = &ActionContext::CreateCastTauntAction;
         creators["demoralizing shout"] = &ActionContext::CreateCastDemoralizingShoutAction;
         creators["sweeping strikes"] = &ActionContext::CreateCastSweepingStrikesAction;
+
+        // === Mage class actions ===
+        creators["polymorph"] = &ActionContext::CreateCastPolymorphAction;
     }
 
 private:
@@ -140,6 +144,9 @@ private:
     static Action* CreateCastTauntAction(PlayerBotAI* botAI) { return new CastTauntAction(botAI); }
     static Action* CreateCastDemoralizingShoutAction(PlayerBotAI* botAI) { return new CastDemoralizingShoutAction(botAI); }
     static Action* CreateCastSweepingStrikesAction(PlayerBotAI* botAI) { return new CastSweepingStrikesAction(botAI); }
+
+    // === Mage class action factories ===
+    static Action* CreateCastPolymorphAction(PlayerBotAI* botAI) { return new CastPolymorphAction(botAI); }
 };
 
 void BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

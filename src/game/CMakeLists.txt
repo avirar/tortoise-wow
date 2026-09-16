@@ -361,6 +361,10 @@ set (game_SRCS
     PlayerBots/Ai/Class/Warrior/Strategy/ArmsWarriorStrategy.cpp
     PlayerBots/Ai/Class/Warrior/Strategy/FuryWarriorStrategy.cpp
     PlayerBots/Ai/Class/Warrior/Strategy/TankWarriorStrategy.cpp
+    # Class-specific: Mage
+    PlayerBots/Ai/Class/Mage/MageActions.cpp
+    PlayerBots/Ai/Class/Mage/MageTriggers.cpp
+    PlayerBots/Ai/Class/Mage/Strategy/GenericMageStrategy.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp

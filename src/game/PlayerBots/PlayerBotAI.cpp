@@ -237,10 +237,6 @@ void PlayerBotAI::AutoLearnSpellsForLevel()
         if (ability->racemask && !(ability->racemask & raceMask))
             continue;
 
-        // Skip tradeskills / profession gated spells
-        if (ability->req_skill_value != 0)
-            continue;
-
         SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(ability->spellId);
         if (!spellInfo)
             continue;
@@ -251,6 +247,24 @@ void PlayerBotAI::AutoLearnSpellsForLevel()
 
         if (me->HasSpell(ability->spellId))
             continue;
+
+        // Ensure the underlying class skill exists and is high enough. Bots
+        // created by the factory lack base class skills in character_skills
+        // (Player::Create does not grant them), so a plain LearnSpell would
+        // leave them without a usable skill value. Training the skill here
+        // mirrors the real player flow (Player::_LoadSkills ->
+        // UpdateSkillTrainedSpells), and the required value is the spell's
+        // req_skill_value (>=1). The old 'req_skill_value != 0' filter skipped
+        // EVERY row (the DB stores req_skill_value=1 for all class abilities),
+        // so non-warrior bots had no class spells at all.
+        if (ability->skillId)
+        {
+            int32 need = (int32)ability->req_skill_value;
+            if (need < 1) need = 1;
+            int32 have = me->HasSkill(ability->skillId) ? me->GetSkillValue(ability->skillId) : 0;
+            if (have < need)
+                me->SetSkill((uint16)ability->skillId, (uint16)need, me->GetSkillMaxForLevel());
+        }
 
         me->LearnSpell(ability->spellId, false);
     }
