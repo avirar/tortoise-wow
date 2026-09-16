@@ -51,11 +51,11 @@ The local-AI review (2026-06-26) was written **before** the 2026-06-27 commit ba
 | P1-2 free-repair exploit + no spirit-healer path | P1 | **FIXED** — `DurabilityRepairAll` calls removed; `dead → spirit healer` trigger in `DeadStrategy` | `435d129` |
 | P2-1 iteration cap computed once | P2 | **FIXED** — AC refresh-per-iteration pattern | `435d129` |
 | P2-2 redundant `SetTargetGuid` | P2 | **FIXED** — removed (SetSelectionGuid does both) | `435d129` |
-| P1-3 Warriors hardcoded to Arms; no spec detection | P1 | **OPEN (partial)** — spec detection EXISTS in `StatsWeightCalculator` (`GetPlayerSpecTab`, DBC talent parsing) but `PlayerbotAIBase::Initialize` still adds `ArmsWarriorStrategy` unconditionally. Wiring is ~10 lines. | — |
-| P2-3 `StoreLootAction` mutates `is_looted` directly | P2 | **OPEN** — `LootAction.cpp:305` still writes server state | — |
-| P2-5 `GetName()` (`std::string`) passed to `%s` | P2 | **OPEN** — audit needed tree-wide | — |
-| P2-6 FFA loot inverted | P2 | **OPEN** — `LootAction.cpp:39-41` returns false for FREE_FOR_ALL (should allow) | — |
-| P3 batch (static map leak, dead `lastRelevance`, RepopAction tautology) | P3 | **OPEN** — cleanup pass | — |
+| P1-3 Warriors hardcoded to Arms; no spec detection | P1 | **FIXED 2026-09-16** — `Util/SpecDetect.h` (shared talent-tab detection, StatsWeightCalculator now delegates); Arms/Fury/Tank chosen by dominant tree at login | pending commit |
+| P2-3 `StoreLootAction` mutates `is_looted` directly | P2 | **FIXED 2026-09-16** — direct write removed; opcode handler marks looted server-side (`LootHandler.cpp:225-249`) | pending commit |
+| P2-5 `GetName()` (`std::string`) passed to `%s` | P2 | **NON-ISSUE** — tortoise `Player::GetName()` returns `char const*` (`Player.h:2758`) | — |
+| P2-6 FFA loot "inverted" | P2 | **FIXED 2026-09-16** — review read wrong: AC also skips FFA by default, gated by config; ported AC semantics (`PlayerBot.FreeMethodLoot=1` opts in) | pending commit |
+| P3 batch (static map leak, dead `lastRelevance`, RepopAction tautology) | P3 | **PARTIAL 2026-09-16** — static-map leak fixed (prune >10min entries); stale-target race verified safe (runs before actions); `lastRelevance` + `release` action left (low risk, revisit in R2) | pending commit |
 
 ## 5. Roadmap (scope limits removed)
 
@@ -74,13 +74,14 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] Build fix: WorldSession bot plumbing re-added (`GetBot/SetBot/m_bot`, friend for private `LoginPlayer`)
 - [x] DB auto-updater fixed (config key rename + duplicate-key removal; 146 world + 1 char migration reconciled idempotently)
 - [x] mangosd boots on new base; 100 bots queued at startup
-- [ ] Bot login soak — uncaught `std::runtime_error("false")` after boot (investigation in progress)
-- [ ] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup
+- [x] **100/100 bots online** — bot login via upstream `HeadlessSessionMgr` (socketless sessions can't live in `World::m_sessions`; `UpdateSessions` purges non-connected sessions) — see `r1-base-sync-log.md` §5
+- [x] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup (2026-09-16; pending commit + soak verification)
+- [ ] Bot login soak ≥30 min on new base (in progress; 100 online, 0 crashes in gdb.txt at 14:40)
 - **Exit criteria:** soak passes on new base; review table all-green.
 
 ### R2 — Class parity (AC strategies, 8 classes)
 - Port AC per-class strategy trees following the established Warrior pattern (`Ai/Class/<Class>/`): rogue, priest, mage, warlock, hunter, shaman, paladin, druid.
-- Spec detection: wire `GetPlayerSpecTab` into combat-engine strategy selection (P1-3).
+- [x] Spec detection: talent-tab detection in `Util/SpecDetect.h`, warrior spec strategy selected at login (P1-3, 2026-09-16) — extend to other classes as their strategy trees land
 - Per-class verification: rotation logs show ability usage per class at level-appropriate targets.
 - **Sources:** AC `strategy/<class>/`; cross-check spell availability tables against `tw_world` via tortoise-data (R0 tool) and `twow-class-spells-reference.md`.
 
