@@ -2,7 +2,7 @@
 
 # tortoise-data — A Tortoise-Native Data Tool (new build, not a fork)
 
-**Status:** DRAFT v2 — documentation phase (supersedes the v1 fork plan)
+**Status:** v0.1 IMPLEMENTED 2026-09-16 — live at `/root/tortoise-data`, pushed to https://github.com/avirar/tortoise-data (repo scoped with gh). All core commands work against the live server data (see README). Remaining from the original plan: SQL-layer polish, `--json` everywhere, mmap/vmap queries (future).
 **Parent:** `bot-master-plan.md` (R0 tooling)
 **Decision:** build new. acore-data took ages *because* of its AC-specific machinery — a 475-store registry generated from WotLK C++ headers, cross-ref graphs, SQL overlays, encounter rollups. A fork pays that cost again while fighting AC assumptions (WotLK DBCs, `acore_*` schemas, AC column layouts) in every file. Tortoise's data universe is smaller and — crucially — **self-describing**.
 

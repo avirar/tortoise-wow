@@ -63,7 +63,7 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 
 ### R0 — Tooling & docs (this phase, docs only)
 - [x] `bot-master-plan.md` (this file)
-- [x] `tortoise-data-plan.md` — new tortoise-native tool (v2: build fresh, don't fork acore-data)
+- [x] `tortoise-data` — **IMPLEMENTED** (v0.1: `tw` CLI at /root/tortoise-data, pushed to github.com/avirar/tortoise-data; DBCfmt-driven DBC reader + read-only SQL, tortoise spell_table/WorldSafeLocs specifics handled)
 - [x] `agent-bot-interface-plan.md` — bot-buddy logic port
 - [x] Websearch/fetch — RESOLVED via `pi-web-access` package (Exa zero-config fallback chain), custom SearXNG extension spec not needed
 - [x] AC client data installed (wowgaming v20.0 → `env/dist/bin`) for acore-data reference runs
