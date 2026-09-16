@@ -109,107 +109,29 @@ public:
         session->HandlePlayerLogin(loginHolder);
     }
 
-    // AC pattern: bot login callback creates session here (avoids FindSession collision)
-    void HandleBotLoginCallback(QueryResult * /*dummy*/, SqlQueryHolder * holder)
-    {
-        if (!holder) return;
-        LoginQueryHolder* loginHolder = (LoginQueryHolder*)holder;
-        uint32 playerGUID = loginHolder->GetGuid().GetCounter();
-
-        PlayerBotEntry* botEntry = sPlayerBotMgr.GetBot(playerGUID);
-        if (!botEntry)
-        {
-            delete holder;
-            return;
-        }
-
-        // Create session for this bot (AC pattern)
-        uint32 accountId = loginHolder->GetAccountId();
-        WorldSession *session = new WorldSession(accountId, nullptr, sAccountMgr.GetSecurity(accountId), 0, LOCALE_enUS, "<BOT>", 0);
-        BigNumber dummyKey(0);
-        session->InitAntiCheatSession(&dummyKey);
-        session->SetBot(botEntry);
-        session->m_playerLoading = true; // required by HandlePlayerLogin crash guard
-
-        session->HandlePlayerLogin(loginHolder);
-
-        if (session->GetPlayer())
-        {
-            Player* bot = session->GetPlayer();
-            // Teleport bot to their race's starting town after login
-            uint8 race = bot->GetRace();
-            uint32 mapId = 0;
-            float tx = 0, ty = 0, tz = 0, to = 0;
-
-            switch (race)
-            {
-                case 1: // Human - Goldshire, Elwynn Forest
-                    mapId = 0; tx = -8882.0f; ty = 565.4f; tz = 93.3f; to = 0.5f; break;
-                case 2: // Orc - Razor Hill, Durotar
-                    mapId = 1; tx = -591.9f; ty = -4300.3f; tz = 40.4f; to = 2.5f; break;
-                case 3: // Dwarf - Kharanos, Dun Morogh
-                    mapId = 0; tx = -5910.5f; ty = 57.5f; tz = 373.0f; to = 1.5f; break;
-                case 4: // Night Elf - Dolanaar, Teldrassil
-                    mapId = 1; tx = 10374.6f; ty = 743.2f; tz = 1322.2f; to = 4.0f; break;
-                case 5: // Undead - Brill, Tirisfal Glades
-                    mapId = 0; tx = 1804.0f; ty = -363.6f; tz = 31.1f; to = 3.0f; break;
-                case 6: // Tauren - Bloodhoof Village, Mulgore
-                    mapId = 1; tx = -2895.7f; ty = 194.8f; tz = 72.4f; to = 1.0f; break;
-                case 7: // Gnome - Kharanos, Dun Morogh
-                    mapId = 0; tx = -5910.5f; ty = 57.5f; tz = 373.0f; to = 1.5f; break;
-                case 8: // Troll - Razor Hill, Durotar
-                    mapId = 1; tx = -591.9f; ty = -4300.3f; tz = 40.4f; to = 2.5f; break;
-                case 9: // Goblin - near Teste's start
-                    mapId = 1; tx = -124.9f; ty = -7550.3f; tz = 40.7f; to = 3.5f; break;
-                case 10: // High Elf - near Testy's start
-                    mapId = 0; tx = 3626.7f; ty = -2433.6f; tz = 67.0f; to = 2.0f; break;
-                default: // Fallback to Goldshire
-                    mapId = 0; tx = -8882.0f; ty = 565.4f; tz = 93.3f; to = 0.5f; break;
-            }
-
-            Map* m = bot->GetMap();
-            if (m)
-            {
-                tz = m->GetHeight(tx, ty, tz);
-                sLog.outString("[BOT_LOGIN] '%s' ground height at (%f,%f) = %f", bot->GetName(), tx, ty, tz);
-            }
-            sLog.outString("[BOT_LOGIN] '%s' race=%u -> map=%u pos=(%f,%f,%f)",
-                bot->GetName(), race, mapId, tx, ty, tz);
-            bot->SetPosition(tx, ty, tz, to, true);
-            sLog.outString("[BOT_LOGIN] '%s' after:  map=%u pos=(%f,%f,%f)",
-                bot->GetName(), bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
-
-            sLog.outString("[BOT_LOGIN_CALLBACK] GUID:%u '%s' login success, adding session", playerGUID, session->GetPlayerName());
-            sWorld.AddSession(session);
-            sPlayerBotMgr.OnBotLogin(botEntry);
-            sPlayerBotMgr.GetStats().loadingCount--;
-            if (botEntry->isChatBot)
-                sPlayerBotMgr.GetStats().onlineChat++;
-            else
-                sPlayerBotMgr.GetStats().onlineCount++;
-            sPlayerBotMgr.GetLoadingBots().erase(playerGUID);
-            sLog.outString("[BOT_LOGIN_CALLBACK] GUID:%u '%s' session added, online=%u", playerGUID, session->GetPlayerName(), sPlayerBotMgr.GetStats().onlineCount);
-        }
-        else
-        {
-            session->LogoutPlayer(true);
-            delete session;
-            sPlayerBotMgr.GetLoadingBots().erase(playerGUID);
-            sPlayerBotMgr.GetStats().loadingCount--;
-        }
-    }
 } chrHandler;
 
 // AC pattern: schedule bot login (creates session in callback, avoids FindSession collision)
 void ScheduleBotLogin(uint32 accountId, ObjectGuid playerGuid)
 {
-    LoginQueryHolder *holder = new LoginQueryHolder(accountId, playerGuid);
-    if (!holder->Initialize())
+    // playerbot-engine-port: upstream HeadlessSessionMgr is the socketless
+    // login facility (World::UpdateSessions deletes non-connected sessions,
+    // so bots cannot live in World::m_sessions). Start() creates the
+    // Headless-transport session, InitHeadlessSession sets m_connected, and
+    // HandleHeadlessLoginCallback resolves via the manager (no FindSession
+    // race). We attach the PlayerBotEntry right after Start so the
+    // completion block in HandlePlayerLogin can finalize bot state.
+    PlayerBotEntry* botEntry = sPlayerBotMgr.GetBot(playerGuid.GetCounter());
+    std::string tag = botEntry ? botEntry->name : "Bot";
+    HeadlessSessionStartResult r = sWorld.StartHeadlessSession(accountId, playerGuid, LOCALE_enUS, tag);
+    if (r != HeadlessSessionStartResult::Started)
     {
-        delete holder;
+        sLog.outError("playerbots: headless session start failed for guid %u: %d", playerGuid.GetCounter(), (int)r);
         return;
     }
-    CharacterDatabase.DelayQueryHolderUnsafe(&chrHandler, &CharacterHandler::HandleBotLoginCallback, holder);
+    if (botEntry)
+        if (WorldSession* sess = sWorld.GetHeadlessSessionMgr()->GetSession(playerGuid))
+            sess->SetBot(botEntry);
 }
 
 bool WorldSession::HasHighLevelCharacter() const
@@ -1001,6 +923,37 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
 
 
     pCurrChar->RecallPvPGear();
+
+    // playerbot-engine-port: complete bot login (session pre-registered by ScheduleBotLogin)
+    if (PlayerBotEntry* botEntry = GetBot())
+    {
+        sPlayerBotMgr.GetLoadingBots().erase((uint32)botEntry->playerGUID);
+        if (sPlayerBotMgr.GetStats().loadingCount > 0)
+            sPlayerBotMgr.GetStats().loadingCount--;
+        sPlayerBotMgr.OnBotLogin(botEntry);
+
+        // Teleport to race start town (was in old HandleBotLoginCallback)
+        uint8 race = pCurrChar->GetRace();
+        uint32 mapId = 0;
+        float tx = 0, ty = 0, tz = 0, to = 0;
+        switch (race)
+        {
+            case 1:  mapId = 0; tx = -8882.0f;  ty = 565.4f;    tz = 93.3f;    to = 0.5f; break; // Human - Goldshire
+            case 2:  mapId = 1; tx = -591.9f;   ty = -4300.3f;  tz = 40.4f;    to = 2.5f; break; // Orc - Razor Hill
+            case 3:  mapId = 0; tx = -5910.5f;  ty = 57.5f;     tz = 373.0f;   to = 1.5f; break; // Dwarf - Kharanos
+            case 4:  mapId = 1; tx = 10374.6f;  ty = 743.2f;    tz = 1322.2f;  to = 4.0f; break; // Night Elf - Dolanaar
+            case 5:  mapId = 0; tx = 1804.0f;   ty = -363.6f;   tz = 31.1f;    to = 3.0f; break; // Undead - Brill
+            case 6:  mapId = 1; tx = -2895.7f;  ty = 194.8f;    tz = 72.4f;    to = 1.0f; break; // Tauren - Bloodhoof
+            case 7:  mapId = 0; tx = -5910.5f;  ty = 57.5f;     tz = 373.0f;   to = 1.5f; break; // Gnome - Kharanos
+            case 8:  mapId = 1; tx = -591.9f;   ty = -4300.3f;  tz = 40.4f;    to = 2.5f; break; // Troll - Razor Hill
+            case 9:  mapId = 1; tx = -124.9f;   ty = -7550.3f;  tz = 40.7f;    to = 3.5f; break; // Goblin
+            case 10: mapId = 0; tx = 3626.7f;   ty = -2433.6f;  tz = 67.0f;    to = 2.0f; break; // High Elf
+            default: mapId = 0; tx = -8882.0f;  ty = 565.4f;    tz = 93.3f;    to = 0.5f; break;
+        }
+        sLog.outString("[BOT_LOGIN] '%s' race=%u -> map=%u pos=(%f,%f,%f)", pCurrChar->GetName(), race, mapId, tx, ty, tz);
+        pCurrChar->TeleportTo(mapId, tx, ty, tz, to);
+        sLog.outString("[BOT_LOGIN] '%s' login complete, online=%u", pCurrChar->GetName(), sPlayerBotMgr.GetStats().onlineCount);
+    }
 
     // Update warden speeds
     //if (GetWarden())

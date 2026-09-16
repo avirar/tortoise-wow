@@ -1319,6 +1319,11 @@ class World
         SessionMap m_sessions;
         SessionSet m_disconnectedSessions;
         std::unique_ptr<HeadlessSessionMgr> m_headlessSessionMgr;
+
+    public:
+        // playerbot-engine-port: accessor for bot login wiring
+        HeadlessSessionMgr* GetHeadlessSessionMgr() { return m_headlessSessionMgr.get(); }
+        HeadlessSessionMgr const* GetHeadlessSessionMgr() const { return m_headlessSessionMgr.get(); }
         robin_hood::unordered_map<uint32 /*accountId*/, time_t /*last logout*/> m_accountsLastLogout;
         bool CanSkipQueue(WorldSession const* session);
 

@@ -61,6 +61,17 @@ public:
 
     HeadlessSessionStartResult Start(uint32 accountId, ObjectGuid characterGuid,
         LocaleConstant locale, std::string const& tag);
+
+    // playerbot-engine-port: session accessor so bot logins can attach a PlayerBotEntry
+    WorldSession* GetSession(ObjectGuid characterGuid) const
+    {
+        auto it = m_pendingSessions.find(characterGuid);
+        if (it != m_pendingSessions.end())
+            return it->second.session;
+        auto it2 = m_sessions.find(characterGuid);
+        return it2 != m_sessions.end() ? it2->second.session : nullptr;
+    }
+
     bool Stop(ObjectGuid characterGuid, bool save = true);
     HeadlessSessionState GetState(ObjectGuid characterGuid) const;
 
