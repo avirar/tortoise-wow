@@ -56,6 +56,7 @@ class LoginQueryHolder;
 class CharacterHandler;
 class MovementInfo;
 class WorldSession;
+struct PlayerBotEntry;
 class Warden;
 namespace Anticheat
 {
@@ -306,6 +307,7 @@ class WorldSession
 {
     friend class CharacterHandler;
     friend class HeadlessSessionMgr;
+    friend class PlayerBotAI;
     public:
         WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale, const std::string& remote_ip, uint32 binaryIp, SessionTransport transport = SessionTransport::Network);
         ~WorldSession();
@@ -546,6 +548,10 @@ class WorldSession
         void KickDisconnectedFromWorld() { m_disconnectTimer = 0; }
         bool m_connected;
         uint32 m_disconnectTimer;
+
+        // Bot system (playerbot-engine-port)
+        PlayerBotEntry* GetBot() { return m_bot; }
+        void SetBot(PlayerBotEntry* b) { m_bot = b; }
 
         // Warden / Anticheat
         //void InitWarden(BigNumber* K);
@@ -989,7 +995,6 @@ class WorldSession
         // logging helper
         void LogUnexpectedOpcode(WorldPacket *packet, const char * reason);
         void LogUnprocessedTail(WorldPacket *packet);
-        bool LoginPlayer(ObjectGuid playerGuid, uint64 requestToken = 0);
         bool IsLoginRequest(ObjectGuid characterGuid, SessionTransport transport, uint64 requestToken) const
         {
             return m_loginRequestGuid == characterGuid &&
@@ -997,6 +1002,11 @@ class WorldSession
         }
         void HandlePlayerLogin(LoginQueryHolder* holder);
         void InitHeadlessSession();
+    public:
+        // playerbot-engine-port: public login entry (was public pre-merge; bot
+        // sessions created outside the opcode path use this directly)
+        bool LoginPlayer(ObjectGuid playerGuid, uint64 requestToken = 0);
+    private:
 
         Player *_player;
         ObjectGuid m_clientMoverGuid;
@@ -1040,6 +1050,7 @@ class WorldSession
         uint32 _floodPacketsCount[FLOOD_MAX_OPCODES_TYPE];
 
         std::unordered_map<uint32, std::pair<uint32, uint32>> m_requeuePacketCount; 
+        PlayerBotEntry* m_bot = nullptr;
         uint32 m_lastReceivedPacketTime;
         ClientIdentifiersMap _clientIdentifiers;
         std::string     _clientHash;
