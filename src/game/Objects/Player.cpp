@@ -32,6 +32,7 @@
 #include "Opcodes.h"
 #include "SpellMgr.h"
 #include "World.h"
+#include "PlayerBots/PlayerBotMgr.h" // playerbot-engine-port
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
@@ -2967,6 +2968,10 @@ void Player::AddToWorld()
 
     if (HasItemCount(ITEM_SHELL_COIN, 1, true))
         sWorld.AddShellCoinOwner(GetObjectGuid());
+
+    // playerbot-engine-port: headless bot AI wiring (setAI + OnPlayerLogin
+    // → engine init). Dropped in the R1 merge; bots went online idle.
+    sPlayerBotMgr.OnPlayerInWorld(this);
 }
 
 void Player::RemoveFromWorld()
