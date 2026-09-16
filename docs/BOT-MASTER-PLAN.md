@@ -76,13 +76,19 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] mangosd boots on new base; 100 bots queued at startup
 - [x] **100/100 bots online** — bot login via upstream `HeadlessSessionMgr` (socketless sessions can't live in `World::m_sessions`; `UpdateSessions` purges non-connected sessions) — see `r1-base-sync-log.md` §5
 - [x] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup (2026-09-16; commits `ceeb728c`, `97ab55cc`)
-- [~] **CRITICAL (2026-09-16):** merge also dropped `sPlayerBotMgr.OnPlayerInWorld(this)` from `Player::AddToWorld` → bots online but AI never ran (engines 0/0/0, no movement/casts). Re-added (+ include). This invalidates all pre-fix "soaks" — the soak clock restarts with the AI verified active (`r1-base-sync-log.md` §6b)
-- [ ] Bot login soak ≥30 min with AI active on new base (in progress; 100 online, 0 crashes in gdb.txt)
+- [x] **CRITICAL (2026-09-16):** merge also dropped `sPlayerBotMgr.OnPlayerInWorld(this)` from `Player::AddToWorld` → bots online but AI never ran (engines 0/0/0, no movement/casts). Re-added (+ include) — commit `24512ec1`; verified active (engines running, movement/targeting/casts). This invalidated all pre-fix "soaks" — soak clock restarted with AI verified (`r1-base-sync-log.md` §6b)
+- [x] Also restored bot pet-taming guard in `Spell.cpp` dropped by merge (commit `f273bb10`)
+- [~] Bot login soak ≥30 min with AI active on new base — restarted 2026-09-17 08:45 with spell fix deployed; 100/100 online, 0 real crashes, all 9 classes casting. (Soak clock running.)
 - **Exit criteria:** soak passes on new base; review table all-green.
 
 ### R2 — Class parity (AC strategies, 8 classes)
 - Port AC per-class strategy trees following the established Warrior pattern (`Ai/Class/<Class>/`): rogue, priest, mage, warlock, hunter, shaman, paladin, druid.
+- [x] **Prerequisite: spell auto-learn fixed (2026-09-17, commit `3e5932cf`)** — factory-created bots lack base class skills and `AutoLearnSpellsForLevel`'s `req_skill_value != 0` filter skipped every `skill_line_ability` row, so non-warrior bots had 0 class spells. Now trains the skill to the spell's required value then `LearnSpell`. All 9 classes learn + cast their spells in combat. Without this, no class strategy can function.
+- [x] **Class enum is non-vanilla** (`ChrClasses.dbc`): 7=Shaman, 8=Mage, 9=Warlock, 11=Druid. `characters.class` and `skill_line_ability.class_mask` are consistent via `GetClassMask()=1<<(c-1)` — use `tw dbc ChrClasses` for ground truth, never assume vanilla numbering.
 - [x] Spec detection: talent-tab detection in `Util/SpecDetect.h`, warrior spec strategy selected at login (P1-3, 2026-09-16) — extend to other classes as their strategy trees land
+- [x] **Mage v1 (2026-09-17, commit `3e5932cf`)**: all-spec `GenericMageStrategy` — Polymorph CC action + `can polymorph` trigger, cast-spell nukes via `SelectOffensiveSpell` per-class table, inherits `RangedCombatStrategy` flee-when-close. Blink deferred (positioning risk).
+- [ ] Remaining 7 class strategy trees: rogue, priest, warlock, hunter, shaman, paladin, druid (currently fall back to `RangedCombatStrategy`/`MeleeCombatStrategy`). Now feasible — spells are learned.
+- [ ] Warrior: 6 missing Fury/Tank triggers (bloodthirst ready, demoralizing shout needed, revenge ready, shield slam ready, taunt needed, whirlwind ready) — harmless dead branches today.
 - Per-class verification: rotation logs show ability usage per class at level-appropriate targets.
 - **Sources:** AC `strategy/<class>/`; cross-check spell availability tables against `tw_world` via tortoise-data (R0 tool) and `twow-class-spells-reference.md`.
 
