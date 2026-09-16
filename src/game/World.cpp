@@ -2552,6 +2552,9 @@ void World::Update(uint32 diff)
     ///- Update the game time and check for shutdown time
     _UpdateGameTime();
 
+    ///- Update playerbots (async login queue, stats) — playerbot-engine-port
+    sPlayerBotMgr.Update(diff);
+
     ///-Update mass mailer tasks if any
     sMassMailMgr.Update();
 
