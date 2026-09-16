@@ -65,7 +65,7 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] `bot-master-plan.md` (this file)
 - [x] `tortoise-data-plan.md` — new tortoise-native tool (v2: build fresh, don't fork acore-data)
 - [x] `agent-bot-interface-plan.md` — bot-buddy logic port
-- [x] `pi-websearch-extension.md` — pi tool spec
+- [x] Websearch/fetch — RESOLVED via `pi-web-access` package (Exa zero-config fallback chain), custom SearXNG extension spec not needed
 - [x] AC client data installed (wowgaming v20.0 → `env/dist/bin`) for acore-data reference runs
 - [ ] Update `AGENTS.md` hub, supersede port-plan scope, commit docs
 
@@ -124,5 +124,5 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 | `playerbot-review.md` | Local-AI critical review (2026-06-26) + reconciliation table above |
 | `tortoise-data-plan.md` | tortoise-native data tool (`tw` CLI) — new build, not an acore-data fork |
 | `agent-bot-interface-plan.md` | bot-buddy logic port — agent↔bot control surface |
-| `pi-websearch-extension.md` | pi websearch tool spec (SearXNG-backed) |
+| `pi-websearch-extension.md` | **RESOLVED** — web search/fetch via `pi-web-access` package (Exa zero-config); history retained |
 | `AGENTS.md` | Hub: server ops, working notes, doc pointers |
