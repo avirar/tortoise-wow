@@ -2,7 +2,7 @@
 
 # R1 Base Sync — Issues & Solutions Log
 
-**Status:** COMMITTED & PUSHED (commits `2136011f`, `ddb7f9d0`, `7fc65ea9`, `dff5ce37` on top of merge `a473d4f5`) — core boots, **100/100 bots online**. Remaining: soak stability + P2 review fixes.
+**Status:** IN PROGRESS — R1 core fixes pushed (`2136011f`…`dff5ce37`), review fixes pushed (`ceeb728c`, `97ab55cc`), 100/100 bots online. **Critical fix in flight:** merge had also dropped the bot-AI wiring call site (`Player::AddToWorld` → `OnPlayerInWorld`) so bots were online but idle; re-added, building. Remaining: verify AI active + real soak. See §6b.
 **Date:** 2026-09-16
 **Parent:** `bot-master-plan.md` §5 R1 (merge 251 upstream commits onto `playerbot-engine-port`)
 
@@ -100,6 +100,28 @@ Upstream rebuilt session handling: socketless sessions can no longer live in `Wo
 ### 6a. GDB crash capture upgraded (`/root/wow-server.sh`)
 
 `wow-server.sh` regenerates `server/.gdb_cmds` on each start; the template now catches **SIGSEGV + SIGABRT + C++ `throw`** with `bt full` into `server/logs/gdb.txt`. Note: `catch throw` fires on *every* C++ exception (even caught ones) — the game throws many, so expect noise; the real crash backtrace is the last one before `Program terminated`.
+
+### 6b. Bots online but AI dead — merge dropped the `OnPlayerInWorld` call site (RESOLVED 2026-09-16)
+
+**Symptom:** 100/100 bots online, but `PlayerBotMgr::PrintStats` shows `Engine: non-combat=0, combat=0, dead=0` and no `AI Tick` logs. Bots logged in and idled; none moved, targeted, or cast.
+
+**Root cause:** The pre-merge port wired bot AI via `Player::AddToWorld()` ending in `sPlayerBotMgr.OnPlayerInWorld(this);`. That method does the actual AI wiring:
+
+```cpp
+void PlayerBotMgr::OnPlayerInWorld(Player* player) {
+    if (PlayerBotEntry* e = player->GetSession()->GetBot()) {
+        player->setAI(e->ai);      // store PlayerBotAI in Player::i_AI
+        e->ai->SetPlayer(player);
+        e->ai->OnPlayerLogin();    // → Initialize() builds the 3 engines
+    }
+}
+```
+
+The merge dropped that line from `Player::AddToWorld()` (`src/game/Objects/Player.cpp`), so `Player::i_AI` stayed `nullptr` for every bot. `Player::Update()` only calls `i_AI->UpdateAI()` when `i_AI` is non-null — with it null, no bot engine ever ran. The packet-interception path (`WorldSession::SendPacket` → `dynamic_cast<PlayerBotAI*>`) also keys off `player->AI()`, so it was dead too.
+
+**Fix:** re-added `sPlayerBotMgr.OnPlayerInWorld(this);` at the end of `Player::AddToWorld()` plus `#include "PlayerBots/PlayerBotMgr.h"`. Verified `PlayerBotAI::Remove()` only clears the pointer (no delete), so the entry-owned AI is safe.
+
+**Verification after fix:** `PrintStats` should show non-zero engine counts and `AI Tick` debug lines should appear.
 
 ## 7. Handover checklist (next session)
 

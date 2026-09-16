@@ -75,8 +75,9 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - [x] DB auto-updater fixed (config key rename + duplicate-key removal; 146 world + 1 char migration reconciled idempotently)
 - [x] mangosd boots on new base; 100 bots queued at startup
 - [x] **100/100 bots online** — bot login via upstream `HeadlessSessionMgr` (socketless sessions can't live in `World::m_sessions`; `UpdateSessions` purges non-connected sessions) — see `r1-base-sync-log.md` §5
-- [x] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup (2026-09-16; pending commit + soak verification)
-- [ ] Bot login soak ≥30 min on new base (in progress; 100 online, 0 crashes in gdb.txt at 14:40)
+- [x] Fix open review items: P1-3 spec wiring, P2-3, P2-6, P2-5 audit, P3 cleanup (2026-09-16; commits `ceeb728c`, `97ab55cc`)
+- [~] **CRITICAL (2026-09-16):** merge also dropped `sPlayerBotMgr.OnPlayerInWorld(this)` from `Player::AddToWorld` → bots online but AI never ran (engines 0/0/0, no movement/casts). Re-added (+ include). This invalidates all pre-fix "soaks" — the soak clock restarts with the AI verified active (`r1-base-sync-log.md` §6b)
+- [ ] Bot login soak ≥30 min with AI active on new base (in progress; 100 online, 0 crashes in gdb.txt)
 - **Exit criteria:** soak passes on new base; review table all-green.
 
 ### R2 — Class parity (AC strategies, 8 classes)

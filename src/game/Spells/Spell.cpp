@@ -6093,7 +6093,8 @@ SpellCastResult Spell::CheckCast(bool strict)
                 }
 
                 if (plrCaster->GetPetGuid() || plrCaster->GetCharmGuid() ||
-                   sCharacterDatabaseCache.GetCharacterPetByOwner(plrCaster->GetGUIDLow()))
+                   (!plrCaster->GetSession()->GetBot() &&
+                    sCharacterDatabaseCache.GetCharacterPetByOwner(plrCaster->GetGUIDLow())))
                 {
                     plrCaster->SendPetTameFailure(PETTAME_ANOTHERSUMMONACTIVE);
                     return SPELL_FAILED_DONT_REPORT;
