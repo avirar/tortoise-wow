@@ -8,6 +8,7 @@
 #include "BaseAiObjectContext.h"
 #include "Logging.h"
 #include "Ai/Base/StrategyContext.h"
+#include "WorldPacket.h"
 
 SharedNamedObjectContextList<Action> AiObjectContext::sharedActionContexts;
 SharedNamedObjectContextList<Trigger> AiObjectContext::sharedTriggerContexts;
@@ -79,6 +80,18 @@ Trigger* AiObjectContext::GetTrigger(std::string const& name)
 Strategy* AiObjectContext::GetStrategy(std::string const& name)
 {
     return strategyContexts.GetContextObject(name, botAI);
+}
+
+void AiObjectContext::FireTrigger(std::string const& name, std::shared_ptr<WorldPacket> packet)
+{
+    // AC pattern: packet triggers fire via ExternalEvent on the trigger
+    // The Engine will pick up the trigger event on the next ProcessTriggers call
+    // For now, we store the packet on the trigger so it can be accessed by actions
+    Trigger* trigger = GetTrigger(name);
+    if (trigger && botAI && botAI->me)
+    {
+        trigger->ExternalEvent(*packet, botAI->me);
+    }
 }
 
 std::string const AiObjectContext::Format()

@@ -42,6 +42,7 @@
 #include "SocialMgr.h"
 
 #include "PlayerBotMgr.h"
+#include "PlayerBotAI.h"
 #include "Anticheat/Anticheat.h"
 #include "Anticheat/Movement/Movement.hpp"
 #include "Language.h"
@@ -166,6 +167,12 @@ char const* WorldSession::GetPlayerName() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet)
 {
+    // Notify player AI of outgoing packet (playerbot packet trigger system)
+    if (Player* player = GetPlayer())
+        if (PlayerAI* ai = player->AI())
+            if (PlayerBotAI* botAI = dynamic_cast<PlayerBotAI*>(ai))
+                botAI->OnPacketReceived(packet);
+
     // There is a maximum size packet.
     if (packet->size() > 0x8000)
     {

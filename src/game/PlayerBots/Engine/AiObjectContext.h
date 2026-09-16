@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <memory>
 
 #include "NamedObjectContext.h"
 #include "Action/Action.h"
@@ -16,6 +17,7 @@
 class UntypedValue;
 class Strategy;
 class Player;
+class WorldPacket;
 
 // SpellIdValue: resolve spell name to highest known rank (AC pattern)
 class SpellIdValue : public CalculatedValue<uint32>
@@ -81,6 +83,7 @@ public:
     Action* GetAction(std::string const& name);
     Trigger* GetTrigger(std::string const& name);
     Strategy* GetStrategy(std::string const& name);  // AC pattern: factory lookup
+    void FireTrigger(std::string const& name, std::shared_ptr<WorldPacket> packet);
 
     template <class T>
     Value<T>* GetValue(std::string const& name)

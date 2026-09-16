@@ -3,6 +3,8 @@
 
 #include "PlayerAI.h"
 #include "WorldSession.h"
+#include <map>
+#include <queue>
 
 struct PlayerBotEntry;
 class WorldSession;
@@ -10,6 +12,8 @@ class PlayerBotAI;
 class PlayerbotAIBase;
 class Engine;
 class AiObjectContext;
+class WorldPacket;
+class ExternalEventHelper;
 
 PlayerBotAI* CreatePlayerBotAI(std::string ainame);
 
@@ -22,7 +26,8 @@ class PlayerBotAI: public PlayerAI
 
         virtual bool OnSessionLoaded(PlayerBotEntry* entry, WorldSession* sess);
         virtual void OnBotEntryLoad(PlayerBotEntry* entry) {}
-        virtual void OnPacketReceived(WorldPacket const* /*packet*/) {}
+        virtual void OnPacketReceived(WorldPacket const* packet);
+
         virtual void SendFakePacket(uint16 /*opcode*/) {}
         virtual void UpdateAI(const uint32 diff) override;
         virtual void OnPlayerLogin();
@@ -36,6 +41,10 @@ class PlayerBotAI: public PlayerAI
         AiObjectContext* GetAiObjectContext();
         uint32 SelectOffensiveSpell(Unit* target) const;
 
+        // Packet handling (AC ExternalEventHelper pattern)
+        void HandlePacket(WorldPacket const& packet);
+        void ProcessQueuedPackets();
+
         // Engine state switching (called from actions, matches AC pattern)
         void ChangeEngine(uint8 state);
 
@@ -47,6 +56,10 @@ class PlayerBotAI: public PlayerAI
         void AutoEquipForLevel();
         void EquipBags();
         void GiveFoodDrink();
+
+        // Packet handlers (AC pattern: botOutgoingPacketHandlers)
+        std::map<uint16, std::string> m_packetHandlers;
+        std::queue<std::shared_ptr<WorldPacket>> m_packetQueue;
 
     public:
         bool CanMove();

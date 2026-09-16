@@ -337,6 +337,12 @@ set (game_SRCS
     PlayerBots/Ai/Base/Actions/ReviveFromCorpseActions.cpp
     PlayerBots/Ai/Base/Actions/AcceptResurrectAction.h
     PlayerBots/Ai/Base/Actions/AcceptResurrectAction.cpp
+    # Packet trigger system (AC WorldPacketHandlerStrategy pattern)
+    PlayerBots/Ai/Base/Trigger/WorldPacketTrigger.h
+    PlayerBots/Ai/Base/Trigger/WorldPacketTrigger.cpp
+    PlayerBots/Engine/WorldPacket/ExternalEventHelper.h
+    PlayerBots/Engine/WorldPacket/ExternalEventHelper.cpp
+    PlayerBots/Engine/WorldPacket/PacketHandlingHelper.h
     # Class-specific: Warrior
     PlayerBots/Ai/Class/Warrior/WarriorActions.cpp
     PlayerBots/Ai/Class/Warrior/WarriorTriggers.cpp
@@ -695,6 +701,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Value
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior/Strategy
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Engine/WorldPacket
   ${CMAKE_CURRENT_SOURCE_DIR}/Protocol
   ${CMAKE_CURRENT_SOURCE_DIR}/Spells
   ${CMAKE_CURRENT_SOURCE_DIR}/Threat

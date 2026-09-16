@@ -4,6 +4,7 @@
 #include "Trigger/CombatTrigger.h"
 #include "Trigger/LootTriggers.h"
 #include "Trigger/DeathTriggers.h"
+#include "Trigger/WorldPacketTrigger.h"
 
 // Class-specific triggers (modular registration)
 #include "../Class/Warrior/WarriorTriggers.h"
@@ -37,6 +38,11 @@ public:
         creators["resurrect request"] = &TriggerContext::CreateResurrectRequest;
         creators["can self resurrect"] = &TriggerContext::CreateCanSelfResurrect;
         creators["falling far"] = &TriggerContext::CreateFallingFar;
+
+        // Packet triggers (AC WorldPacketHandlerStrategy pattern)
+        creators["item push result"] = &TriggerContext::CreateItemPushResult;
+        creators["loot response"] = &TriggerContext::CreateLootResponse;
+        creators["loot release"] = &TriggerContext::CreateLootRelease;
 
         // === Warrior class triggers ===
         creators["battle shout expired"] = &TriggerContext::CreateBattleShoutExpired;
@@ -87,6 +93,11 @@ private:
     static Trigger* CreateResurrectRequest(PlayerBotAI* botAI) { return new ResurrectRequestTrigger(botAI); }
     static Trigger* CreateCanSelfResurrect(PlayerBotAI* botAI) { return new CanSelfResurrectTrigger(botAI); }
     static Trigger* CreateFallingFar(PlayerBotAI* botAI) { return new FallingFarTrigger(botAI); }
+
+    // Packet triggers
+    static Trigger* CreateItemPushResult(PlayerBotAI* botAI) { return new WorldPacketTrigger(botAI, "item push result"); }
+    static Trigger* CreateLootResponse(PlayerBotAI* botAI) { return new WorldPacketTrigger(botAI, "loot response"); }
+    static Trigger* CreateLootRelease(PlayerBotAI* botAI) { return new WorldPacketTrigger(botAI, "loot release"); }
 
     // === Warrior class trigger factories ===
     static Trigger* CreateBattleShoutExpired(PlayerBotAI* botAI) { return new BattleShoutExpiredTrigger(botAI); }

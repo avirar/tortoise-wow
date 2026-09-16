@@ -19,6 +19,13 @@
 #include <mutex>
 
 PlayerBotAI::~PlayerBotAI() { delete engine; }
+
+void PlayerBotAI::OnPacketReceived(WorldPacket const* packet)
+{
+    if (packet)
+        HandlePacket(*packet);
+}
+
 #include <cmath>
 #include <memory>
 #include <functional>
@@ -40,6 +47,13 @@ void PlayerBotAI::Initialize()
     }
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() calling engine->Initialize()");
     engine->Initialize();
+
+    // Register packet handlers (AC pattern: botOutgoingPacketHandlers)
+    m_packetHandlers[SMSG_ITEM_PUSH_RESULT] = "item push result";
+    m_packetHandlers[SMSG_LOOT_RESPONSE] = "loot response";
+    m_packetHandlers[SMSG_LOOT_RELEASE_RESPONSE] = "loot release";
+    LOG_DEBUG("playerbots", "%s packet handlers registered: %d handlers", me ? me->GetName() : "null", (int)m_packetHandlers.size());
+
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotAI::Initialize() DONE");
 }
 
@@ -72,6 +86,52 @@ void PlayerBotAI::ChangeEngine(uint8 state)
 {
     if (engine)
         engine->ChangeEngine(static_cast<BotState>(state));
+}
+
+void PlayerBotAI::HandlePacket(WorldPacket const& packet)
+{
+    uint16 opcode = packet.GetOpcode();
+    auto it = m_packetHandlers.find(opcode);
+    if (it == m_packetHandlers.end())
+        return;
+
+    LOG_DEBUG("playerbots", "%s packet trigger: opcode=0x%04X (%s), size=%zu", me ? me->GetName() : "null", opcode, it->second.c_str(), packet.size());
+
+    // Queue the packet for processing in UpdateAI
+    m_packetQueue.push(std::make_shared<WorldPacket>(packet));
+}
+
+void PlayerBotAI::ProcessQueuedPackets()
+{
+    if (!engine || !me)
+        return;
+
+    Engine* currentEngine = engine->GetCurrentEngine();
+    AiObjectContext* context = currentEngine ? currentEngine->GetContext() : nullptr;
+    if (!context)
+        return;
+
+    while (!m_packetQueue.empty())
+    {
+        auto packet = m_packetQueue.front();
+        m_packetQueue.pop();
+
+        uint16 opcode = packet->GetOpcode();
+        auto it = m_packetHandlers.find(opcode);
+        if (it == m_packetHandlers.end())
+            continue;
+
+        std::string const& triggerName = it->second;
+        Trigger* trigger = context->GetTrigger(triggerName);
+        if (!trigger)
+        {
+            LOG_DEBUG("playerbots", "%s packet trigger: no trigger registered for '%s'", me->GetName(), triggerName.c_str());
+            continue;
+        }
+
+        LOG_DEBUG("playerbots", "%s packet trigger: firing '%s' (opcode=0x%04X)", me->GetName(), triggerName.c_str(), opcode);
+        trigger->ExternalEvent(*packet, me);
+    }
 }
 
 void PlayerBotAI::UpdateAI(const uint32 diff)
@@ -119,10 +179,14 @@ void PlayerBotAI::UpdateAI(const uint32 diff)
     {
         _lastLevel = me->GetLevel();
         AutoLearnSpellsForLevel();
-        AutoEquipForLevel();
+        // AutoEquipForLevel();  // DISABLED: bots start empty, gear from loot pipeline only
     }
 
     // Note: don't return early for dead bots - they need engine to switch to DEAD state
+
+    // Process queued packets (AC ExternalEventHelper pattern)
+    ProcessQueuedPackets();
+
     if (engine)
         engine->UpdateAI(diff);
 }
@@ -132,7 +196,7 @@ void PlayerBotAI::OnPlayerLogin()
     LOG_DEBUG("playerbots", "%s OnPlayerLogin() START", me ? me->GetName() : "null");
     _lastLevel = me ? me->GetLevel() : 0;
     AutoLearnSpellsForLevel();
-    AutoEquipForLevel();
+    // AutoEquipForLevel();  // DISABLED: bots start empty, gear from loot pipeline only
     EquipBags();
     GiveFoodDrink();
     Initialize();
@@ -143,7 +207,7 @@ void PlayerBotAI::OnLevelUp()
 {
     _lastLevel = me ? me->GetLevel() : _lastLevel;
     AutoLearnSpellsForLevel();
-    AutoEquipForLevel();
+    // AutoEquipForLevel();  // DISABLED: bots start empty, gear from loot pipeline only
     if (!engine)
         Initialize();
 }
