@@ -1,3 +1,12 @@
+> **SUPERSEDED (2026-06-27) — see `/root/bot-master-plan.md`.** The scope limits in this
+> plan ("Skip travel, dungeons, raids, questing, BGs, guilds") are REMOVED by owner decision.
+> This document remains valid as engineering history: engine-port mechanics (phases 0-3,
+> API mappings, patterns) are still authoritative reference. Claims corrected by the
+> 2026-06-26 critical review (`playerbot-review.md`) and fixed in commits `bfac176..c5f57bd`
+> (cast-spell wiring, stat-engine wiring, spirit-healer path, free-repair removal, iteration
+> cap, target GUID validation). Current status of every review finding: master plan §4.
+> Roadmap for the unscoped effort: master plan §5 (R0-R6).
+
 # PlayerBot Engine Port: mod-playerbots → tortoise-wow
 
 ## Goal
