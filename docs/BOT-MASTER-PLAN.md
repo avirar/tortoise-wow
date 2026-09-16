@@ -20,7 +20,7 @@ Build the best possible bot system for Tortoise-WoW (1.18.1 / 7272) by treating 
 | Source | Location | Lineage | What we take from it |
 |---|---|---|---|
 | **Our AC port** | `/root/tortoise-wow` branch `playerbot-engine-port` (HEAD `c5f57bd`, pushed to avirar) | AzerothCore mod-playerbots | **Chassis**: Engine, Queue, contexts, login/persistence/factory, loot pipeline, packet triggers, item stat engine |
-| **Shyalya fork** | `/tmp/tortoise-wow-shyalya` branch `playerbots-integration-gh` — ⚠ **archived read-only 2026-09-30, clone while it lasts** | CMaNGOS ike3 (the ancestor of AC's system) | Features to mine: BG tactics (Arathi node capture), AHBot + market policy, taxi/travel system (~15 fixes), ManTech scheduling for 6k bots, diagnostics suite, 5,082-line config surface |
+| **Shyalya fork** | git remote `shyalya` in `/root/tortoise-wow` (full 903-commit history fetched 2026-06-27, +52MB) + browsable mirror `/root/shyalya-tortoise-wow` — ⚠ **upstream archived read-only 2026-09-30** | CMaNGOS ike3 (the ancestor of AC's system) | Features to mine: BG tactics (Arathi node capture), AHBot + market policy, taxi/travel system (~15 fixes), ManTech scheduling for 6k bots, diagnostics suite, 5,082-line config surface |
 | **AC mod-playerbots reference** | `/root/azerothcore-wotlk/modules/mod-playerbots/` | AC (actively maintained) | Per-class strategies for all 9 classes, ItemUsage semantics, group/dungeon behaviors, quest/travel strategies, raid scripts |
 | **mod-ollama-bot-buddy** | `/root/azerothcore-wotlk/modules/mod-ollama-bot-buddy/` | AC module (user's own) | Agent↔bot interface logic: command API, game-state snapshots, chat override (see `agent-bot-interface-plan.md`) |
 | **acore-data** | `/root/acore-data` (+ client data at `/root/azerothcore-wotlk/env/dist/bin`, wowgaming v20.0) | AC tooling (user's own) | **Concepts only** → new build `tortoise-data`, a tortoise-native CLI driven by mangos `DBCfmt` strings (see `tortoise-data-plan.md` v2 — fork rejected: AC registry machinery was the cost driver and doesn't apply) |
@@ -109,7 +109,7 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 
 | Risk | Mitigation |
 |---|---|
-| Shyalya repo archived before we mine it | Full clone already at `/tmp` (volatile!) — **mirror to `/root/shyalya-tortoise-wow` during R0/R1** |
+| Shyalya repo archived / history lost | **Mitigated 2026-06-27: full history fetched as remote `shyalya` into `/root/tortoise-wow` (903 commits)** + mirror at `/root/shyalya-tortoise-wow` |
 | 251-commit rebase conflicts in core touchpoints | Rebase early (R1), small commits, soak gate before any new features |
 | ike3 logic subtly wrong for vanilla 1.18.1 | Cross-check lifts against AC reference + tortoise-data DBC queries; soak tests per lift |
 | Scope explosion now that limits are off | Phased exits above; each phase lands on green soak; master plan is the single source of truth |
