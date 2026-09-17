@@ -40,6 +40,7 @@ PlayerbotAIConfig::PlayerbotAIConfig()
 
     // Equip upgrade threshold (AC default 1.1 = 10% improvement needed)
     equipUpgradeThreshold = 1.1f;
+    humanoidGrindDistanceWeight = 0.6f;
 
     // Random
     randomChangeMultiplier = 1;
@@ -99,6 +100,7 @@ bool PlayerbotAIConfig::Initialize()
     lootDelay = sConfig.GetIntDefault("PlayerBot.LootDelay", lootDelay);
     freeMethodLoot = sConfig.GetBoolDefault("PlayerBot.FreeMethodLoot", freeMethodLoot);
     equipUpgradeThreshold = sConfig.GetFloatDefault("PlayerBot.EquipUpgradeThreshold", equipUpgradeThreshold);
+    humanoidGrindDistanceWeight = sConfig.GetFloatDefault("PlayerBot.HumanoidGrindDistanceWeight", humanoidGrindDistanceWeight);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

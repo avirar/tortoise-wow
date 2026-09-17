@@ -10,6 +10,7 @@
 #include "Maps/CellImpl.h"
 #include "Group.h"
 #include "PlayerBotAI.h"
+#include "PlayerbotAIConfig.h"
 #include "AiObjectContext.h"
 #include "Value/Value.h"
 #include "Logging.h"
@@ -309,6 +310,7 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
     // AC GrindTargetValue pattern: skip targets already being targeted by group members
     Unit* bestTarget = nullptr;
     float bestDist = range;
+    float bestActualDist = range;
     uint32 filtered = 0;
     for (Unit* candidate : collector.candidates)
     {
@@ -334,16 +336,30 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
         }
 
         float dist = GetDistance2d(bot, candidate);
-        if (dist < bestDist)
+        // R5: prefer gear-dropping humanoids over beasts (which drop no
+        // equipment). Apply the configured distance discount to humanoid
+        // targets so they beat nearer beasts; non-humanoids keep full distance.
+        // 1.0 => no preference (pure nearest). See humanoidGrindDistanceWeight.
+        float weightedDist = dist;
+        if (Creature* c = candidate->ToCreature())
         {
-            bestDist = dist;
+            if (c->GetCreatureInfo() &&
+                c->GetCreatureInfo()->type == CREATURE_TYPE_HUMANOID)
+            {
+                weightedDist *= sPlayerbotAIConfig.humanoidGrindDistanceWeight;
+            }
+        }
+        if (weightedDist < bestDist)
+        {
+            bestDist = weightedDist;
+            bestActualDist = dist;
             bestTarget = candidate;
         }
     }
 
     LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] candidates=%u filtered=%u best=%s dist=%.1f",
         bot->GetName(), (uint32)collector.candidates.size(), filtered,
-        bestTarget ? bestTarget->GetName() : "none", bestDist);
+        bestTarget ? bestTarget->GetName() : "none", bestActualDist);
 
     return bestTarget;
 }

@@ -45,6 +45,14 @@ private:
     // Level distribution: pick a random level from 1-60 with weighted distribution
     static uint8 PickRandomLevel();
 
+    // R5: spawn point for a level/faction-appropriate zone so bots spread
+    // across the world (level 1-60) instead of all starting at race villages.
+    struct BotSpawnPoint { uint32 map; float x, y, z; };
+    // Returns a level-appropriate open spawn point. race selects faction
+    // (Alliance -> Eastern Kingdoms map 0, Horde -> Kalimdor map 1); high
+    // levels (50+) use shared contested zones (Winterspring/Silithus).
+    static BotSpawnPoint PickSpawnPosition(uint8 level, uint8 race);
+
     // Gear and talent application (called after character creation)
     static void ApplyGear(Player* player, uint8 level, uint8 class_);
     static void ApplyTalents(Player* player, uint8 level, uint8 class_);

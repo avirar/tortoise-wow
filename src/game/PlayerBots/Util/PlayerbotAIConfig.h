@@ -57,6 +57,13 @@ public:
     // Equip upgrade threshold (AC: equipUpgradeThreshold, default 1.1 = 10% improvement)
     float equipUpgradeThreshold;
 
+    // R5: grind-target creature-type preference. Distance weight applied to
+    // HUMANOID targets in SelectNearestSafeTarget so gear-dropping humanoids
+    // are preferred over beasts (which drop no equipment). 1.0 = no preference
+    // (pure nearest); < 1.0 makes a farther humanoid compete with a closer
+    // beast. 0.6 => a humanoid up to ~67% farther still wins over a nearer beast.
+    float humanoidGrindDistanceWeight;
+
     // Random
     uint32 randomChangeMultiplier;
 

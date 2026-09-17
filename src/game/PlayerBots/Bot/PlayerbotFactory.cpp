@@ -11,8 +11,10 @@
 #include "WorldSession.h"
 #include "Util.h"
 #include "World.h"
+#include "Maps/MapManager.h"
 #include <algorithm>
 #include <random>
+#include <cmath>
 
 std::vector<std::pair<uint8, uint8>> PlayerbotFactory::s_validRaceClass;
 std::vector<PlayerbotFactory::CachedName> PlayerbotFactory::s_cachedNames;
@@ -492,6 +494,19 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId, uint8 race, uint8 
         ApplyTalents(newChar, level, class_);
     }
 
+    // R5: place the bot in a level/faction-appropriate zone so the world has
+    // level 1-60 bots spread across both continents (not all at the race's
+    // starting village). Mirrors the SetLocationMapId/Relocate/SetMap pattern
+    // used by Player::Create. Server corrects slightly-off points to ground.
+    {
+        BotSpawnPoint sp = PickSpawnPosition(level, race);
+        newChar->SetLocationMapId(sp.map);
+        newChar->Relocate(sp.x, sp.y, sp.z, 0.0f);
+        if (sp.map <= 1)
+            newChar->SetLocationInstanceId(sMapMgr.GetContinentInstanceId(sp.map, sp.x, sp.y));
+        newChar->SetMap(sMapMgr.CreateMap(sp.map, newChar));
+    }
+
     newChar->SetCinematic(1);
 
     // AC doesn't check SaveToDB return value - transaction layer can return false even on success
@@ -626,8 +641,42 @@ void PlayerbotFactory::CleanupOldBots(std::string const& prefix)
 
 uint8 PlayerbotFactory::PickRandomLevel()
 {
-    // All bots at level 10 - enough for core class abilities
-    return 10;
+    // R5: distribute bots across the full 1-60 range so the world has
+    // level-1..60 players of every class. Mild low-level bias (exponent 1.6)
+    // for a natural population shape; ceil keeps 60 as a real top-of-range
+    // bucket (not a single-needle roll).
+    double r = (double)urand(0, 99999) / 99999.0;   // [0, 0.99999]
+    uint32 level = (uint32)std::ceil(60.0 * pow(r, 1.6));
+    if (level < 1)   level = 1;
+    if (level > 60)  level = 60;
+    return (uint8)level;
+}
+
+PlayerbotFactory::BotSpawnPoint PlayerbotFactory::PickSpawnPosition(uint8 level, uint8 race)
+{
+    // Faction: Alliance -> Eastern Kingdoms (map 0), Horde -> Kalimdor (map 1).
+    // High levels (50+) converge on the shared contested endgame zone (Silithus).
+    bool horde = (race == RACE_ORC || race == RACE_UNDEAD || race == RACE_TAUREN ||
+                  race == RACE_TROLL || race == RACE_GOBLIN);
+
+    // Level bands, sorted high -> low: {minLevel, ek(map0), km(map1)}
+    // Open-field safe coordinates (server corrects slightly-off points to
+    // valid ground). Zone-level match is approximate; bots adjust via wander.
+    struct Band { uint8 min; BotSpawnPoint ek; BotSpawnPoint km; };
+    static const Band bands[] = {
+        { 50, {0, -11200.f,   3700.f,   15.f}, {0, -11200.f,   3700.f,   15.f} }, // Silithus (shared)
+        { 40, {0,  -6800.f, -10600.f,  190.f}, {1,  8600.f, -13500.f,  300.f} }, // Winterspring / Azshara
+        { 30, {0,   4000.f,   4900.f,   35.f}, {1,  7300.f, -12800.f,  150.f} }, // Arathi / Tanaris
+        { 20, {0,   4700.f,   3500.f,   40.f}, {1,  7600.f,  -7500.f,   -8.f} }, // WPL / Ashenvale
+        { 10, {0,   2200.f,   2900.f,  100.f}, {1,  4800.f,  -4000.f,  -15.f} }, // Redridge / Tirisfal
+        {  1, {0,  -6200.f,    300.f,   40.f}, {1,  3800.f,  -2200.f,  160.f} }, // Elwynn / Durotar
+    };
+    for (const Band& b : bands)
+    {
+        if (level >= b.min)
+            return horde ? b.km : b.ek;
+    }
+    return { 0, -6200.f, 300.f, 40.f }; // fallback: Elwynn
 }
 
 // ============================================================================
