@@ -11,7 +11,7 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     dynamicReactDelay = false;
 
     // Combat distances
-    sightDistance = 50.f;
+    sightDistance = 150.f;
     spellDistance = 30.f;
     reactDistance = 40.f;
     meleeDistance = 5.f;
@@ -41,6 +41,7 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     // Equip upgrade threshold (AC default 1.1 = 10% improvement needed)
     equipUpgradeThreshold = 1.1f;
     humanoidGrindDistanceWeight = 0.6f;
+    humanoidPreferRange = 30.0f;
 
     // Random
     randomChangeMultiplier = 1;
@@ -101,6 +102,7 @@ bool PlayerbotAIConfig::Initialize()
     freeMethodLoot = sConfig.GetBoolDefault("PlayerBot.FreeMethodLoot", freeMethodLoot);
     equipUpgradeThreshold = sConfig.GetFloatDefault("PlayerBot.EquipUpgradeThreshold", equipUpgradeThreshold);
     humanoidGrindDistanceWeight = sConfig.GetFloatDefault("PlayerBot.HumanoidGrindDistanceWeight", humanoidGrindDistanceWeight);
+    humanoidPreferRange = sConfig.GetFloatDefault("PlayerBot.HumanoidPreferRange", humanoidPreferRange);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

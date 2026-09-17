@@ -308,10 +308,16 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
     cell.Visit(p, grid_vis, *map, *bot, range);
 
     // AC GrindTargetValue pattern: skip targets already being targeted by group members
-    Unit* bestTarget = nullptr;
-    float bestDist = range;
-    float bestActualDist = range;
+    // R5 two-tier target selection (economy lever): among the non-contested
+    // survivors, prefer the NEAREST humanoid within humanoidPreferRange
+    // (humanoids drop gold + equipment; beasts drop neither). Beyond the range
+    // (or if no humanoid is nearby) fall back to the nearest target of any
+    // type. The contention filters above already drop creatures tapped/attacked
+    // by other bots, so this only ever returns a target the bot can loot.
+    Unit* bestHumanoid = nullptr;  float bestHumanoidDist = range;
+    Unit* bestAny      = nullptr;  float bestAnyDist      = range;
     uint32 filtered = 0;
+    uint32 humanoids = 0;
     for (Unit* candidate : collector.candidates)
     {
         if (!candidate || !candidate->IsAlive() || bot->IsFriendlyTo(candidate))
@@ -336,30 +342,41 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
         }
 
         float dist = GetDistance2d(bot, candidate);
-        // R5: prefer gear-dropping humanoids over beasts (which drop no
-        // equipment). Apply the configured distance discount to humanoid
-        // targets so they beat nearer beasts; non-humanoids keep full distance.
-        // 1.0 => no preference (pure nearest). See humanoidGrindDistanceWeight.
-        float weightedDist = dist;
+        bool isHumanoid = false;
         if (Creature* c = candidate->ToCreature())
         {
             if (c->GetCreatureInfo() &&
                 c->GetCreatureInfo()->type == CREATURE_TYPE_HUMANOID)
-            {
-                weightedDist *= sPlayerbotAIConfig.humanoidGrindDistanceWeight;
-            }
+                isHumanoid = true;
         }
-        if (weightedDist < bestDist)
+        if (isHumanoid)
         {
-            bestDist = weightedDist;
-            bestActualDist = dist;
-            bestTarget = candidate;
+            ++humanoids;
+            if (dist < bestHumanoidDist)
+            { bestHumanoidDist = dist; bestHumanoid = candidate; }
         }
+        if (dist < bestAnyDist)
+        { bestAnyDist = dist; bestAny = candidate; }
     }
 
-    LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] candidates=%u filtered=%u best=%s dist=%.1f",
-        bot->GetName(), (uint32)collector.candidates.size(), filtered,
-        bestTarget ? bestTarget->GetName() : "none", bestActualDist);
+    Unit* bestTarget = nullptr;
+    float bestActualDist = range;
+    if (sPlayerbotAIConfig.humanoidPreferRange > 0.0f &&
+        bestHumanoid && bestHumanoidDist <= sPlayerbotAIConfig.humanoidPreferRange)
+    {
+        bestTarget = bestHumanoid;
+        bestActualDist = bestHumanoidDist;
+    }
+    else if (bestAny)
+    {
+        bestTarget = bestAny;
+        bestActualDist = bestAnyDist;
+    }
+
+    LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] candidates=%u filtered=%u humanoids=%u best=%s dist=%.1f (humPreferRange=%.0f)",
+        bot->GetName(), (uint32)collector.candidates.size(), filtered, humanoids,
+        bestTarget ? bestTarget->GetName() : "none", bestActualDist,
+        sPlayerbotAIConfig.humanoidPreferRange);
 
     return bestTarget;
 }

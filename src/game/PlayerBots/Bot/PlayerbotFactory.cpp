@@ -486,9 +486,11 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId, uint8 race, uint8 
         // Train armor/weapon skills (bots can't equip without these)
         TrainClassSkills(newChar);
 
-        // Apply gear appropriate for level
-        // DISABLED: bots start with empty equipment slots so looted gear is always an upgrade
-        // ApplyGear(newChar, level, class_);
+        // Apply a full level-appropriate gear set (generated from item_template).
+        // Bots need this to fight mobs of their level — without gear, melee
+        // classes deal 1 dmg/hit and no class survives level-appropriate mobs
+        // past ~12-15, so the grind/loot/gold economy can't work.
+        ApplyGear(newChar, level, class_);
 
         // Apply talents (starts at level 10)
         ApplyTalents(newChar, level, class_);
@@ -500,6 +502,14 @@ uint32 PlayerbotFactory::CreateBotCharacter(uint32 accountId, uint8 race, uint8 
     // used by Player::Create. Server corrects slightly-off points to ground.
     {
         BotSpawnPoint sp = PickSpawnPosition(level, race);
+        // Defense-in-depth: if the (jittered) point is an invalid map coord,
+        // fall back to the band center without jitter so we never crash in
+        // Relocate (IsValidMapCoord throws std::runtime_error on bad coords).
+        if (!MapManager::IsValidMapCoord(sp.map, sp.x, sp.y, sp.z))
+        {
+            sLog.outError("playerbots: invalid spawn point (%d, %.0f, %.0f, %.0f) for level %u; using race start fallback", sp.map, sp.x, sp.y, sp.z, level);
+            sp = { 0, -6200.f, 300.f, 40.f };
+        }
         newChar->SetLocationMapId(sp.map);
         newChar->Relocate(sp.x, sp.y, sp.z, 0.0f);
         if (sp.map <= 1)
@@ -660,23 +670,44 @@ PlayerbotFactory::BotSpawnPoint PlayerbotFactory::PickSpawnPosition(uint8 level,
                   race == RACE_TROLL || race == RACE_GOBLIN);
 
     // Level bands, sorted high -> low: {minLevel, ek(map0), km(map1)}
-    // Open-field safe coordinates (server corrects slightly-off points to
-    // valid ground). Zone-level match is approximate; bots adjust via wander.
+    // Each point is a REAL HUMANOID (creature type 7) spawn position in the
+    // densest level-appropriate humanoid cluster for that band/continent
+    // (verified against tw_world.creature, 2026-09-17). Humanoids drop gold +
+    // equipment; beasts (type 1) drop neither — so spawning in humanoid-dense
+    // zones (not mixed beast/humanoid clusters) is what actually feeds the bot
+    // economy. A real creature position (not the cell centroid) is used so the
+    // point is guaranteed on land. Jitter is added in the caller.
     struct Band { uint8 min; BotSpawnPoint ek; BotSpawnPoint km; };
     static const Band bands[] = {
-        { 50, {0, -11200.f,   3700.f,   15.f}, {0, -11200.f,   3700.f,   15.f} }, // Silithus (shared)
-        { 40, {0,  -6800.f, -10600.f,  190.f}, {1,  8600.f, -13500.f,  300.f} }, // Winterspring / Azshara
-        { 30, {0,   4000.f,   4900.f,   35.f}, {1,  7300.f, -12800.f,  150.f} }, // Arathi / Tanaris
-        { 20, {0,   4700.f,   3500.f,   40.f}, {1,  7600.f,  -7500.f,   -8.f} }, // WPL / Ashenvale
-        { 10, {0,   2200.f,   2900.f,  100.f}, {1,  4800.f,  -4000.f,  -15.f} }, // Redridge / Tirisfal
-        {  1, {0,  -6200.f,    300.f,   40.f}, {1,  3800.f,  -2200.f,  160.f} }, // Elwynn / Durotar
+        { 50, {0,   1783.f,  -5755.f,  116.f}, {1,   6594.f,  -6048.f,   31.f} }, // high-level EK / KM
+        { 40, {0, -12107.f,   3506.f,   53.f}, {1,   3910.f,  -5707.f,   20.f} }, // high-level EK / KM
+        { 30, {0,  -1104.f,  -1427.f,   89.f}, {1,  -3428.f,  -3775.f,  -12.f} }, // mid-level EK / KM
+        { 20, {0,  -3284.f,  -1524.f,    9.f}, {1,  -4322.f,  -2018.f,   92.f} }, // mid-level EK / KM
+        { 10, {0, -10950.f,   1486.f,   37.f}, {1,    697.f,  -1219.f,   92.f} }, // low-mid EK / KM
+        {  1, {0,  -9172.f,   -599.f,   63.f}, {1,  -1444.f,  -1043.f,  142.f} }, // starting EK / KM
     };
+    BotSpawnPoint sp{};
     for (const Band& b : bands)
     {
         if (level >= b.min)
-            return horde ? b.km : b.ek;
+        {
+            sp = horde ? b.km : b.ek;
+            break;
+        }
     }
-    return { 0, -6200.f, 300.f, 40.f }; // fallback: Elwynn
+    // If no band matched (shouldn't happen; level is clamped to 1-60), use the fallback.
+    if (sp.map == 0 && sp.x == 0.0f && sp.y == 0.0f)
+        sp = { 0, -6200.f, 300.f, 40.f };
+
+    // R5: spawn jitter (+/-400u random offset) so 300 bots don't all pile onto the
+    // exact dense cluster center (which would concentrate them and spike target
+    // contention). Bots start spread over a ~1600u-diameter area; the wander +
+    // 150yd sight distance carries them into the surrounding mobs.
+    // NOTE: urand() returns unsigned, so cast to signed int BEFORE subtracting
+    // (uint32 underflow on urand<400 produced x=4.29e9 -> IsValidMapCoord throw).
+    sp.x += (float)((int)urand(0, 800) - 400);
+    sp.y += (float)((int)urand(0, 800) - 400);
+    return sp;
 }
 
 // ============================================================================
@@ -777,13 +808,21 @@ void PlayerbotFactory::TrainClassSkills(Player* bot)
     uint8 level = bot->GetLevel();
     uint8 class_ = bot->GetClass();
 
-    // Vanilla WoW skill cap: level * 5, min 75 for levels 1-9, max 300
-    uint16 skillVal = (level < 10) ? 75 : std::min<uint16>(level * 5, 300);
+    // Vanilla WoW skill cap: level * 5, max 300. Matches the core's
+    // GetSkillMaxForLevel() (level * 5) so creation-time values agree with
+    // UpdateSkillsForLevel(), which re-maximizes on login and every level-up
+    // when AlwaysMaxSkillForLevel is enabled in mangosd.conf.
+    uint16 skillVal = std::min<uint16>(level * 5, 300);
 
     // Helper lambda to set a skill
     auto setSkill = [&bot, skillVal](uint16 skill) {
         bot->SetSkill(skill, skillVal, skillVal);
     };
+
+    // Defense: every class. The bot's own defense skill drives its crit
+    // vulnerability (and parry/dodge/block), so it must exist and stay maxed
+    // like the weapon skills.
+    setSkill(SKILL_DEFENSE);            // 95 minLvl=0
 
     switch (class_)
     {
@@ -995,43 +1034,132 @@ const PlayerbotFactory::GearSet* PlayerbotFactory::GetGearSet(uint8 level, uint8
     return &warriorGear[0];
 }
 
+// Map an item_template InventoryType to the equipment slot it fills (-1 = not
+// gear). Two-hand and one-hand weapons both go to MAINHAND; the engine's
+// CanEquipItem rejects the conflicting combo, so only the best per slot is kept.
+static int PlayerbotInvTypeToSlot(uint32 invType)
+{
+    switch (invType)
+    {
+        case INVTYPE_HEAD:      return EQUIPMENT_SLOT_HEAD;       // 0
+        case INVTYPE_NECK:      return EQUIPMENT_SLOT_NECK;       // 1
+        case INVTYPE_SHOULDERS: return EQUIPMENT_SLOT_SHOULDERS;  // 2
+        case INVTYPE_BODY:      return EQUIPMENT_SLOT_BODY;       // 3
+        case INVTYPE_CHEST:     return EQUIPMENT_SLOT_CHEST;      // 4
+        case INVTYPE_WAIST:     return EQUIPMENT_SLOT_WAIST;      // 5
+        case INVTYPE_LEGS:      return EQUIPMENT_SLOT_LEGS;       // 6
+        case INVTYPE_FEET:      return EQUIPMENT_SLOT_FEET;       // 7
+        case INVTYPE_WRISTS:    return EQUIPMENT_SLOT_WRISTS;     // 8
+        case INVTYPE_HANDS:     return EQUIPMENT_SLOT_HANDS;      // 9
+        case INVTYPE_FINGER:    return EQUIPMENT_SLOT_FINGER1;    // 10
+        case INVTYPE_TRINKET:   return EQUIPMENT_SLOT_TRINKET1;   // 12
+        case INVTYPE_CLOAK:     return EQUIPMENT_SLOT_BACK;       // 14
+        case INVTYPE_WEAPON:    return EQUIPMENT_SLOT_MAINHAND;   // 15
+        case INVTYPE_2HWEAPON:  return EQUIPMENT_SLOT_MAINHAND;   // 15
+        case INVTYPE_SHIELD:    return EQUIPMENT_SLOT_OFFHAND;    // 16
+        case INVTYPE_RANGED:    return EQUIPMENT_SLOT_RANGED;     // 17
+        case INVTYPE_TABARD:    return EQUIPMENT_SLOT_TABARD;     // 18
+        default:                return -1;
+    }
+}
+
+// R5: give each bot a FULL level-appropriate gear set at creation, generated
+// from item_template (AC pattern: the engine's own item rules are authoritative,
+// no curated table). A bot created at level N with no gear cannot fight mobs of
+// its level (melee classes deal 1 dmg/hit, no armor) and dies — so this is a
+// prerequisite for the grind/loot/gold economy to work at all.
+//
+// Per slot we keep the top-N candidates by score (ItemLevel, then Quality) among
+// items that: the class may use (AllowableClass bit), RequiredLevel in
+// [max(1, level-20), level], ItemLevel <= level+10 (so low bots don't get
+// over-leveled junk), and no skill/city-rank/reputation gates. At equip time we
+// try candidates best-first; if the engine rejects one (class/proficiency/
+// two-hand conflict) we fall back to the next, so the bot always gets the best
+// item it can actually use. The class starter junk (granted in Player::Create)
+// is destroyed before equipping so our item always takes the slot.
 void PlayerbotFactory::ApplyGear(Player* player, uint8 level, uint8 class_)
 {
     if (!player)
         return;
 
-    const GearSet* gearSet = GetGearSet(level, class_);
-    if (!gearSet)
-        return;
+    uint32 classBit = 1u << (class_ - 1);   // GetClassMask() convention = 1 << (class-1)
+    uint32 minReq = (level > 20) ? (level - 20) : 1;
+    uint32 maxILvl = (uint32)level + 10;    // avoid over-leveled items
 
-    // Equip items from the gear set
-    for (uint8 slot = 0; slot < 19; ++slot)
+    static const int MAXCAND = 16;
+    struct Cand { uint32 entry; uint32 score; };
+    Cand cands[EQUIPMENT_SLOT_END][MAXCAND];
+    int candCount[EQUIPMENT_SLOT_END] = {};
+
+    for (auto const& pair : sObjectMgr.GetItemPrototypeMap())
     {
-        uint32 itemId = gearSet->items[slot];
-        if (itemId == 0)
-            continue;
+        ItemPrototype const& proto = pair.second;
+        if ((proto.AllowableClass & classBit) == 0)   continue;
+        if (proto.RequiredLevel > level)             continue;
+        if (proto.RequiredLevel < minReq)            continue;
+        if (proto.ItemLevel > maxILvl)               continue;
+        if (proto.RequiredSkill || proto.RequiredCityRank ||
+            proto.RequiredReputationFaction)        continue;
+        int slot = PlayerbotInvTypeToSlot(proto.InventoryType);
+        if (slot < 0 || slot >= EQUIPMENT_SLOT_END)  continue;
 
-        // Check if item exists in DB
-        ItemPrototype const* proto = sObjectMgr.GetItemPrototype(itemId);
-        if (!proto)
-            continue;
-
-        // Check if player can equip this item type
-        uint16 dest = 0;
-        InventoryResult result = player->CanEquipItem(slot, dest, proto);
-        if (result != EQUIP_ERR_OK)
-            continue;
-
-        // Create and equip the item
-        Item* item = Item::CreateItem(itemId, 1, player);
-        if (item)
+        uint32 score = proto.ItemLevel * 10 + proto.Quality;
+        int& cnt = candCount[slot];
+        if (cnt < MAXCAND)
         {
-            player->EquipItem(slot, item, true);
+            cands[slot][cnt] = { proto.ItemId, score };
+            ++cnt;
+        }
+        else
+        {
+            int worst = 0;
+            for (int i = 1; i < MAXCAND; ++i)
+                if (cands[slot][i].score < cands[slot][worst].score) worst = i;
+            if (score > cands[slot][worst].score)
+                cands[slot][worst] = { proto.ItemId, score };
         }
     }
 
-    LOG_DEBUG("playerbots", "[FACTORY] Applied gear set for level %u, class %u", level, class_);
+    int equipped = 0;
+    for (int slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
+    {
+        if (candCount[slot] == 0)
+            continue;
+        Cand* arr = cands[slot];
+        // Sort this slot's candidates best-first (insertion sort, <=16 items).
+        for (int i = 0; i < candCount[slot]; ++i)
+            for (int j = i + 1; j < candCount[slot]; ++j)
+                if (arr[j].score > arr[i].score) { Cand t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+
+        bool done = false;
+        for (int i = 0; i < candCount[slot] && !done; ++i)
+        {
+            ItemPrototype const* proto = sObjectMgr.GetItemPrototype(arr[i].entry);
+            if (!proto)
+                continue;
+            uint16 dest = 0;
+            // swap=true: the starter junk occupies the slot; FindEquipSlot only
+            // accepts an occupied slot when swap=true. If the engine rejects this
+            // candidate (class/proficiency/two-hand conflict) we try the next-best.
+            if (player->CanEquipItem((uint8)slot, dest, proto, nullptr, true) != EQUIP_ERR_OK)
+                continue;
+            // Destroy the starter junk so our item always takes the slot.
+            if (Item* existing = player->GetItemByPos(INVENTORY_SLOT_BAG_0, (uint8)slot))
+                player->DestroyItem(INVENTORY_SLOT_BAG_0, (uint8)slot, false);
+            Item* item = Item::CreateItem(arr[i].entry, 1, player);
+            if (!item)
+                continue;
+            player->EquipItem((uint8)slot, item, true);
+            done = true;
+        }
+        if (done)
+            ++equipped;
+    }
+
+    LOG_DEBUG("playerbots", "[FACTORY] Applied generated gear (level %u class %u): %d items", level, class_, equipped);
 }
+
+
 
 // ============================================================================
 // Talent builds per class

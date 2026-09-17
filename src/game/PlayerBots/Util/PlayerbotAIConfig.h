@@ -64,6 +64,13 @@ public:
     // beast. 0.6 => a humanoid up to ~67% farther still wins over a nearer beast.
     float humanoidGrindDistanceWeight;
 
+    // R5: two-tier humanoid preference. Within this range the bot always
+    // targets the NEAREST non-contested humanoid (gold/gear source) over any
+    // nearer beast; beyond it the bot falls back to the nearest target of any
+    // type. 0 = disable (pure nearest). Humanoids drop gold + equipment;
+    // beasts drop neither, so this is the main economy lever.
+    float humanoidPreferRange;
+
     // Random
     uint32 randomChangeMultiplier;
 
