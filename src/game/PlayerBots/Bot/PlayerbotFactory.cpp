@@ -670,21 +670,38 @@ PlayerbotFactory::BotSpawnPoint PlayerbotFactory::PickSpawnPosition(uint8 level,
                   race == RACE_TROLL || race == RACE_GOBLIN);
 
     // Level bands, sorted high -> low: {minLevel, ek(map0), km(map1)}
-    // Each point is a REAL HUMANOID (creature type 7) spawn position in the
-    // densest level-appropriate humanoid cluster for that band/continent
-    // (verified against tw_world.creature, 2026-09-17). Humanoids drop gold +
-    // equipment; beasts (type 1) drop neither — so spawning in humanoid-dense
-    // zones (not mixed beast/humanoid clusters) is what actually feeds the bot
-    // economy. A real creature position (not the cell centroid) is used so the
-    // point is guaranteed on land. Jitter is added in the caller.
+    // Each point is a REAL HUMANOID (creature type 7) spawn position in a
+    // HOSTILE, level-matched humanoid cluster for that band/continent
+    // (verified against tw_world.creature, 2026-09-17 — 2nd pass).
+    // Humanoids drop gold + equipment; beasts (type 1) drop neither — so
+    // spawning in humanoid-dense zones is what feeds the bot economy.
+    // Selection criteria (fixes from the 1st pass):
+    //   * hostile-only: city/friendly NPCs excluded (faction blacklist + name
+    //     eyeball) — the 1st pass counted friendly city humanoids (e.g. the
+    //     Elwynn point sat next to the Stormwind gate where EVERY humanoid is
+    //     friendly, so bots saw humanoids=0 and suicide-looped the elite-50
+    //     Sewer Beast, the only attackable creature there);
+    //   * level-matched: mob level_min within [band_low, band_high-4] so the
+    //     low half of each band isn't fighting +8..+14 mobs (Razorfen 33-34
+    //     at the old KM-20 spot, Spitelash 51-52 at KM-40, Muckshell 39-43
+    //     at KM-30, Venture 9-10 at KM-1);
+    //   * non-elite (rank=0) and dense (n>=8 in a 150u cell).
+    // A real creature position (not the cell centroid) is used so the point
+    // is guaranteed on land. Jitter is added in the caller.
     struct Band { uint8 min; BotSpawnPoint ek; BotSpawnPoint km; };
     static const Band bands[] = {
-        { 50, {0,   1783.f,  -5755.f,  116.f}, {1,   6594.f,  -6048.f,   31.f} }, // high-level EK / KM
-        { 40, {0, -12107.f,   3506.f,   53.f}, {1,   3910.f,  -5707.f,   20.f} }, // high-level EK / KM
-        { 30, {0,  -1104.f,  -1427.f,   89.f}, {1,  -3428.f,  -3775.f,  -12.f} }, // mid-level EK / KM
-        { 20, {0,  -3284.f,  -1524.f,    9.f}, {1,  -4322.f,  -2018.f,   92.f} }, // mid-level EK / KM
-        { 10, {0, -10950.f,   1486.f,   37.f}, {1,    697.f,  -1219.f,   92.f} }, // low-mid EK / KM
-        {  1, {0,  -9172.f,   -599.f,   63.f}, {1,  -1444.f,  -1043.f,  142.f} }, // starting EK / KM
+        // 50-60: EK Hearthglen Scarlets 54-57 (n=53) / KM Lucid Dream 55 (n=42)
+        { 50, {0,   1783.f,  -5755.f,  116.f}, {1,   6904.f,  -5685.f,   -4.f} },
+        // 40-49: EK Bloodsail pirates 43 (n=28) / KM Southsea pirates 44-45 (n=35)
+        { 40, {0, -15025.f,    262.f,    8.f}, {1,  -8088.f,  -5245.f,    2.f} },
+        // 30-39: EK Bloodscalp trolls 34 (n=33) / KM Burning Blade 31-33 (n=29)
+        { 30, {0, -11645.f,    664.f,   50.f}, {1,   -451.f,   1743.f,  147.f} },
+        // 20-29: EK Shadowhide gnolls 24-25 (n=34) / KM Windshear 21 (n=47)
+        { 20, {0,  -9261.f,  -3283.f,  113.f}, {1,    959.f,   -359.f,   16.f} },
+        // 10-19: EK Westfall Defias 14-16 (n=45) / KM Venture Co. 14 (n=28)
+        { 10, {0, -10950.f,   1486.f,   37.f}, {1,   1035.f,  -3088.f,  105.f} },
+        // 1-9: EK Northshire kobolds 1-3 (n=50) / KM Durotar 5 (n=21)
+        {  1, {0,  -8774.f,   -184.f,   83.f}, {1,   -112.f,  -7858.f,   40.f} },
     };
     BotSpawnPoint sp{};
     for (const Band& b : bands)

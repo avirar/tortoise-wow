@@ -41,7 +41,8 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     // Equip upgrade threshold (AC default 1.1 = 10% improvement needed)
     equipUpgradeThreshold = 1.1f;
     humanoidGrindDistanceWeight = 0.6f;
-    humanoidPreferRange = 30.0f;
+    humanoidPreferRange = 150.0f;             // full sight: always prefer a visible humanoid
+    maxTargetLevelDiff = 7;                   // never grind >+7 levels above us
 
     // Random
     randomChangeMultiplier = 1;
@@ -103,6 +104,7 @@ bool PlayerbotAIConfig::Initialize()
     equipUpgradeThreshold = sConfig.GetFloatDefault("PlayerBot.EquipUpgradeThreshold", equipUpgradeThreshold);
     humanoidGrindDistanceWeight = sConfig.GetFloatDefault("PlayerBot.HumanoidGrindDistanceWeight", humanoidGrindDistanceWeight);
     humanoidPreferRange = sConfig.GetFloatDefault("PlayerBot.HumanoidPreferRange", humanoidPreferRange);
+    maxTargetLevelDiff = sConfig.GetIntDefault("PlayerBot.MaxTargetLevelDiff", maxTargetLevelDiff);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

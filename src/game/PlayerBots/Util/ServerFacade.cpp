@@ -339,6 +339,14 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
             // Skip creatures already tapped by another bot (wastes attacks/XP)
             if (c->HasLootRecipient() && !c->IsTappedBy(bot))
             { ++filtered; continue; }  // tapped by outsider
+            // R5: never target far-higher creatures or elites — ungrouped bots
+            // suicide-loop against them (e.g. the elite-50 Stormwind Sewer
+            // Beast camped by level-1 Elwynn bots at the city gate) for zero
+            // loot and endless corpse runs.
+            if ((int32)c->GetLevel() - (int32)bot->GetLevel() > (int32)sPlayerbotAIConfig.maxTargetLevelDiff)
+            { ++filtered; continue; }  // too many levels above us
+            if (c->GetCreatureInfo() && c->GetCreatureInfo()->rank > CREATURE_ELITE_NORMAL)
+            { ++filtered; continue; }  // elite/rare/worldboss — never grind ungrouped
         }
 
         float dist = GetDistance2d(bot, candidate);

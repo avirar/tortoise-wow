@@ -69,7 +69,14 @@ public:
     // nearer beast; beyond it the bot falls back to the nearest target of any
     // type. 0 = disable (pure nearest). Humanoids drop gold + equipment;
     // beasts drop neither, so this is the main economy lever.
+    // Default 150 = full sight distance: always prefer a visible humanoid.
     float humanoidPreferRange;
+
+    // R5: never grind targets more than this many levels above the bot
+    // (suicide prevention: city elites like the Stormwind Sewer Beast are
+    // otherwise the only "attackable" creature near city gates, causing
+    // endless attack->die->corpse-run loops for low-level bots).
+    uint32 maxTargetLevelDiff;
 
     // Random
     uint32 randomChangeMultiplier;
