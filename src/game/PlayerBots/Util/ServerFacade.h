@@ -28,6 +28,13 @@ public:
     // Check how many group members are already targeting this unit (AC GrindTargetValue pattern)
     uint32 GetTargetingPlayerCount(Player* bot, Unit* target);
 
+    // R5d idle-relocation support: seconds since this bot last had a viable
+    // grind target (clock only advances while scans run and fail — i.e. the
+    // bot is actively idle, not fighting/dead). 0 = fresh/unknown. Registers
+    // first-seen bots with a fresh timestamp (grace window after login).
+    static time_t SecondsWithoutViableGrindTarget(Player* bot);
+    static void MarkViableGrindTargetSeen(Player* bot);
+
     // Find nearest hostile target that no other group member is targeting (AC pattern)
     Unit* SelectNearestSafeTarget(Player* bot, float range);
 

@@ -40,9 +40,11 @@ PlayerbotAIConfig::PlayerbotAIConfig()
 
     // Equip upgrade threshold (AC default 1.1 = 10% improvement needed)
     equipUpgradeThreshold = 1.1f;
-    humanoidGrindDistanceWeight = 0.6f;
-    humanoidPreferRange = 150.0f;             // full sight: always prefer a visible humanoid
-    maxTargetLevelDiff = 7;                   // never grind >+7 levels above us
+    xpLevelPenalty = 4.0f;                    // R5c: y/level below bot (XP quality)
+    contentionPenalty = 5.0f;                 // R5c: y per bot already on the target
+    maxTargetLevelDiff = 4;                   // AC parity: never grind >+4 levels above us
+    relocateIdleEnabled = true;               // R5d: self-heal marooned bots
+    relocateIdleSeconds = 180;                // R5d: idle threshold (respawns take 2-5 min)
 
     // Random
     randomChangeMultiplier = 1;
@@ -102,9 +104,11 @@ bool PlayerbotAIConfig::Initialize()
     lootDelay = sConfig.GetIntDefault("PlayerBot.LootDelay", lootDelay);
     freeMethodLoot = sConfig.GetBoolDefault("PlayerBot.FreeMethodLoot", freeMethodLoot);
     equipUpgradeThreshold = sConfig.GetFloatDefault("PlayerBot.EquipUpgradeThreshold", equipUpgradeThreshold);
-    humanoidGrindDistanceWeight = sConfig.GetFloatDefault("PlayerBot.HumanoidGrindDistanceWeight", humanoidGrindDistanceWeight);
-    humanoidPreferRange = sConfig.GetFloatDefault("PlayerBot.HumanoidPreferRange", humanoidPreferRange);
+    xpLevelPenalty = sConfig.GetFloatDefault("PlayerBot.XPLevelPenalty", xpLevelPenalty);
+    contentionPenalty = sConfig.GetFloatDefault("PlayerBot.ContentionPenalty", contentionPenalty);
     maxTargetLevelDiff = sConfig.GetIntDefault("PlayerBot.MaxTargetLevelDiff", maxTargetLevelDiff);
+    relocateIdleEnabled = sConfig.GetBoolDefault("PlayerBot.RelocateIdleEnabled", relocateIdleEnabled);
+    relocateIdleSeconds = sConfig.GetIntDefault("PlayerBot.RelocateIdleSeconds", relocateIdleSeconds);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

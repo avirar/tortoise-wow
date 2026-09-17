@@ -32,13 +32,13 @@ bool AttackAction::Execute(Event event)
 bool AttackAction::DoAttack(Unit* target)
 {
     if (!target || !target->IsAlive() || !target->IsInWorld())
-        return false;
+    { LOG_DEBUG("playerbots", "%s [DoAttack] FAIL: target dead/gone", bot->GetName()); return false; }
 
     if (bot->IsFriendlyTo(target))
-        return false;
+    { LOG_DEBUG("playerbots", "%s [DoAttack] FAIL: friendly", bot->GetName()); return false; }
 
     if (!bot->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
-        return false;
+    { LOG_DEBUG("playerbots", "%s [DoAttack] FAIL: no LOS to %s (dist %.1f)", bot->GetName(), target->GetName(), sServerFacade.GetDistance2d(bot, target)); return false; }
 
     // AC pattern: save old target, set current target, add to loot stack
     // Note: SetSelectionGuid already calls SetTargetGuid internally (tortoise Player::SetSelectionGuid)

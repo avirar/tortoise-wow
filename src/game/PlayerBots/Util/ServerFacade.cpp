@@ -243,8 +243,11 @@ void ServerFacade::DebugNearbyCreatures(Unit* unit, float range, const char* cal
         debugger.totalScanned, debugger.passed, debugger.rejectedDistance, debugger.rejectedFriendly, debugger.rejectedDead, debugger.rejectedSelf);
 }
 
-// AC GrindTargetValue::GetTargetingPlayerCount() pattern
-// Count how many group members (including bots) are already targeting this unit
+// AC GrindTargetValue::GetTargetingPlayerCount() pattern — R4 group-assist
+// primitive (currently unused by SelectNearestSafeTarget: tap-claim model
+// replaced proximity/targeting heuristics; group loot + IsTappedBy handle
+// grouped contention authoritatively). Reserved for player-invited bot
+// groups: assist prioritization, role coordination, dungeon/raid support.
 uint32 ServerFacade::GetTargetingPlayerCount(Player* bot, Unit* target)
 {
     if (!bot || !target)
@@ -285,6 +288,33 @@ uint32 ServerFacade::GetTargetingPlayerCount(Player* bot, Unit* target)
     return count;
 }
 
+// R5d idle-relocation tracking: last time each bot had a viable grind target.
+// Keyed by GUID; bounded by online-account count (pruned wholesale if it ever
+// exceeds a sane ceiling — wipe cycles create new GUIDs over long uptimes).
+static std::map<ObjectGuid, time_t> s_lastViableGrindTarget;
+
+time_t ServerFacade::SecondsWithoutViableGrindTarget(Player* bot)
+{
+    if (!bot)
+        return 0;
+    if (s_lastViableGrindTarget.size() > 4096)
+        s_lastViableGrindTarget.clear();               // safety valve
+    ObjectGuid guid = bot->GetObjectGuid();
+    std::map<ObjectGuid, time_t>::iterator i = s_lastViableGrindTarget.find(guid);
+    if (i == s_lastViableGrindTarget.end())
+    {
+        s_lastViableGrindTarget[guid] = time(nullptr); // first seen: start grace clock
+        return 0;
+    }
+    return time(nullptr) - i->second;
+}
+
+void ServerFacade::MarkViableGrindTargetSeen(Player* bot)
+{
+    if (bot)
+        s_lastViableGrindTarget[bot->GetObjectGuid()] = time(nullptr);
+}
+
 Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
 {
     if (!bot || !bot->IsAlive())
@@ -293,7 +323,6 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
     Map* map = bot->GetMap();
     if (!map || map->IsDungeon())
         return nullptr;
-
     NearbyUnfriendlyCollector collector;
     collector.Init(bot, range);
 
@@ -307,84 +336,110 @@ Unit* ServerFacade::SelectNearestSafeTarget(Player* bot, float range)
     cell.Visit(p, world_vis, *map, *bot, range);
     cell.Visit(p, grid_vis, *map, *bot, range);
 
-    // AC GrindTargetValue pattern: skip targets already being targeted by group members
-    // R5 two-tier target selection (economy lever): among the non-contested
-    // survivors, prefer the NEAREST humanoid within humanoidPreferRange
-    // (humanoids drop gold + equipment; beasts drop neither). Beyond the range
-    // (or if no humanoid is nearby) fall back to the nearest target of any
-    // type. The contention filters above already drop creatures tapped/attacked
-    // by other bots, so this only ever returns a target the bot can loot.
-    Unit* bestHumanoid = nullptr;  float bestHumanoidDist = range;
-    Unit* bestAny      = nullptr;  float bestAnyDist      = range;
+    // AC GrindTargetValue pattern + AttackersValue tap-claim model:
+    // A player CLAIMS a creature by damaging it (or landing a hostile spell)
+    // — that is what sets its loot recipient (the "tap"). Nothing else is a
+    // claim: proximity to other bots, or other bots targeting/walking toward
+    // the creature, does NOT make it claimed (user-directed; the old
+    // targeting-count contention penalty was removed as wrong-headed).
+    //  - tapped by me            -> valid (finish my kill)
+    //  - tapped by someone else  -> skip (their loot/XP, attacking is waste)
+    //  - untapped, victim is another player's pull-in-progress -> skip
+    //    (AC AttackersValue clause 2; they will tap within a swing)
+    //  - untapped, everything else -> fair game: attack and tap it
+    // R5c XP-primary scoring (reference-checked):
+    //  - AC: hard filters (XP-eligible, level cap, non-elite, z-diff, LOS)
+    //    then NEAREST wins — XP is a filter, not a score.
+    //  - Shyalya/ike3: same + soft distance penalties for low-XP mobs.
+    // Tortoise: effDist = dist + max(0, botLevel - mobLevel) * xpLevelPenalty
+    // (below-level mobs look farther; at/above-level mobs are NOT given a
+    // negative bonus — level above bot is capped by maxTargetLevelDiff,
+    // never actively preferred: no death-risk amplification).
+    Unit* best = nullptr;
+    float bestEffDist = range * 2.0f + 100.0f;    // well above any real effDist
     uint32 filtered = 0;
-    uint32 humanoids = 0;
+    uint32 rFriendly = 0, rNoXP = 0, rLevel = 0, rElite = 0, rZdiff = 0, rTapped = 0, rVictim = 0, rLos = 0;
     for (Unit* candidate : collector.candidates)
     {
         if (!candidate || !candidate->IsAlive() || bot->IsFriendlyTo(candidate))
-        { ++filtered; continue; }
-
-        // AC pattern: skip if another group member is already targeting this
-        if (GetTargetingPlayerCount(bot, candidate) > 0)
-        { ++filtered; continue; }
+        { ++filtered; ++rFriendly; continue; }
 
         // AC pattern: skip creatures that don't give XP (critters, trainers, etc.)
         if (!bot->IsHonorOrXPTarget(candidate))
-        { ++filtered; continue; }
+        { ++filtered; ++rNoXP; continue; }
 
-        // Skip creatures already being attacked by someone else
+        // AC pattern: skip targets without line-of-sight — otherwise the
+        // attack action fails every tick (target behind a cliff/rock), the
+        // bot is stuck in an action-FAILED loop forever.
+        if (!bot->IsWithinLOS(candidate->GetPositionX(), candidate->GetPositionY(), candidate->GetPositionZ()))
+        { ++filtered; ++rLos; continue; }
+
         if (Creature* c = candidate->ToCreature())
         {
-            if (c->GetVictim() && c->GetVictim() != bot)
-            { ++filtered; continue; }  // already attacking someone else
-            // Skip creatures already tapped by another bot (wastes attacks/XP)
-            if (c->HasLootRecipient() && !c->IsTappedBy(bot))
-            { ++filtered; continue; }  // tapped by outsider
-            // R5: never target far-higher creatures or elites — ungrouped bots
+            // R5: never target far-higher creatures or elites - ungrouped bots
             // suicide-loop against them (e.g. the elite-50 Stormwind Sewer
             // Beast camped by level-1 Elwynn bots at the city gate) for zero
             // loot and endless corpse runs.
             if ((int32)c->GetLevel() - (int32)bot->GetLevel() > (int32)sPlayerbotAIConfig.maxTargetLevelDiff)
-            { ++filtered; continue; }  // too many levels above us
+            { ++filtered; ++rLevel; continue; }  // too many levels above us
             if (c->GetCreatureInfo() && c->GetCreatureInfo()->rank > CREATURE_ELITE_NORMAL)
-            { ++filtered; continue; }  // elite/rare/worldboss — never grind ungrouped
+            { ++filtered; ++rElite; continue; }  // elite/rare/worldboss - never grind ungrouped
+            // AC+Shyalya pattern: skip targets on a very different height
+            // (cliffs, overhead paths, underground) - prevents cliff-chasing.
+            if (fabs(bot->GetPositionZ() - c->GetPositionZ()) > 30.0f)
+            { ++filtered; ++rZdiff; continue; }
+
+            // ---- tap-claim contention model (AC AttackersValue) ----
+            if (c->HasLootRecipient())
+            {
+                if (!c->IsTappedBy(bot))
+                { ++filtered; ++rTapped; continue; }  // tapped by someone else: their kill
+                // tapped by me: valid, fall through
+            }
+            else
+            {
+                // Untapped. If the creature is actively fighting another
+                // player's character/pet OUTSIDE MY GROUP, that is a pull in
+                // progress - leave it (they tap within a swing). Anything else
+                // (no victim, victim is wildlife/guard/NPC, victim is me, or
+                // victim is a groupmate's pull) is fair game (AC clause 2d:
+                // a groupmate's fight belongs to us - grouped bots converge
+                // and assist; dungeon/raid groups depend on this).
+                Unit* victim = c->GetVictim();
+                if (victim && victim != bot)
+                {
+                    Player* victimOwner = victim->GetCharmerOrOwnerPlayerOrPlayerItself();
+                    if (victimOwner && victimOwner != bot &&
+                        (!bot->GetGroup() || bot->GetGroup() != victimOwner->GetGroup()))
+                    { ++filtered; ++rVictim; continue; }  // another player's pull in progress
+                }
+            }
         }
 
         float dist = GetDistance2d(bot, candidate);
-        bool isHumanoid = false;
-        if (Creature* c = candidate->ToCreature())
-        {
-            if (c->GetCreatureInfo() &&
-                c->GetCreatureInfo()->type == CREATURE_TYPE_HUMANOID)
-                isHumanoid = true;
-        }
-        if (isHumanoid)
-        {
-            ++humanoids;
-            if (dist < bestHumanoidDist)
-            { bestHumanoidDist = dist; bestHumanoid = candidate; }
-        }
-        if (dist < bestAnyDist)
-        { bestAnyDist = dist; bestAny = candidate; }
+
+        // R5c XP-primary scoring: below-level mobs look farther
+        float effDist = dist;
+        if (candidate->GetLevel() < bot->GetLevel())
+            effDist += (float)(bot->GetLevel() - candidate->GetLevel()) * sPlayerbotAIConfig.xpLevelPenalty;
+
+        if (effDist < bestEffDist)
+        { bestEffDist = effDist; best = candidate; }
     }
 
-    Unit* bestTarget = nullptr;
-    float bestActualDist = range;
-    if (sPlayerbotAIConfig.humanoidPreferRange > 0.0f &&
-        bestHumanoid && bestHumanoidDist <= sPlayerbotAIConfig.humanoidPreferRange)
-    {
-        bestTarget = bestHumanoid;
-        bestActualDist = bestHumanoidDist;
-    }
-    else if (bestAny)
-    {
-        bestTarget = bestAny;
-        bestActualDist = bestAnyDist;
-    }
+    LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] botlvl=%u candidates=%u filtered=%u (fr=%u xp=%u lvl=%u eli=%u z=%u tap=%u vic=%u los=%u) best=%s lvl=%u dist=%.1f effDist=%.1f",
+        bot->GetName(), bot->GetLevel(), (uint32)collector.candidates.size(), filtered,
+        rFriendly, rNoXP, rLevel, rElite, rZdiff, rTapped, rVictim, rLos,
+        best ? best->GetName() : "none", best ? best->GetLevel() : 0,
+        best ? GetDistance2d(bot, best) : 0.0f, bestEffDist);
 
-    LOG_DEBUG("playerbots", "%s [SelectNearestSafeTarget] candidates=%u filtered=%u humanoids=%u best=%s dist=%.1f (humPreferRange=%.0f)",
-        bot->GetName(), (uint32)collector.candidates.size(), filtered, humanoids,
-        bestTarget ? bestTarget->GetName() : "none", bestActualDist,
-        sPlayerbotAIConfig.humanoidPreferRange);
+    // R5d: feed the idle-relocation clock (success marks; failure registers
+    // first-seen so the grace window starts)
+    if (best)
+        MarkViableGrindTargetSeen(bot);
+    else
+        (void)SecondsWithoutViableGrindTarget(bot);
 
-    return bestTarget;
+    return best;
 }
+

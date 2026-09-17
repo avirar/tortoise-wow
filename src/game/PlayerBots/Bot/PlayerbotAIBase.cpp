@@ -6,6 +6,8 @@
 #include "PerfMonitor.h"
 #include "Timer.h"
 #include "Unit.h"
+#include "Value/Value.h"
+#include "AiObjectContext.h"
 #include "NonCombatStrategy.h"
 #include "CombatStrategy.h"
 #include "MeleeCombatStrategy.h"
@@ -208,6 +210,29 @@ void PlayerbotAIBase::UpdateAI(uint32 diff)
     {
         // Resurrected: switch back to NON_COMBAT
         ChangeEngine(BOT_STATE_NON_COMBAT);
+    }
+
+    // R5d normalization: the COMBAT engine deliberately has NO retargeting
+    // trigger (CombatStrategy::InitTriggers — retargeting happens on
+    // NON_COMBAT via GrindingStrategy), and the only COMBAT→NON_COMBAT exit
+    // is DropTargetAction. If a fight ends without a drop (target evaded or
+    // died at range, or the idle-relocation sweep cleared the target value),
+    // the bot would sit in the COMBAT engine forever pushing only class
+    // actions (all USELESS) — never scanning, never attacking, relocating
+    // every 120s. The server combat flag is authoritative: if the bot is no
+    // longer in combat, the non-combat engine is correct (it rescans and
+    // re-attacks via GrindingStrategy).
+    if (currentState == BOT_STATE_COMBAT && !bot->IsInCombat())
+    {
+        ChangeEngine(BOT_STATE_NON_COMBAT);
+        // Also clear the dangling "current target": a fight that ended
+        // WITHOUT a kill (target evaded/leashed, or died to someone else)
+        // leaves a live target set. On NON_COMBAT that blocks the "no
+        // target" trigger forever — the bot would stand next to a mob
+        // doing nothing. DropTargetAction only clears invalid targets;
+        // the normalization is the authoritative transition, so clear here.
+        if (sharedContext)
+            sharedContext->GetValue<Unit*>("current target")->Set(nullptr);
     }
 
     // AC AiFactory pattern: GrindingStrategy only when solo or group leader

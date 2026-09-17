@@ -57,26 +57,30 @@ public:
     // Equip upgrade threshold (AC: equipUpgradeThreshold, default 1.1 = 10% improvement)
     float equipUpgradeThreshold;
 
-    // R5: grind-target creature-type preference. Distance weight applied to
-    // HUMANOID targets in SelectNearestSafeTarget so gear-dropping humanoids
-    // are preferred over beasts (which drop no equipment). 1.0 = no preference
-    // (pure nearest); < 1.0 makes a farther humanoid compete with a closer
-    // beast. 0.6 => a humanoid up to ~67% farther still wins over a nearer beast.
-    float humanoidGrindDistanceWeight;
+    // R5c: XP-primary target scoring (replaces the humanoid/gold two-tier).
+    // effDist = dist + max(0, botLevel - mobLevel) * xpLevelPenalty
+    //               + targetingCount * contentionPenalty
+    // Below-level (low-XP) mobs look farther; at/above-level mobs unpenalized
+    // (level above bot is still hard-capped by maxTargetLevelDiff). Shyalya/
+    // ike3 pattern: soft distance penalties instead of type heuristics.
+    float xpLevelPenalty;
 
-    // R5: two-tier humanoid preference. Within this range the bot always
-    // targets the NEAREST non-contested humanoid (gold/gear source) over any
-    // nearer beast; beyond it the bot falls back to the nearest target of any
-    // type. 0 = disable (pure nearest). Humanoids drop gold + equipment;
-    // beasts drop neither, so this is the main economy lever.
-    // Default 150 = full sight distance: always prefer a visible humanoid.
-    float humanoidPreferRange;
+    // R5c: effective-distance penalty per bot already targeting the same
+    // creature (Shyalya literal value: +5y per targeting player).
+    float contentionPenalty;
 
     // R5: never grind targets more than this many levels above the bot
     // (suicide prevention: city elites like the Stormwind Sewer Beast are
     // otherwise the only "attackable" creature near city gates, causing
     // endless attack->die->corpse-run loops for low-level bots).
+    // 4 = AC parity (red mobs +5.. slaughter fresh low-level bots).
     uint32 maxTargetLevelDiff;
+
+    // R5d: self-healing relocation — bots with no viable grind target for
+    // this many seconds (alive, overworld, not fighting) teleport back to a
+    // level-appropriate band spawn. Fixes graveyard-stacked idlers.
+    bool relocateIdleEnabled;
+    uint32 relocateIdleSeconds;
 
     // Random
     uint32 randomChangeMultiplier;

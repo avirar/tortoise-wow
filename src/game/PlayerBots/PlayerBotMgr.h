@@ -114,6 +114,7 @@ class PlayerBotMgr
         uint32 m_lastBotsRefresh;
         uint32 m_lastUpdate;
         uint32 m_lastStatsPrint;
+        uint32 m_lastIdleSweep = 0;
         uint32 totalChance;
         uint32 _maxAccountId;
 

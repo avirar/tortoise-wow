@@ -13,6 +13,9 @@
 #include "Player.h"
 #include "PlayerBotAI.h"
 #include "Bot/PlayerbotFactory.h"
+#include "Util/ServerFacade.h"
+#include "AiObjectContext.h"
+#include "Value/Value.h"
 #include "Bot/PlayerbotAIBase.h"
 #include "Util/PlayerbotAIConfig.h"
 #include "Util/PerfMonitor.h"
@@ -301,6 +304,55 @@ void PlayerBotMgr::Update(uint32 diff)
     {
         m_lastStatsPrint = 0;
         PrintStats();
+    }
+
+    /* R5d: idle-relocation sweep (every 30s) — bots marooned where nothing
+       is XP-viable self-heal by teleporting back to a level-appropriate band
+       spawn. Root cause it fixes: bots die, revive at a graveyard serving a
+       wide level range, and everything nearby is gray (IsHonorOrXPTarget
+       filters all) -> they idle stacked at the GY forever. Also covers
+       wandered-into-gray-zone cases. The clock only advances while the bot
+       is alive, on an overworld map, and its grind scans run and fail —
+       fighting/dead/instanced bots are never relocated. */
+    m_lastIdleSweep += diff;
+    if (sPlayerbotAIConfig.relocateIdleEnabled && m_lastIdleSweep >= 30000)
+    {
+        m_lastIdleSweep = 0;
+        for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
+        {
+            PlayerBotEntry* e = i->second;
+            if (e->state != PB_STATE_ONLINE)
+                continue;
+
+            Player* bot = ObjectAccessor::FindPlayer(i->first);
+            if (!bot || !bot->IsAlive() || bot->IsInCombat() || bot->IsBeingTeleported())
+                continue;
+            Map* bmap = bot->GetMap();
+            if (!bmap || bmap->IsDungeon() || bot->InBattleGround())
+                continue;
+            if (ServerFacade::SecondsWithoutViableGrindTarget(bot) < sPlayerbotAIConfig.relocateIdleSeconds)
+                continue;
+
+            PlayerbotFactory::BotSpawnPoint sp = PlayerbotFactory::PickSpawnPosition(bot->GetLevel(), bot->GetRace());
+            float x = sp.x + (float)irand(-400, 400);
+            float y = sp.y + (float)irand(-400, 400);
+            if (bot->TeleportTo(sp.map, x, y, sp.z, 0.0f))
+            {
+                // Clear the stale "current target": a bot teleported away from
+                // an unreachable target would keep chasing it and never rescan
+                // (ping-pong relocation). Do NOT call Engine::Reset() here —
+                // it deletes all strategies/triggers and leaves the engine
+                // bricked until Init() re-runs (our 3-engine port). The shared
+                // context value clear is sufficient and safe (same thing
+                // DropTargetAction does).
+                if (e->ai)
+                    if (AiObjectContext* ctx = e->ai->GetAiObjectContext())
+                        ctx->GetValue<Unit*>("current target")->Set(nullptr);
+                ServerFacade::MarkViableGrindTargetSeen(bot);  // fresh grace window at the new spot
+                sLog.outInfo("playerbots: relocated idle bot %s (lvl %u) to band spawn (map %u %.0f,%.0f,%.0f)",
+                    bot->GetName(), bot->GetLevel(), sp.map, x, y, sp.z);
+            }
+        }
     }
 
     if (!((m_elapsedTime - m_lastUpdate) > confUpdateDiff))
