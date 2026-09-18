@@ -1,4 +1,4 @@
-<!-- Canonical copy: /root/bot-master-plan.md (edited there; this is a read-only sync) -->
+<!-- Canonical copy: /root/bot-master-plan.md — edits there, then re-sync. Synced 2026-09-18 (R3a assessment). -->
 
 # Tortoise Bot Master Plan — "Best of Both"
 
@@ -102,6 +102,36 @@ Phases are ordered by dependency, not priority — R4/R6 can interleave once R1 
 - Group loot roles (ML distribution, roll participation) — extend the `lootslot_type` work.
 - Vendor/sell cycles + gold accumulation for bots.
 - **Sources:** AC `strategy/values/ItemUsageValue.cpp`, `strategy/actions/UseItemAction.cpp`; Shyalya ahbot as reference for economy sanity.
+
+### R3a — Item scoring & usage pipeline (assessment 2026-09-18)
+
+**Finding: all three "port candidates" already exist in-tree as a vanilla-adapted v1** (commits `b8ab94e7` loot system compiled, `e7603c03` "Item evaluation: vanilla percentage stats, spec-aware weights", `ceeb728c` shared spec detection). They were built during the P1-3/P3-4 review-fix era, adapted to vanilla, and are **largely dead code** — nothing executes the decisions yet.
+
+| Component | Where | State |
+|---|---|---|
+| `StatsCollector` (315ln) | `PlayerBots/Mgr/Item/` | v1 complete (DPS/armor/block/7 base stats/item spells by trigger/aura map) but with **real bugs** (below) |
+| `StatsWeightCalculator` (596ln) | `PlayerBots/Mgr/Item/` | Spec tables for all 9 classes × 3 tabs (vanilla tab map), role detect, armor-type + quality multipliers; **missing** overflow/set/weapon-penalty/enchant/slot-awareness |
+| `ItemUsageValue` (114ln) | `PlayerBots/Ai/Base/Value/` | `QueryItemUsageForEquip` fully implemented (empty-slot → EQUIP, else REPLACE at `equipUpgradeThreshold` 1.1) and registered as the "item usage" AI value — **but `Calculate()` always returns NONE and NO trigger/action consumes the value; no `UseItemAction` exists** |
+| `EquipUpgradesAction` | `Ai/Base/Actions/LootAction.cpp` | Still uses the crude `ItemLevel × (Quality+1)` score — the calculator is **not wired in** |
+| Config | `PlayerbotAIConfig` | `equipUpgradeThreshold` (1.1) already present |
+
+**Vanilla-vs-WotLK data-model lessons (verified 2026-09-18, `tw` + core source):**
+- **Only 7 base item-stat types exist in the DBC array** (`ITEM_MOD_MANA/HEALTH/AGI/STRA/INTE/SPRI/STAM`, `MAX_ITEM_MOD=8`); core `_ApplyItemBonuses` ignores stat types ≥8 (no `default:` case). **Hit/crit/haste/defense/dodge/parry/block/SP/heal-power/mana-regen come from ITEM SPELLS** (`proto->Spells[]` auras) — so the collector's `CollectSpellStats` path is the *primary* stat source, not an optimization. (WotLK put everything in the `Stats[]` array — the AC collector shape does not map 1:1.)
+- **Flat % semantics**: `SPELL_AURA_MOD_HIT_CHANCE` (54), `MOD_SPELL_HIT_CHANCE` (55), `MOD_ATTACKER_RANGED_HIT_CHANCE` (185), `MOD_CRIT_PERCENT`, etc. are **raw percentage points** (no rating division). The existing collector's `×0.02` factors on hit/crit are a WotLK-rating leftover — **bug** (under-credits by 50×).
+- **`SPELL_AURA_MOD_STAT`**: `EffectMiscValue` = stat index (0=STRA, 1=AGI, 2=INTE, 3=SPRI, 4=STAM; <0 = all stats) — core `Aura::HandleAuraModStat` (SpellAuras.cpp:4621) confirms. The existing collector dumps MOD_STAT into `BONUS ×0.5` — **main stats on cloth gear are lost**.
+- **Green suffixes = SQL, not DBC**: `item_template.RandomProperty` → `GetItemEnchantMod()` rolls the weighted `item_enchantment_template` table (`entry/ench/chance`, 27,687 rows; in-memory `RandomItemEnch` map). The `sItemRandomPropertiesStore` DBC only holds `enchant_id[3]` per suffix. **Collector's `CollectRandomSuffix` is a no-op → every green item loses its suffix stats.**
+- **No sockets in this data** (no columns in `item_template`, no fields in `ItemPrototype`) → socket/gem scoring is a correct no-op here (unlike WotLK).
+- **Talent tabs**: `TalentEntry.TalentTab` (0/1/2 per class) — our `SpecDetect.h` already has the vanilla map (e.g. Warrior 0=Arms/1=Fury/2=Protection; differs from AC's enum order → any AC weight-table port must re-map tabs).
+- **No DK, no expertise/armor-pen/resilience, no spell penetration** in vanilla item stats (enum already correct: no such entries).
+- **Item sets**: `Player::m_ItemSetEff` (`ItemSetEffect{setid,item_count,spells[8]}`) + `sItemSetStore` (`ItemSetEntry.spells[8]`) both exist → set-bonus scoring is portable.
+- **Overflow API**: `Unit::GetTotalAuraModifier(AuraType)` (+`ByMiscValue`) exist → flat-% overflow penalties are trivial in vanilla (melee 3% / ranged 3% / spell ~16% caps; the existing `HitCap` constants exist but are unused).
+
+**Phases (docs-first; implement in this order):**
+- **P1 — Collector correctness (~200 lines in `StatsCollector.cpp`):** (1) drop the `×0.02` hit/crit factors (flat %); (2) add `MOD_SPELL_HIT_CHANCE` + `MOD_ATTACKER_RANGED_HIT_CHANCE` with collector-type routing (caster→spell hit, ranged→ranged, melee→melee; cross-credit at low weight); (3) `MOD_STAT` via `EffectMiscValue` → real stats (incl. <0 = all 5); (4) implement `CollectRandomSuffix` via `item_enchantment_template` (startup cache of entry→{ench,chance}, **chance-weighted average** — instances roll randomly, so the honest expected value is the mean, not AC's optimistic "best suffix"; cache like the hub/POI caches, one-time query); (5) unknown auras/effects → 0 credit instead of `BONUS` inflation; (6) verify aura names against `SpellAuraDefines.h` at build time (compile-time constants). Verify: score a known lvl-10 cloth chest (intel/spirit via item spell) + a green helm and sanity-check the numbers by hand against DBC/DBC-table values.
+- **P2 — Calculator completion (~300 lines in `StatsWeightCalculator.cpp`):** (1) overflow penalties from `GetTotalAuraModifier` (melee/ranged/spell hit by collector type; `validPoints = max(0, cap − current)`); (2) item-set bonus (equip-set delta via `ItemSetEff` → set spells → collector); (3) weapon-type penalty (port AC `CalculateItemTypePenalty` vanilla-cut: 2H-in-1H-slot, shield, DW mismatch via `Player::CanDualWield()`, dagger 1.5× for rogue, wrong weapon class for hunter); (4) `CalculateItem(itemId, randomPropertyId, slot)` signature — slot-aware so P2.3 works (AC's `preferredSpecWeapons` speed tuning = optional follow-up, config-gated, default OFF). Verify: scores of representative gear across classes/spots (e.g. lvl-40 warrior: 2H vs 1H+shield, plate vs mail) + a logged score dump command or LOG_DEBUG sample.
+- **P3 — Item-usage wiring (~300 lines):** (1) extract `QueryItemUsageForEquip` logic into a shared helper (used by both `ItemUsageValue` and the action — kill the duplicated path); (2) rewrite `EquipUpgradesAction` to use it (replaces ilvl×quality scoring) — this is the money feature: bots will finally pick green/blue stat gear over gray ilvl; (3) consumables: keep the existing food/drink system, add potion/bandage use (vanilla: `ITEM_SUBCLASS_BANDAGE=7`, on-use heal/energize items) with stack caps when `PlayerBot.UseConsumables=1` (default ON) — HP/MP thresholds reuse the existing health/mana values; (4) junk policy: non-equip, sellPrice 0, no usable effect → `Destroy` (config `PlayerBot.JunkDestroy=0` default OFF until the vendor cycle exists — bag bloat is the failure mode, AC keeps items but we have no vendor); (5) `ITEM_USAGE_VENDOR` stays a decision-only sentinel (vendor selling = R3 economy cycle, separate workstream). Verify: 10-bot soak with loot-rich humanoid spawns; check `rndbot stats`-level action counters for "equip upgrades" success rate (was 100% fail pre-R5), bag-item counts not growing unboundedly, and spot-check 5 bots' gear vs score expectations.
+
+**Deferred (explicit):** AH integration (R4c), disenchant/repair/professions (no professions on bots yet), real enchant purchase/apply (no enchanters), gem/socket scoring (no data), group need/greed/pass decisions (R4 groups), best-suffix optimism (vanilla instances roll — mean is the right model).
 
 ### R4 — Shyalya feature lifts (each = AC-style rewrite)
 - **R4a Travel/taxi — MOSTLY SUPERSEDED BY R5e (2026-09-18):** population-level movement (random town travel + homebind refresh) is DONE in R5e as the depth-behavior layer. Remaining R4a = the WALKING layer: port the upstream `TravelSystem-pr` branch (TravelNode graph, prepath + spline reduction, MovementActions +608, `debug zone showpath`) so bots physically walk between zones instead of teleporting; route persistence; real flight-path purchase/taxi usage (bots currently teleport to flight hubs rather than buying/using flight paths).
