@@ -12,6 +12,9 @@
 #include "../Class/Warlock/WarlockTriggers.h"
 #include "../Class/Paladin/PaladinTriggers.h"
 
+// R7 L2: RPG status triggers
+#include "../World/Rpg/RpgTriggers.h"
+
 class TriggerContext : public NamedObjectContext<Trigger>
 {
 public:
@@ -80,6 +83,11 @@ public:
         creators["can polymorph"] = &TriggerContext::CreateCanPolymorph;
         creators["can fear"] = &TriggerContext::CreateCanFear;
         creators["can hammer of justice"] = &TriggerContext::CreateCanHammerOfJustice;
+
+        // R7 L2: RPG status triggers (one parameterized trigger per status)
+        creators["go grind status"] = &TriggerContext::CreateGoGrindStatus;
+        creators["wander random status"] = &TriggerContext::CreateWanderRandomStatus;
+        creators["do quest status"] = &TriggerContext::CreateDoQuestStatus;
     }
 
 private:
@@ -150,6 +158,11 @@ private:
 
 // === Paladin class trigger factories ===
     static Trigger* CreateCanHammerOfJustice(PlayerBotAI* botAI) { return new CanHammerOfJusticeTrigger(botAI); }
+
+    // R7 L2: RPG status triggers
+    static Trigger* CreateGoGrindStatus(PlayerBotAI* botAI) { return new RpgStatusTrigger(botAI, RPG_GO_GRIND); }
+    static Trigger* CreateWanderRandomStatus(PlayerBotAI* botAI) { return new RpgStatusTrigger(botAI, RPG_WANDER_RANDOM); }
+    static Trigger* CreateDoQuestStatus(PlayerBotAI* botAI) { return new RpgStatusTrigger(botAI, RPG_DO_QUEST); }
 };
 
 void BuildSharedTriggerContexts(SharedNamedObjectContextList<Trigger>& triggerContexts)

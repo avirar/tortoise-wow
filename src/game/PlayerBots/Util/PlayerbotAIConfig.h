@@ -5,6 +5,7 @@
 #include <set>
 #include <vector>
 #include <mutex>
+#include "PlayerRpgInfo.h"
 
 class PlayerbotAIConfig
 {
@@ -113,6 +114,22 @@ public:
     uint32 travelCityChancePct;
     uint32 travelPoiChancePct;   // non-city travel: quest-POI vs inn/flight/bank hub split
     uint32 staleCombatSeconds;   // R5e: combat longer than this is broken (stuck on unkillable mobs)
+
+    // R7 L2: RPG state machine (AC NewRpgInfo / NewRpgBaseAction::RandomChangeStatus).
+    // Per-status auto-selection weight, indexed by RpgStatus (see PlayerRpgInfo.h).
+    // 0 = never auto-selected. Defaults: GO_GRIND 50 / WANDER_RANDOM 30 /
+    // REST 10 / IDLE 10 / DO_QUEST 0 (deferred to L3+). Sum ~100.
+    float rpgStatusProbWeight[RPG_MAX_STATUS];
+    // Max time in each status before the state machine returns to IDLE and
+    // re-picks (AC NewRpgBaseAction defaults: wander 300s=5min, rest 30s,
+    // do-quest 1800s=30min).
+    uint32 rpgWanderRandomStatusMaxDuration;
+    uint32 rpgRestStatusMaxDuration;
+    uint32 rpgDoQuestStatusMaxDuration;
+    // Auto-add the "rpg" strategy to the NON_COMBAT engine at login. Default 0
+    // for now (existing Wander/Grind/Loot stay the default); flip to 1 once L2
+    // is verified, or enable per-bot via the agent interface (`adds rpg`).
+    bool rpgEnabled;
 
     // R7: quest pipeline — town→accept→objective-POI→turn-in loop (AC base
     // quest layer + NewRPG quest state machine, rewritten for our chassis).

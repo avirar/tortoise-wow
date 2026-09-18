@@ -20,6 +20,7 @@ class DpsAssistStrategy;
 class LootNonCombatStrategy;
 class DeadStrategy;
 class UseFoodStrategy;
+class RpgStrategy;
 
 class StrategyContext : public NamedObjectContext<Strategy>
 {
@@ -36,6 +37,7 @@ public:
         creators["loot"] = &StrategyContext::loot;
         creators["dead"] = &StrategyContext::dead;
         creators["food"] = &StrategyContext::food;
+        creators["rpg"] = &StrategyContext::rpg;
     }
 
 private:
@@ -49,6 +51,7 @@ private:
     static Strategy* loot(PlayerBotAI* botAI);
     static Strategy* dead(PlayerBotAI* botAI);
     static Strategy* food(PlayerBotAI* botAI);
+    static Strategy* rpg(PlayerBotAI* botAI);
 };
 
 #endif

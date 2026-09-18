@@ -15,6 +15,9 @@
 #include "Strategy/DeadStrategy.h"
 #include "Strategy/UseFoodStrategy.h"
 
+// R7 L2: RPG state machine
+#include "../World/Rpg/RpgStrategy.h"
+
 Strategy* StrategyContext::non_combat(PlayerBotAI* botAI) { return new NonCombatStrategy(botAI); }
 Strategy* StrategyContext::combat(PlayerBotAI* botAI) { return new CombatStrategy(botAI); }
 Strategy* StrategyContext::melee(PlayerBotAI* botAI) { return new MeleeCombatStrategy(botAI); }
@@ -25,3 +28,4 @@ Strategy* StrategyContext::dps_assist(PlayerBotAI* botAI) { return new DpsAssist
 Strategy* StrategyContext::loot(PlayerBotAI* botAI) { return new LootNonCombatStrategy(botAI); }
 Strategy* StrategyContext::dead(PlayerBotAI* botAI) { return new DeadStrategy(botAI); }
 Strategy* StrategyContext::food(PlayerBotAI* botAI) { return new UseFoodStrategy(botAI); }
+Strategy* StrategyContext::rpg(PlayerBotAI* botAI) { return new RpgStrategy(botAI); }

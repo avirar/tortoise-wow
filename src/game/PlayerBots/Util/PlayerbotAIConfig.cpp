@@ -73,6 +73,19 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     questLogMinFreeSlots = 2;                 // R7: AC OrganizeQuestLog free-slots trigger
     debugScoreDump = false;                   // R3a P1: one-time item score dump (first few bots)
 
+    // R7 L2: RPG state machine (AC NewRpgInfo / NewRpgBaseAction)
+    // Per-status auto-selection weight, indexed by RpgStatus:
+    //   RPG_IDLE=0, GO_GRIND=1, WANDER_RANDOM=3, DO_QUEST=5, REST=7 (rest=2)
+    rpgStatusProbWeight[RPG_IDLE] = 0.0f;
+    rpgStatusProbWeight[RPG_GO_GRIND] = 50.0f;
+    rpgStatusProbWeight[RPG_WANDER_RANDOM] = 30.0f;
+    rpgStatusProbWeight[RPG_DO_QUEST] = 0.0f;   // deferred to L3+
+    rpgStatusProbWeight[RPG_REST] = 10.0f;
+    rpgWanderRandomStatusMaxDuration = 300;      // AC: 5 min
+    rpgRestStatusMaxDuration = 30;               // AC: 30 s
+    rpgDoQuestStatusMaxDuration = 1800;          // AC: 30 min
+    rpgEnabled = false;                           // R7 L2: off until verified (or per-bot `adds rpg`)
+
     // Random
     randomChangeMultiplier = 1;
 
@@ -153,6 +166,16 @@ bool PlayerbotAIConfig::Initialize()
     questNoProgressSeconds = sConfig.GetIntDefault("PlayerBot.QuestNoProgressSeconds", questNoProgressSeconds);
     questLogMinFreeSlots = sConfig.GetIntDefault("PlayerBot.QuestLogMinFreeSlots", questLogMinFreeSlots);
     debugScoreDump = sConfig.GetBoolDefault("PlayerBot.DebugScoreDump", debugScoreDump);
+    // R7 L2: RPG state machine
+    rpgStatusProbWeight[RPG_IDLE] = sConfig.GetFloatDefault("PlayerBot.RpgIdleWeight", rpgStatusProbWeight[RPG_IDLE]);
+    rpgStatusProbWeight[RPG_GO_GRIND] = sConfig.GetFloatDefault("PlayerBot.RpgGoGrindWeight", rpgStatusProbWeight[RPG_GO_GRIND]);
+    rpgStatusProbWeight[RPG_WANDER_RANDOM] = sConfig.GetFloatDefault("PlayerBot.RpgWanderWeight", rpgStatusProbWeight[RPG_WANDER_RANDOM]);
+    rpgStatusProbWeight[RPG_DO_QUEST] = sConfig.GetFloatDefault("PlayerBot.RpgDoQuestWeight", rpgStatusProbWeight[RPG_DO_QUEST]);
+    rpgStatusProbWeight[RPG_REST] = sConfig.GetFloatDefault("PlayerBot.RpgRestWeight", rpgStatusProbWeight[RPG_REST]);
+    rpgWanderRandomStatusMaxDuration = sConfig.GetIntDefault("PlayerBot.RpgWanderMaxSeconds", rpgWanderRandomStatusMaxDuration);
+    rpgRestStatusMaxDuration = sConfig.GetIntDefault("PlayerBot.RpgRestMaxSeconds", rpgRestStatusMaxDuration);
+    rpgDoQuestStatusMaxDuration = sConfig.GetIntDefault("PlayerBot.RpgDoQuestMaxSeconds", rpgDoQuestStatusMaxDuration);
+    rpgEnabled = sConfig.GetBoolDefault("PlayerBot.RpgEnabled", rpgEnabled);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

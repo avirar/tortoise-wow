@@ -210,6 +210,8 @@ set (game_SRCS
     PlayerBots/Util/PlayerbotAIConfig.cpp
     PlayerBots/Util/PlayerTravelMgr.h
     PlayerBots/Util/PlayerTravelMgr.cpp
+    PlayerBots/Util/PlayerGrindMgr.h
+    PlayerBots/Util/PlayerGrindMgr.cpp
     PlayerBots/Util/PlayerQuestMgr.h
     PlayerBots/Util/PlayerQuestMgr.cpp
     PlayerBots/Util/Helpers.h
@@ -336,6 +338,14 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/LastMovementValue.cpp
     PlayerBots/Ai/World/PlayerRpgInfo.h
     PlayerBots/Ai/World/PlayerRpgInfo.cpp
+    PlayerBots/Ai/World/Rpg/RpgBaseAction.h
+    PlayerBots/Ai/World/Rpg/RpgBaseAction.cpp
+    PlayerBots/Ai/World/Rpg/RpgActions.h
+    PlayerBots/Ai/World/Rpg/RpgActions.cpp
+    PlayerBots/Ai/World/Rpg/RpgTriggers.h
+    PlayerBots/Ai/World/Rpg/RpgTriggers.cpp
+    PlayerBots/Ai/World/Rpg/RpgStrategy.h
+    PlayerBots/Ai/World/Rpg/RpgStrategy.cpp
     PlayerBots/Agent/BotStateSnapshot.h
     PlayerBots/Agent/BotStateSnapshot.cpp
     PlayerBots/Agent/BotCommandAPI.h
@@ -740,6 +750,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Trigger
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Value
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/World
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/World/Rpg
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior/Strategy
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warlock

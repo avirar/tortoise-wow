@@ -16,6 +16,9 @@
 #include "GrindingStrategy.h"
 #include "LootNonCombatStrategy.h"
 #include "DpsAssistStrategy.h"
+
+// R7 L2: RPG state machine
+#include "Rpg/RpgStrategy.h"
 #include "DeadStrategy.h"
 #include "PlayerbotAIConfig.h"
 
@@ -81,6 +84,16 @@ void PlayerbotAIBase::Initialize()
     grindStrategyActive = false;
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new DpsAssistStrategy(botAI));
     engines[BOT_STATE_NON_COMBAT]->AddStrategy(new LootNonCombatStrategy(botAI));
+    // R7 L2: RPG state machine (walk to grind spots, wander, rest). Gated by
+    // PlayerBot.RpgEnabled (default 0) until verified; can also be added per-bot
+    // at runtime via the agent interface (`adds rpg`). Composes with the existing
+    // grind/wander strategies: Rpg provides the "where to be" (walking), the base
+    // GrindingStrategy provides the "what to attack".
+    if (sPlayerbotAIConfig.rpgEnabled)
+    {
+        engines[BOT_STATE_NON_COMBAT]->AddStrategy(new RpgStrategy(botAI));
+        sLog.outInfo("playerbots: Rpg strategy added to %s (rpgEnabled=1)", botAI->me->GetName());
+    }
     engines[BOT_STATE_NON_COMBAT]->Init();
     LOG_DEBUG("playerbots", "[3ENGINE] NON_COMBAT engine done");
 

@@ -14,6 +14,9 @@
 #include "../Class/Paladin/PaladinActions.h"
 #include "Actions/SelfHealAction.h"
 
+// R7 L2: RPG state-machine actions
+#include "../World/Rpg/RpgActions.h"
+
 class ActionContext : public NamedObjectContext<Action>
 {
 public:
@@ -44,6 +47,10 @@ public:
         creators["food"] = &ActionContext::CreateEatAction;
         creators["drink"] = &ActionContext::CreateDrinkAction;
         creators["heal self"] = &ActionContext::CreateSelfHealAction;
+        // R7 L2: RPG state machine
+        creators["rpg status update"] = &ActionContext::CreateRpgStatusUpdateAction;
+        creators["rpg go grind"] = &ActionContext::CreateRpgGoGrindAction;
+        creators["rpg wander random"] = &ActionContext::CreateRpgWanderRandomAction;
         // === Warlock class actions ===
         creators["fear"] = &ActionContext::CreateCastFearAction;
         // === Paladin class actions ===
@@ -158,6 +165,10 @@ private:
 
 // === Self-heal (shared healer classes) ===
     static Action* CreateSelfHealAction(PlayerBotAI* botAI) { return new SelfHealAction(botAI); }
+    // R7 L2: RPG state machine
+    static Action* CreateRpgStatusUpdateAction(PlayerBotAI* botAI) { return new RpgStatusUpdateAction(botAI); }
+    static Action* CreateRpgGoGrindAction(PlayerBotAI* botAI) { return new RpgGoGrindAction(botAI); }
+    static Action* CreateRpgWanderRandomAction(PlayerBotAI* botAI) { return new RpgWanderRandomAction(botAI); }
 
 // === Warlock class action factories ===
     static Action* CreateCastFearAction(PlayerBotAI* botAI) { return new CastFearAction(botAI); }

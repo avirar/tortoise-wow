@@ -26,7 +26,10 @@ enum PlayerRpgStatus : int
     RPG_GO_GRIND = 1,
     RPG_WANDER_RANDOM = 3,
     RPG_DO_QUEST = 5,
-    RPG_REST = 7
+    RPG_REST = 7,
+    // Array bound for per-status weight/duration tables (R7 L2). Not a real
+    // status — kept at 8 (vanilla subset max + 1) so the indices 0..7 are valid.
+    RPG_MAX_STATUS = 8
 };
 
 class PlayerRpgInfo
