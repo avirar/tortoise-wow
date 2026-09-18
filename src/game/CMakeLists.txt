@@ -336,6 +336,10 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/LastMovementValue.cpp
     PlayerBots/Ai/World/PlayerRpgInfo.h
     PlayerBots/Ai/World/PlayerRpgInfo.cpp
+    PlayerBots/Agent/BotStateSnapshot.h
+    PlayerBots/Agent/BotStateSnapshot.cpp
+    PlayerBots/Agent/BotCommandAPI.h
+    PlayerBots/Agent/BotCommandAPI.cpp
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.h
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.cpp
     PlayerBots/Ai/Base/Strategy/WaitForAttackStrategy.h

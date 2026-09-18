@@ -355,6 +355,7 @@ class WorldSession
         WorldSocket* GetSocket() { return m_Socket; }
         SessionTransport GetTransport() const { return m_transport; }
         bool IsHeadless() const { return m_transport == SessionTransport::Headless; }
+        bool IsHeadlessLoginRequested() const { return m_headlessLoginRequested; }
         bool HasNetworkTransport() const { return m_transport == SessionTransport::Network && m_Socket != nullptr; }
         void SetFingerprintBanned() { m_fingerprintBanned = true; }
         bool IsFingerprintBanned() const { return m_fingerprintBanned; }

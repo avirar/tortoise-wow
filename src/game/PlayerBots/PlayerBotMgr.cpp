@@ -1,5 +1,9 @@
 #include "Common.h"
 #include <time.h>
+#include <dirent.h>
+#include <cstdio>
+#include <cstring>
+#include <string>
 #include "Policies/SingletonImp.h"
 #include "PlayerBotMgr.h"
 #include "Logging.h"
@@ -22,6 +26,8 @@
 #include "Bot/PlayerbotAIBase.h"
 #include "Util/PlayerbotAIConfig.h"
 #include "Util/PerfMonitor.h"
+#include "Agent/BotStateSnapshot.h"
+#include "Agent/BotCommandAPI.h"
 #include "Anticheat.h"
 #include "Log.h"
 #include "Logging.h"
@@ -441,6 +447,58 @@ void PlayerBotMgr::Update(uint32 diff)
     {
         m_lastStatsPrint = 0;
         PrintStats();
+    }
+
+    /* R6.1: agent interface — compact bots.json state dump (every 30s)
+       for the out-of-process agent to poll. Cheap (~30KB), gated by
+       PlayerBot.AgentStateFile. */
+    if (sPlayerbotAIConfig.agentStateFile)
+    {
+        m_lastStateDump += diff;
+        if (m_lastStateDump >= 30000)
+        {
+            m_lastStateDump = 0;
+            BotStateSnapshot::DumpStateFile();
+        }
+    }
+
+    /* R6.1: agent interface — file-command queue poll (every 5s).
+       Agent drops ../logs/botstate/commands/<bot>.cmd; result lands in
+       ../logs/botstate/results/<bot>.res. No console involved. */
+    if (sPlayerbotAIConfig.agentCmdFile)
+    {
+        m_lastAgentCmdPoll += diff;
+        if (m_lastAgentCmdPoll >= 5000)
+        {
+            m_lastAgentCmdPoll = 0;
+            PollAgentCommandFiles();
+        }
+    }
+
+    /* R6.1 DIAG: log online-but-out-of-world bots with their teleport flags
+       to pin the post-login world-drain mechanism (stuck mid-teleport?). */
+    m_lastOutOfWorldDiag += diff;
+    if (m_lastOutOfWorldDiag >= 60000)
+    {
+        m_lastOutOfWorldDiag = 0;
+        int owCount = 0;
+        for (auto it = GetBotsMap().begin(); it != GetBotsMap().end(); ++it)
+        {
+            PlayerBotEntry* e = it->second;
+            if (!e || e->state != PB_STATE_ONLINE || !e->ai)
+                continue;
+            Player* bot = e->ai->me;
+            if (!bot || bot->IsInWorld())
+                continue;
+            if (owCount < 25)
+                sLog.outInfo("playerbots: OUT-OF-WORLD bot guid=%u name=%s teleport=%d near=%d far=%d mapId=%u pos=(%.0f,%.0f,%.0f) alive=%d",
+                    bot->GetGUIDLow(), bot->GetName(), (int)bot->IsBeingTeleported(),
+                    (int)bot->IsBeingTeleportedNear(), (int)bot->IsBeingTeleportedFar(),
+                    (unsigned)bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), (int)bot->IsAlive());
+            ++owCount;
+        }
+        if (owCount > 25)
+            sLog.outInfo("playerbots: OUT-OF-WORLD total=%d (showing first 25)", owCount);
     }
 
     /* R7: quest pipeline (every 30s) — town→accept→objective-POI→turn-in
@@ -1014,6 +1072,95 @@ void PlayerBotMgr::PrintStats()
     LOG_DEBUG("playerbots", "Max bot level: %u", maxBotLevel);
 }
 
+// R6.1 agent interface: shared executor for one agent command.
+// botName = player name (or "list" for the roster). cmd = free-form command
+// understood by BotCommandAPI (state/move to x y z/attack guid/...). Returns
+// the result string and logs an info.log audit line. Console `agent` branch
+// and the file-command queue both call this.
+std::string PlayerBotMgr::ExecAgentCommand(const char* botName, std::string const& cmd)
+{
+    if (!botName || !*botName)
+        return "error: empty bot name";
+    if (!*cmd.c_str())
+        return "error: empty command";
+
+    // Special roster command (no bot lookup).
+    if (!strcasecmp(botName, "list"))
+        return BotStateSnapshot::BuildBotsListJson();
+
+    Player* bot = ObjectAccessor::FindPlayerByName(botName);
+    if (!bot)
+    {
+        sLog.outInfo("playerbots: agent cmd failed: %s (player not found)", botName);
+        return std::string("error: player not found: ") + botName;
+    }
+    std::string result = BotCommandAPI::Execute(bot, cmd);
+    sLog.outInfo("playerbots: agent %s [%s] -> %s", bot->GetName(), cmd.c_str(), result.c_str());
+    return result;
+}
+
+// R6.1 agent interface: file-command queue. The out-of-process agent drops a
+// file at ../logs/botstate/commands/<bot>.cmd whose contents are the command
+// text; we execute it here and write the reply to ../logs/botstate/results/
+// <bot>.res. Bypasses the world console entirely (no pty/FIFO/GM needed).
+// Gated by the caller (5s, PlayerBotMgr::Update).
+void PlayerBotMgr::PollAgentCommandFiles()
+{
+    const char* cmdDir = "../logs/botstate/commands";
+    const char* resDir = "../logs/botstate/results";
+    static bool dirsMade = false;
+    if (!dirsMade)
+    {
+        std::string mk = std::string("mkdir -p ") + cmdDir + " " + resDir;
+        system(mk.c_str());
+        dirsMade = true;
+    }
+
+    DIR* d = opendir(cmdDir);
+    if (!d)
+        return;
+
+    struct dirent* ent;
+    while ((ent = readdir(d)) != nullptr)
+    {
+        const char* fn = ent->d_name;
+        size_t n = strlen(fn);
+        if (n < 5 || strcmp(fn + n - 4, ".cmd") != 0)
+            continue;
+
+        std::string cmdPath = std::string(cmdDir) + "/" + fn;
+        std::string botName(fn, n - 4);          // strip .cmd
+
+        FILE* f = fopen(cmdPath.c_str(), "rb");
+        if (!f)
+            continue;
+        char buf[4096];
+        size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+        fclose(f);
+        buf[got] = '\0';
+
+        // Trim trailing newlines/whitespace from the command text.
+        while (got > 0 && (buf[got-1] == '\n' || buf[got-1] == '\r' || buf[got-1] == ' '))
+            buf[--got] = '\0';
+
+        std::string cmd(buf);
+        std::string result = ExecAgentCommand(botName.c_str(), cmd);
+
+        std::string resPath = std::string(resDir) + "/" + botName + ".res";
+        FILE* rf = fopen(resPath.c_str(), "wb");
+        if (rf)
+        {
+            fwrite(result.data(), 1, result.size(), rf);
+            fputc('\n', rf);
+            fclose(rf);
+        }
+
+        // Consume the command file (best-effort; ignore errors).
+        remove(cmdPath.c_str());
+    }
+    closedir(d);
+}
+
 // AC pattern: HandleConsoleCommand — ".playerbots rndbot stats" etc.
 bool PlayerBotMgr::HandleConsoleCommand(ChatHandler* handler, char* args)
 {
@@ -1073,6 +1220,50 @@ bool PlayerBotMgr::HandleConsoleCommand(ChatHandler* handler, char* args)
         }
         handler->PSendSysMessage("Usage: .playerbots pmon [tick|reset|toggle|stack]");
         return false;
+    }
+
+    // R6.1 agent interface: .playerbots agent <botName> <command...>
+    // Free-form command handled by BotCommandAPI (state/move/attack/cast/...).
+    // Also: .playerbots agent list  -> compact bots list JSON
+    if (!strcmp(cmd, "agent"))
+    {
+        if (!subcmd)
+        {
+            handler->PSendSysMessage("Usage: .playerbots agent <botName|list> [command...]");
+            handler->PSendSysMessage("  agent list               - compact all-bots JSON");
+            handler->PSendSysMessage("  agent <bot> <command>    - state|move to x y z|attack guid|cast id [guid]|loot|interact guid|accept id [giver]|turnin id [giver]|drop id|say text|stop|engine 0|1|2|bots");
+            return false;
+        }
+        if (!strcmp(subcmd, "list"))
+        {
+            handler->PSendSysMessage(BotStateSnapshot::BuildBotsListJson().c_str());
+            return true;
+        }
+        // Everything after the bot name is the command. Re-derive it from the
+        // original args (strtok state already consumed by the cmd/subcmd parse;
+        // strtok(nullptr, "") would be UB).
+        char* rest = args;
+        rest = strchr(rest, ' ');               // after "agent"
+        if (rest)
+        {
+            rest++;
+            while (*rest == ' ') rest++;
+        }
+        rest = rest ? strchr(rest, ' ') : nullptr;   // after the bot name
+        if (rest)
+        {
+            rest++;
+            while (*rest == ' ') rest++;
+        }
+        if (!rest || !*rest)
+        {
+            handler->PSendSysMessage("Usage: .playerbots agent <botName> <command...>");
+            return false;
+        }
+        // Shared executor (console + file queue): lookup, execute, audit-log.
+        std::string result = sPlayerBotMgr.ExecAgentCommand(subcmd, rest);
+        handler->PSendSysMessage(result.c_str());
+        return true;
     }
 
     if (!strcmp(cmd, "bot"))

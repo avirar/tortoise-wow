@@ -833,6 +833,13 @@ Player::Player(WorldSession *session) : Unit(),
 
 Player::~Player()
 {
+    // R6.1 DIAG: a bot (headless) Player object is being destroyed. This is
+    // the actual deletion point behind the post-login world-drain. Log it so
+    // we can see which bots are deleted and (via nearby logs) why.
+    if (m_session && m_session->IsHeadless())
+        sLog.outInfo("playerbots: Player DESTRUCTOR bot guid=%u name=%s inWorld=%d alive=%d",
+            GetGUIDLow(), GetName(), (int)IsInWorld(), (int)IsAlive());
+
     // Clear all pointers to this player in all zone scripts
     if (m_uint32Values)
         sZoneScriptMgr.OnPlayerGettingDestroyed(this);

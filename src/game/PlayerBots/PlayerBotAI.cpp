@@ -752,6 +752,38 @@ void PlayerBotAI::GiveFoodDrink()
 }
 
 // AC pattern: check if bot can move (not stunned, confused, fleeing, etc.)
+// AC mod-playerbots PlayerbotAI::DoSpecificAction (Bot/PlayerbotAI.cpp):
+// try the named action on each engine; first non-UNKNOWN result wins.
+// R6.1 agent interface entry point (spell-by-name, loot, follow, ...).
+bool PlayerBotAI::DoSpecificAction(std::string const& name, Event event, bool silent)
+{
+    (void) silent; // v1: no emote feedback for agent commands
+    if (!engine)
+        return false;
+
+    for (int i = 0; i < BOT_STATE_MAX; ++i)
+    {
+        Engine* e = engine->GetEngine((BotState)i);
+        if (!e)
+            continue;
+
+        ActionResult res = e->ExecuteAction(name, event);
+        switch (res)
+        {
+            case ACTION_RESULT_OK:
+                return true;
+            case ACTION_RESULT_IMPOSSIBLE:
+            case ACTION_RESULT_USELESS:
+            case ACTION_RESULT_FAILED:
+                return false; // first definitive answer wins
+            case ACTION_RESULT_UNKNOWN:
+            default:
+                break; // not registered on this engine — try next
+        }
+    }
+    return false;
+}
+
 bool PlayerBotAI::CanMove()
 {
     if (!me)

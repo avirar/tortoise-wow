@@ -108,6 +108,14 @@ class PlayerBotMgr
         // AC pattern: rndbot stats
         void PrintStats();
         static bool HandleConsoleCommand(ChatHandler* handler, char* args);
+
+        // R6.1 agent interface: enumerate bot entries (snapshot/list)
+        std::map<uint32, PlayerBotEntry*> const& GetBotsMap() const { return m_bots; }
+
+        // R6.1 agent interface: execute one agent command for a bot (shared
+        // by the console `agent` branch and the file-command queue).
+        // Returns the result string; logs an info.log audit line.
+        std::string ExecAgentCommand(const char* botName, std::string const& cmd);
     protected:
         /* Combien de temps depuis la derniere MaJ ?*/
         uint32 m_elapsedTime;
@@ -117,6 +125,10 @@ class PlayerBotMgr
         uint32 m_lastIdleSweep = 0;
         uint32 m_lastCombatSweep = 0;   // R5e: stale-combat breaker 30s gate
         uint32 m_lastQuestSweep = 0;    // R7: quest pipeline 30s gate
+        uint32 m_lastStateDump = 0;     // R6.1: agent state-file dump 30s gate
+        uint32 m_lastAgentCmdPoll = 0;  // R6.1: agent file-command queue 5s gate
+        uint32 m_lastOutOfWorldDiag = 0; // R6.1 DIAG: out-of-world bot diagnostic 60s gate
+        void PollAgentCommandFiles();   // R6.1: agent file-command queue poller
 
         // R5e: real travel — per-bot next-travel time (ms, m_elapsedTime
         // based). AC RandomPlayerbotMgr's 1-5h random teleport schedule.

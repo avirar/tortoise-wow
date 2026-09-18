@@ -350,12 +350,50 @@ void HeadlessSessionMgr::Update(uint32 diff)
     for (auto active = m_sessions.begin(); active != m_sessions.end(); )
     {
         WorldSession* session = active->second.session;
+
+        // R6.1 fix (bot world-drain): a headless bot has no client to send the
+        // world-port ACK (CMSG_MOVE_MAP_CHANGE_QUERY / MSG_MOVE_WORLDPORT_ACK)
+        // that completes a FAR (cross-map) teleport. ExecuteTeleportFar() removes
+        // the bot from its old map and sets IsBeingTeleportedFar(); without the
+        // ack the bot is never re-added to the destination map and sits out of
+        // the world forever (the ~40% post-login world-drain). Complete the far
+        // teleport server-side on the first tick after the flag is set. The
+        // no-arg overload creates the destination map, relocates + Add()s the
+        // player, and clears the flag. No-op unless actually mid-far-teleport.
+        if (Player* hp = session->GetPlayer())
+        {
+            if (hp->IsBeingTeleportedFar())
+            {
+                static uint32 s_lastFarTpLog = 0;
+                static int s_farTpCompletions = 0;
+                ++s_farTpCompletions;
+                uint32 now = WorldTimer::getMSTime();
+                if (now - s_lastFarTpLog >= 30000)
+                {
+                    sLog.outInfo("playerbots: completed %d headless far-teleport(s) since last log (guid=%u name=%s map=%u)",
+                        s_farTpCompletions, hp->GetGUIDLow(), hp->GetName(), (unsigned)hp->GetTeleportDest().mapId);
+                    s_farTpCompletions = 0;
+                    s_lastFarTpLog = now;
+                }
+                session->HandleMoveWorldportAckOpcode();
+            }
+        }
+
         WorldSessionFilter updater(session);
 
         session->AddActiveTime(diff);
         bool missingPlayer = !session->GetPlayer() && !session->PlayerLoading();
         if (missingPlayer || !session->Update(updater))
         {
+            // R6.1 DIAG: a bot session is being destroyed (player logged out /
+            // never materialized). Log exactly which bot and its state so the
+            // ~40% post-login world-drain can be root-caused.
+            Player* dbgPlayer = session->GetPlayer();
+            sLog.outInfo("playerbots: headless session DESTROYED guid=%u name=%s hadPlayer=%d missingPlayer=%d loading=%d loginRequested=%d",
+                active->second.characterGuid.GetCounter(),
+                dbgPlayer ? dbgPlayer->GetName() : "(none)",
+                (int)(dbgPlayer != nullptr), (int)missingPlayer,
+                (int)session->PlayerLoading(), (int)session->IsHeadlessLoginRequested());
             SessionEntry expired = active->second;
             active = m_sessions.erase(active);
             DestroySession(expired, true, true);

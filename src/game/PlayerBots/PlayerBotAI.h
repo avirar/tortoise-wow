@@ -4,6 +4,7 @@
 #include "PlayerAI.h"
 #include "WorldSession.h"
 #include "PlayerRpgInfo.h"
+#include "Event.h"
 #include <map>
 #include <queue>
 
@@ -45,6 +46,12 @@ class PlayerBotAI: public PlayerAI
         // Packet handling (AC ExternalEventHelper pattern)
         void HandlePacket(WorldPacket const& packet);
         void ProcessQueuedPackets();
+
+        // AC pattern: run one registered action by name on any engine
+        // (PlayerbotAI::DoSpecificAction, Bot/PlayerbotAI.cpp) — the R6.1
+        // agent interface drives spell/loot/follow commands through the
+        // existing engine actions.
+        bool DoSpecificAction(std::string const& name, Event event = Event(), bool silent = true);
 
         // Engine state switching (called from actions, matches AC pattern)
         void ChangeEngine(uint8 state);

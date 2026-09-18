@@ -13,6 +13,17 @@ class Unit;
 class TriggerNode;
 class Multiplier;
 
+// AC mod-playerbots Engine.h:24 — result of a by-name action execution
+// (R6.1 agent interface: PlayerbotAI::DoSpecificAction / BotCommandAPI).
+enum ActionResult
+{
+    ACTION_RESULT_UNKNOWN,
+    ACTION_RESULT_OK,
+    ACTION_RESULT_IMPOSSIBLE,
+    ACTION_RESULT_USELESS,
+    ACTION_RESULT_FAILED
+};
+
 class Engine
 {
 public:
@@ -24,6 +35,11 @@ public:
     void Reset();
 
     bool DoNextAction();
+    // AC Engine::ExecuteAction (Bot/Engine/Engine.cpp): run one registered
+    // action by name right now (isUseful/isPossible gated), outside the
+    // normal trigger/queue cycle. Used by the agent interface (R6.1) and
+    // the AC-style PlayerbotAI::DoSpecificAction.
+    ActionResult ExecuteAction(std::string const& name, Event event = Event(), std::string const& qualifier = "");
     void ProcessTriggers();
     void PushDefaultActions();
 

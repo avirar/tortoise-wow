@@ -36,6 +36,16 @@ public:
     // z-modification search budget.
     uint32 maxMovementSearchTime;
 
+    // R6.1: agent interface — dump compact bots.json every 30s for the
+    // out-of-process agent to poll. Default ON (cheap, ~30KB/30s).
+    bool agentStateFile;
+
+    // R6.1: agent interface — file-command queue. Agent drops
+    // server/logs/botstate/commands/<bot>.cmd; result in
+    // server/logs/botstate/results/<bot>.res (polled every 5s).
+    // Bypasses the world console. Default ON.
+    bool agentCmdFile;
+
     // Combat distances
     float sightDistance;
     float spellDistance;

@@ -15,6 +15,10 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     moveStuckTime = 90 * 1000;    // AC NewRpgBaseAction.h:76 (stuckTime = 90s)
     maxMovementSearchTime = 3;    // AC AiPlayerbot.MaxMovementSearchTime
 
+    // R6.1 agent interface
+    agentStateFile = true;
+    agentCmdFile = true;
+
     // Combat distances
     sightDistance = 150.f;
     spellDistance = 30.f;
@@ -103,6 +107,8 @@ bool PlayerbotAIConfig::Initialize()
     pathFinderDis = sConfig.GetFloatDefault("PlayerBot.PathFinderDis", pathFinderDis);
     moveStuckTime = sConfig.GetIntDefault("PlayerBot.MoveStuckTime", moveStuckTime);
     maxMovementSearchTime = sConfig.GetIntDefault("PlayerBot.MaxMovementSearchTime", maxMovementSearchTime);
+    agentStateFile = sConfig.GetBoolDefault("PlayerBot.AgentStateFile", agentStateFile);
+    agentCmdFile = sConfig.GetBoolDefault("PlayerBot.AgentCmdFile", agentCmdFile);
     dynamicReactDelay = sConfig.GetBoolDefault("PlayerBot.DynamicReactDelay", dynamicReactDelay);
 
     sightDistance = (float)sConfig.GetIntDefault("PlayerBot.SightDistance", (int)sightDistance);

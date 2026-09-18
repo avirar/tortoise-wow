@@ -211,6 +211,48 @@ bool Engine::DoNextAction()
     return actionExecuted;
 }
 
+// AC mod-playerbots Engine::ExecuteAction (Bot/Engine/Engine.cpp) — run one
+// registered action by name immediately, outside the trigger/queue cycle.
+// isUseful/isPossible are still enforced (a command that makes no sense for
+// the bot's current state is reported, not forced). R6.1 agent interface.
+ActionResult Engine::ExecuteAction(std::string const& name, Event event, std::string const& qualifier)
+{
+    bool result = false;
+
+    ActionNode* actionNode = CreateActionNode(name);
+    if (!actionNode)
+        return ACTION_RESULT_UNKNOWN;
+
+    Action* action = InitializeAction(actionNode);
+    if (!action)
+    {
+        delete actionNode;
+        return ACTION_RESULT_UNKNOWN;
+    }
+
+    if (!action->isUseful())
+    {
+        delete actionNode;
+        return ACTION_RESULT_USELESS;
+    }
+
+    if (!action->isPossible())
+    {
+        delete actionNode;
+        return ACTION_RESULT_IMPOSSIBLE;
+    }
+
+    PerfMonitorOperation* pmo = sPlayerbotPerfMonitor.start(PERF_MON_ACTION, action->getName(), &context->performanceStack);
+    result = action->Execute(event);
+    if (pmo) pmo->finish();
+
+    MultiplyAndPush(actionNode->getContinuers(), 0.0f, false, event);
+
+    delete actionNode;
+
+    return result ? ACTION_RESULT_OK : ACTION_RESULT_FAILED;
+}
+
 void Engine::ProcessTriggers()
 {
     std::unordered_map<Trigger*, Event> fires;
