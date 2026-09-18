@@ -18,7 +18,10 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "CellImpl.h"
+#include "Mgr/Item/StatsWeightCalculator.h"
+#include <map>
 #include <sstream>
+#include <ctime>
 
 bool LootAction::Execute([[maybe_unused]] Event event)
 {
@@ -325,19 +328,26 @@ bool StoreLootAction::Execute(Event event)
     return true;
 }
 
-bool EquipUpgradesAction::Execute([[maybe_unused]] Event event)
+// P3: calculator-based gear decisions (replaces ilvl*quality scoring).
+// Decision: instance-accurate StatsWeightCalculator score vs the equipped
+// item's score * equipUpgradeThreshold. Moves mirror the engine's own
+// HandleAutoEquipItemOpcode flow (empty slot: RemoveItem -> EquipItem;
+// occupied: CanUnequipItem -> CanStoreItem chain -> EquipItem -> StoreItem)
+// so the server's permission/consistency checks decide everything.
+namespace
 {
-    uint32 equippedCount = 0;
+    // The "often" trigger fires every tick while idle; a full bag sweep is
+    // O(bag x scoring) so throttle it per bot (30s). Cooldown is keyed by
+    // player low-guid; a sweep sets it even when nothing equips.
+    std::map<uint32, time_t> g_equipSweepLast;
+    const time_t EQUIP_SWEEP_COOLDOWN = 30;   // seconds
+    const uint32 EQUIP_SWEEP_MAX_ITEMS = 10;  // equips per sweep (bag state shifts)
 
-    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+    // Scan the bags and equip at most ONE upgrade. Returns true if it
+    // equipped something (caller re-scans: the old item moved into a bag
+    // slot, so later positions are shifted).
+    bool TryEquipOneUpgrade(Player* bot, StatsWeightCalculator& calculator, float threshold)
     {
-        Item* currentItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-        if (!currentItem)
-            continue;
-
-        ItemPrototype const* currentProto = currentItem->GetProto();
-        float currentScore = currentProto->ItemLevel * (currentProto->Quality + 1);
-
         for (uint8 bag = 1; bag < INVENTORY_SLOT_BAG_END; ++bag)
         {
             for (uint8 bagSlot = 0; bagSlot < MAX_BAG_SIZE; ++bagSlot)
@@ -346,60 +356,95 @@ bool EquipUpgradesAction::Execute([[maybe_unused]] Event event)
                 if (!bagItem)
                     continue;
 
-                ItemPrototype const* bagProto = bagItem->GetProto();
-                if (bagProto->InventoryType == INVTYPE_NON_EQUIP)
+                ItemPrototype const* proto = bagItem->GetProto();
+                if (proto->InventoryType == INVTYPE_NON_EQUIP || proto->InventoryType == INVTYPE_BAG)
+                    continue;
+                if (proto->Class != ITEM_CLASS_ARMOR && proto->Class != ITEM_CLASS_WEAPON)
+                    continue;
+                if (bot->CanUseItem(proto) != EQUIP_ERR_OK)
                     continue;
 
-                if (bot->CanUseItem(bagProto) != EQUIP_ERR_OK)
+                // Engine picks the slot (FindEquipSlot covers 2H/robe/shield/finger-2 etc.)
+                uint16 dest = 0;
+                if (bot->CanEquipItem(NULL_SLOT, dest, bagItem, true) != EQUIP_ERR_OK)
+                    continue;
+                if (dest == bagItem->GetPos())
                     continue;
 
-                uint8 targetSlot = NULL_SLOT;
-                switch (bagProto->InventoryType)
+                float newScore = calculator.CalculateItem(bagItem);
+                if (newScore <= 0.0f)
+                    continue;
+
+                uint8 dstSlot = dest & 255;  // equipment always lives in bag 0
+                Item* oldItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, dstSlot);
+                float oldScore = 0.0f;
+                if (oldItem)
                 {
-                    case INVTYPE_HEAD: targetSlot = EQUIPMENT_SLOT_HEAD; break;
-                    case INVTYPE_NECK: targetSlot = EQUIPMENT_SLOT_NECK; break;
-                    case INVTYPE_CLOAK: targetSlot = EQUIPMENT_SLOT_BACK; break;
-                    case INVTYPE_CHEST: targetSlot = EQUIPMENT_SLOT_CHEST; break;
-                    case INVTYPE_WAIST: targetSlot = EQUIPMENT_SLOT_WAIST; break;
-                    case INVTYPE_LEGS: targetSlot = EQUIPMENT_SLOT_LEGS; break;
-                    case INVTYPE_FEET: targetSlot = EQUIPMENT_SLOT_FEET; break;
-                    case INVTYPE_WRISTS: targetSlot = EQUIPMENT_SLOT_WRISTS; break;
-                    case INVTYPE_HANDS: targetSlot = EQUIPMENT_SLOT_HANDS; break;
-                    case INVTYPE_FINGER:
-                    case INVTYPE_TRINKET: targetSlot = EQUIPMENT_SLOT_FINGER1; break;
-                    case INVTYPE_WEAPONMAINHAND:
-                    case INVTYPE_2HWEAPON: targetSlot = EQUIPMENT_SLOT_MAINHAND; break;
-                    case INVTYPE_WEAPONOFFHAND: targetSlot = EQUIPMENT_SLOT_OFFHAND; break;
-                    case INVTYPE_RANGED: targetSlot = EQUIPMENT_SLOT_RANGED; break;
-                    default: continue;
+                    oldScore = calculator.CalculateItem(oldItem);
+                    if (newScore <= oldScore * threshold)
+                        continue;
                 }
 
-                if (targetSlot == NULL_SLOT)
-                    continue;
-
-                float bagScore = bagProto->ItemLevel * (bagProto->Quality + 1);
-
-                if (bagScore > currentScore * 1.1f)
+                // --- engine equip flow (HandleAutoEquipItemOpcode pattern) ---
+                if (!oldItem)
                 {
-                    uint16 dest = 0;
-                    InventoryResult invResult = bot->CanEquipItem(targetSlot, dest, bagItem, false);
-                    if (invResult == EQUIP_ERR_OK)
-                    {
-                        bot->EquipItem(dest, bagItem, true);
-                        LOG_DEBUG("playerbots", "EquipUpgrades: %s equipped %u '%s' (score %.1f > %.1f)",
-                            bot->GetName(), bagProto->ItemId, bagProto->Name1.c_str(), bagScore, currentScore);
-                        ++equippedCount;
-                        break;
-                    }
+                    bot->RemoveItem(bag, bagSlot, true);
+                    bot->EquipItem(dest, bagItem, true);
                 }
+                else
+                {
+                    uint8 dstBag = oldItem->GetBagSlot();
+                    uint8 dstPos = oldItem->GetSlot();
+                    if (bot->CanUnequipItem(dest, true) != EQUIP_ERR_OK)
+                        continue;
+
+                    ItemPosCountVec sSrc;
+                    InventoryResult msg = bot->CanStoreItem(bag, bagSlot, sSrc, oldItem, true);
+                    if (msg != EQUIP_ERR_OK)
+                        msg = bot->CanStoreItem(bag, NULL_SLOT, sSrc, oldItem, true);
+                    if (msg != EQUIP_ERR_OK)
+                        msg = bot->CanStoreItem(NULL_BAG, NULL_SLOT, sSrc, oldItem, true);
+                    if (msg != EQUIP_ERR_OK)
+                        continue;  // no room in the bags for the old item
+
+                    bot->RemoveItem(dstBag, dstPos, false);
+                    bot->RemoveItem(bag, bagSlot, false);
+                    bot->EquipItem(dest, bagItem, true);
+                    bot->StoreItem(sSrc, oldItem, true);
+                }
+                bot->AutoUnequipOffhandIfNeed();
+
+                sLog.outInfo("playerbots: %s equipped %u '%s' (score %.1f > %.1f, slot %u, ilvl %u q%u)",
+                    bot->GetName(), proto->ItemId, proto->Name1.c_str(),
+                    newScore, oldScore, dstSlot, proto->ItemLevel, proto->Quality);
+                return true;
             }
         }
+        return false;
     }
+}
 
-    if (equippedCount > 0)
-        LOG_DEBUG("playerbots", "EquipUpgrades: %s equipped %u items", bot->GetName(), equippedCount);
+bool EquipUpgradesAction::Execute([[maybe_unused]] Event event)
+{
+    if (!bot->IsAlive())
+        return false;
 
-    return equippedCount > 0;
+    // Per-bot sweep throttle (see namespace above).
+    uint32 key = bot->GetObjectGuid().GetCounter();
+    time_t now = time(NULL);
+    time_t& last = g_equipSweepLast[key];
+    if (now - last < EQUIP_SWEEP_COOLDOWN)
+        return false;
+    last = now;
+
+    float threshold = sPlayerbotAIConfig.equipUpgradeThreshold;
+    StatsWeightCalculator calculator(bot);
+
+    uint32 equipped = 0;
+    while (equipped < EQUIP_SWEEP_MAX_ITEMS && TryEquipOneUpgrade(bot, calculator, threshold))
+        ++equipped;
+
+    return equipped > 0;
 }
 
 bool AddAllLootAction::Execute([[maybe_unused]] Event event)

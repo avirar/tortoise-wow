@@ -7,6 +7,7 @@
 #include "SharedDefines.h"
 #include "SpellEntry.h"
 #include "SpellMgr.h"
+#include "SpellAuraDefines.h"
 #include "DBCStores.h"
 
 // Talent tab constants (vanilla: 3 trees per class)
@@ -213,6 +214,39 @@ float StatsWeightCalculator::ScoreItem(ItemPrototype const* proto, int32 instanc
         collector_->CollectRandomSuffixInstance(instanceSuffixId);
     else
         collector_->CollectRandomSuffix(proto);
+
+    // P2a: flat-% overflow — hit points beyond the class cap are worth 0
+    // (vanilla: melee 3%, ranged 3%, spell ~16%). The player's current
+    // hit = sum of the matching aura type over all auras (gear + base),
+    // so clip the item's hit credit to the still-valid points.
+    if (player_ && player_->IsAlive())
+    {
+        float cur = 0.0f, cap = 0.0f;
+        switch (type_)
+        {
+            case COLLECTOR_CASTER:
+            case COLLECTOR_HEALER:
+                cur = float(player_->GetTotalAuraModifier(SPELL_AURA_MOD_SPELL_HIT_CHANCE));
+                cap = SPELL_HIT_CAP;
+                break;
+            case COLLECTOR_RANGED:
+                cur = float(player_->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_RANGED_HIT_CHANCE));
+                cap = RANGED_HIT_CAP;
+                break;
+            default:
+                cur = float(player_->GetTotalAuraModifier(SPELL_AURA_MOD_HIT_CHANCE));
+                cap = MELEE_HIT_CAP;
+                break;
+        }
+        if (collector_->stats[STATS_TYPE_HIT] > 0.0f && cap > 0.0f)
+        {
+            float valid = cap - (cur < 0.0f ? 0.0f : cur);
+            if (valid < 0.0f)
+                valid = 0.0f;
+            if (collector_->stats[STATS_TYPE_HIT] > valid)
+                collector_->stats[STATS_TYPE_HIT] = valid;
+        }
+    }
 
     // Generate weights based on class/spec
     GenerateWeights(player_);
