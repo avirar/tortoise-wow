@@ -336,6 +336,8 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/StatsValues.cpp
     PlayerBots/Ai/Base/Value/LastMovementValue.h
     PlayerBots/Ai/Base/Value/LastMovementValue.cpp
+    PlayerBots/Ai/Base/Value/QuestValues.h
+    PlayerBots/Ai/Base/Value/QuestValues.cpp
     PlayerBots/Ai/World/PlayerRpgInfo.h
     PlayerBots/Ai/World/PlayerRpgInfo.cpp
     PlayerBots/Ai/World/Rpg/RpgBaseAction.h

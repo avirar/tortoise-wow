@@ -18,6 +18,7 @@
 #include "PlayerBotAI.h"
 #include "AiObjectContext.h"
 #include "Value/Value.h"
+#include "PlayerQuestMgr.h"
 #include "Logging.h"
 #include "Log.h"
 #include <sstream>
@@ -218,6 +219,40 @@ static const char* kBotStateDir = "../logs/botstate";
                 + ",\"rewarded\":" + (qsd.m_rewarded ? "true" : "false") + "}";
         }
     }
+
+    // R7 L3: quest DATA (free slots + nearest giver/taker/objective POIs) —
+    // the same PlayerQuestMgr cache the AI context values expose.
+    void AppendQuestData(std::string& out, Player* bot)
+    {
+        std::vector<PlayerQuestMgr::QuestDest> givers, takers, objectives;
+        uint8 freeSlots = PlayerQuestMgr::GetFreeQuestLogSlots(bot);
+        PlayerQuestMgr::GetActiveTakers(bot, takers);
+        PlayerQuestMgr::GetActiveObjectives(bot, objectives);
+        PlayerQuestMgr::GetNearbyGivers(bot, givers);
+
+        out += "\"freeSlots\":" + Num(freeSlots)
+             + ",\"givers\":" + Num((uint32)givers.size())
+             + ",\"takers\":" + Num((uint32)takers.size())
+             + ",\"objectives\":" + Num((uint32)objectives.size());
+        if (!takers.empty())
+        {
+            PlayerQuestMgr::QuestDest const& d = takers.front();
+            out += ",\"takerNearest\":{\"map\":" + Num(d.map) + ",\"entry\":" + Num(d.entry)
+                 + ",\"x\":" + Num(d.x, 1) + ",\"y\":" + Num(d.y, 1) + "}";
+        }
+        if (!objectives.empty())
+        {
+            PlayerQuestMgr::QuestDest const& d = objectives.front();
+            out += ",\"objectiveNearest\":{\"map\":" + Num(d.map) + ",\"entry\":" + Num(d.entry)
+                 + ",\"x\":" + Num(d.x, 1) + ",\"y\":" + Num(d.y, 1) + "}";
+        }
+        if (!givers.empty())
+        {
+            PlayerQuestMgr::QuestDest const& d = givers.front();
+            out += ",\"giverNearest\":{\"map\":" + Num(d.map) + ",\"entry\":" + Num(d.entry)
+                 + ",\"x\":" + Num(d.x, 1) + ",\"y\":" + Num(d.y, 1) + "}";
+        }
+    }
 }
 
 std::string BotStateSnapshot::BuildBotStateJson(Player* bot)
@@ -294,6 +329,11 @@ std::string BotStateSnapshot::BuildBotStateJson(Player* bot)
     std::string quests;
     AppendQuests(quests, bot);
     o << quests << "},";
+
+    o << "\"questdata\":{";
+    std::string qd;
+    AppendQuestData(qd, bot);
+    o << qd << "},";
 
     // Recent agent commands (BotCommandAPI history, R6.1)
     o << "\"commands\":" << BotCommandAPI::RecentCommandsJson(bot->GetObjectGuid().GetCounter()) << "}";

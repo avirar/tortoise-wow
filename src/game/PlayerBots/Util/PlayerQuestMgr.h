@@ -70,6 +70,17 @@ public:
     static uint32 GetObjectiveQuestCount() { return (uint32)s_objectives.size(); }
     static uint32 GetGiverEntryCount() { return (uint32)s_giverEntries.size(); }
 
+    // --- L3: AI-facing quest data (exposed as values; AC QuestValues parity).
+    // Free quest-log slots (0..MAX_QUEST_LOG_SIZE).
+    static uint8 GetFreeQuestLogSlots(Player const* bot);
+    // Objective POIs for all INCOMPLETE quests (kill objectives still to do),
+    // filtered to same map + zone + within questPoiMaxDist, nearest-first.
+    static void GetActiveObjectives(Player* bot, std::vector<QuestDest>& out);
+    // Taker POIs for all COMPLETE (not yet rewarded) quests, same filter, nearest-first.
+    static void GetActiveTakers(Player* bot, std::vector<QuestDest>& out);
+    // Nearby live givers offering a WorthAccepting quest (questAcceptRadius), nearest-first.
+    static void GetNearbyGivers(Player* bot, std::vector<QuestDest>& out);
+
     // Per-bot decision step (30s cadence from PlayerBotMgr::Update).
     // Full pipeline: validate state → COMPLETE→taker/turn-in →
     // INCOMPLETE→objective POI/no-progress → idle→log organize + accept.

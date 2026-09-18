@@ -27,6 +27,7 @@
 #include "PlayerBotAI.h"
 #include "Value/Value.h"
 #include "Mgr/Item/StatsWeightCalculator.h"
+#include <algorithm>
 
 // Statics
 bool PlayerQuestMgr::s_loaded = false;
@@ -72,10 +73,10 @@ void PlayerQuestMgr::Load()
     // (GO objectives are rare in the overworld pool — v1 is creatures only.)
     result = WorldDatabase.PQuery(
         "SELECT t.quest, t.objidx, c.map, c.position_x, c.position_y, c.position_z, c.id "
-        "FROM (SELECT id AS quest, 1 AS objidx, ReqCreatureOrGOId1 AS entry FROM quest_template WHERE ReqCreatureOrGOId1 > 0 "
-        "      UNION ALL SELECT id, 2, ReqCreatureOrGOId2 FROM quest_template WHERE ReqCreatureOrGOId2 > 0 "
-        "      UNION ALL SELECT id, 3, ReqCreatureOrGOId3 FROM quest_template WHERE ReqCreatureOrGOId3 > 0 "
-        "      UNION ALL SELECT id, 4, ReqCreatureOrGOId4 FROM quest_template WHERE ReqCreatureOrGOId4 > 0) t "
+        "FROM (SELECT entry AS quest, 0 AS objidx, ReqCreatureOrGOId1 AS entry FROM quest_template WHERE ReqCreatureOrGOId1 > 0 "
+        "      UNION ALL SELECT entry, 1, ReqCreatureOrGOId2 FROM quest_template WHERE ReqCreatureOrGOId2 > 0 "
+        "      UNION ALL SELECT entry, 2, ReqCreatureOrGOId3 FROM quest_template WHERE ReqCreatureOrGOId3 > 0 "
+        "      UNION ALL SELECT entry, 3, ReqCreatureOrGOId4 FROM quest_template WHERE ReqCreatureOrGOId4 > 0) t "
         "JOIN creature c ON c.id = t.entry "
         "WHERE c.map IN (0, 1)");
     if (result)
@@ -749,4 +750,149 @@ bool PlayerQuestMgr::HasActiveQuest(uint32 guidCounter)
 {
     std::map<uint32, BotQuestState>::const_iterator it = s_states.find(guidCounter);
     return it != s_states.end() && it->second.questId != 0;
+}
+
+/*
+ * L3: AI-facing quest data (exposed as values; AC QuestValues parity).
+ */
+namespace
+{
+    // Nearest-first sort by 2d distance to (bx,by).
+    struct QuestDestDistCmp
+    {
+        float bx, by;
+        QuestDestDistCmp(float x, float y) : bx(x), by(y) {}
+        bool operator()(PlayerQuestMgr::QuestDest const& a, PlayerQuestMgr::QuestDest const& b) const
+        {
+            float da = (a.x - bx) * (a.x - bx) + (a.y - by) * (a.y - by);
+            float db = (b.x - bx) * (b.x - bx) + (b.y - by) * (b.y - by);
+            return da < db;
+        }
+    };
+}
+
+uint8 PlayerQuestMgr::GetFreeQuestLogSlots(Player const* bot)
+{
+    uint32 free = 0;
+    for (uint16 slot = 0; slot < MAX_QUEST_LOG_SIZE; ++slot)
+        if (!bot->GetQuestSlotQuestId(slot))
+            ++free;
+    return (uint8)free;
+}
+
+void PlayerQuestMgr::GetActiveObjectives(Player* bot, std::vector<QuestDest>& out)
+{
+    out.clear();
+    if (!IsLoaded())
+        return;
+    float maxDist = (float)sPlayerbotAIConfig.questPoiMaxDist;
+    uint32 botMap = bot->GetMap() ? bot->GetMap()->GetId() : 0;
+    float bx = bot->GetPositionX(), by = bot->GetPositionY(), bz = bot->GetPositionZ();
+    QuestStatusMap const& qmap = bot->getQuestStatusMap();
+    for (QuestStatusMap::const_iterator it = qmap.begin(); it != qmap.end(); ++it)
+    {
+        if (it->second.m_status != QUEST_STATUS_INCOMPLETE)
+            continue;
+        Quest const* quest = sObjectMgr.GetQuestTemplate(it->first);
+        if (!quest)
+            continue;
+        std::map<uint32, std::map<uint8, std::vector<QuestDest> > >::const_iterator q =
+            s_objectives.find(it->first);
+        if (q == s_objectives.end())
+            continue;
+        for (std::map<uint8, std::vector<QuestDest> >::const_iterator obj = q->second.begin();
+             obj != q->second.end(); ++obj)
+        {
+            uint8 idx = obj->first;
+            // Only incomplete kill objectives (AC ActiveQuestObjectivesValue).
+            if (!(quest->ReqCreatureOrGOId[idx] > 0 &&
+                  quest->ReqCreatureOrGOCount[idx] > it->second.m_creatureOrGOcount[idx]))
+                continue;
+            for (std::vector<QuestDest>::const_iterator i = obj->second.begin(); i != obj->second.end(); ++i)
+            {
+                QuestDest const& d = *i;
+                if (PoiMatchesZone(d.map, d.x, d.y, d.z, maxDist, botMap, bx, by, bz))
+                    out.push_back(d);
+            }
+        }
+    }
+    std::sort(out.begin(), out.end(), QuestDestDistCmp(bx, by));
+}
+
+void PlayerQuestMgr::GetActiveTakers(Player* bot, std::vector<QuestDest>& out)
+{
+    out.clear();
+    if (!IsLoaded())
+        return;
+    float maxDist = (float)sPlayerbotAIConfig.questPoiMaxDist;
+    uint32 botMap = bot->GetMap() ? bot->GetMap()->GetId() : 0;
+    float bx = bot->GetPositionX(), by = bot->GetPositionY(), bz = bot->GetPositionZ();
+    QuestStatusMap const& qmap = bot->getQuestStatusMap();
+    for (QuestStatusMap::const_iterator it = qmap.begin(); it != qmap.end(); ++it)
+    {
+        if (it->second.m_status != QUEST_STATUS_COMPLETE || it->second.m_rewarded)
+            continue; // only complete & not yet rewarded
+        std::map<uint32, std::vector<QuestDest> >::const_iterator t = s_takers.find(it->first);
+        if (t == s_takers.end())
+            continue;
+        for (std::vector<QuestDest>::const_iterator i = t->second.begin(); i != t->second.end(); ++i)
+        {
+            QuestDest const& d = *i;
+            if (PoiMatchesZone(d.map, d.x, d.y, d.z, maxDist, botMap, bx, by, bz))
+                out.push_back(d);
+        }
+    }
+    std::sort(out.begin(), out.end(), QuestDestDistCmp(bx, by));
+}
+
+void PlayerQuestMgr::GetNearbyGivers(Player* bot, std::vector<QuestDest>& out)
+{
+    out.clear();
+    if (!IsLoaded())
+        return;
+    Map* botMap = bot->GetMap();
+    if (!botMap || botMap->IsDungeon())
+        return;
+
+    GiverScannerVisitor scanner;
+    scanner.Init(bot, &s_giverEntries, (float)sPlayerbotAIConfig.questAcceptRadius);
+    CellPair p(MaNGOS::ComputeCellPair(bot->GetPositionX(), bot->GetPositionY()));
+    Cell cell(p);
+    cell.SetNoCreate();
+    TypeContainerVisitor<GiverScannerVisitor, WorldTypeMapContainer> world_vis(scanner);
+    TypeContainerVisitor<GiverScannerVisitor, GridTypeMapContainer> grid_vis(scanner);
+    cell.Visit(p, world_vis, *botMap, *bot, (float)sPlayerbotAIConfig.questAcceptRadius);
+    cell.Visit(p, grid_vis, *botMap, *bot, (float)sPlayerbotAIConfig.questAcceptRadius);
+
+    for (std::vector<Creature*>::const_iterator i = scanner.candidates.begin(); i != scanner.candidates.end(); ++i)
+    {
+        Creature* giver = *i;
+        if (!giver || !giver->IsAlive())
+            continue;
+        bot->PrepareQuestMenu(giver->GetObjectGuid());
+        if (!bot->PlayerTalkClass || bot->PlayerTalkClass->GetQuestMenu().Empty())
+            continue;
+        bool worth = false;
+        for (uint8 idx = 0; idx < bot->PlayerTalkClass->GetQuestMenu().MenuItemCount(); ++idx)
+        {
+            uint32 qid = bot->PlayerTalkClass->GetQuestMenu().GetItem(idx).m_qId;
+            Quest const* quest = sObjectMgr.GetQuestTemplate(qid);
+            if (quest && WorthAccepting(bot, quest))
+            {
+                worth = true;
+                break;
+            }
+        }
+        if (worth)
+        {
+            QuestDest d;
+            d.map = botMap->GetId();
+            d.x = giver->GetPositionX();
+            d.y = giver->GetPositionY();
+            d.z = giver->GetPositionZ();
+            d.entry = giver->GetEntry();
+            out.push_back(d);
+        }
+    }
+    std::sort(out.begin(), out.end(), QuestDestDistCmp(bot->GetPositionX(), bot->GetPositionY()));
 }

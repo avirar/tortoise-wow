@@ -17,6 +17,7 @@
 #include "Value/SelfTargetValue.h"
 #include "Value/StatsValues.h"
 #include "Value/LastMovementValue.h"
+#include "Value/QuestValues.h"
 
 void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context)
 {
@@ -45,4 +46,9 @@ void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context
     context->AddValue(new IsDeadValue(botAI), "dead");
     context->AddValue(new LastMovementValue(botAI), "last movement");
     context->AddValue(new StayTimeValue(botAI), "stay time");
+    // R7 L3: quest data values (AC QuestValues parity).
+    context->AddValue(new FreeQuestLogSlotValue(botAI), "free quest log slots");
+    context->AddValue(new ActiveQuestGiversValue(botAI), "active quest givers");
+    context->AddValue(new ActiveQuestTakersValue(botAI), "active quest takers");
+    context->AddValue(new ActiveQuestObjectivesValue(botAI), "active quest objectives");
 }

@@ -179,8 +179,9 @@ void PlayerBotMgr::Load()
 
     // 2.6- R7: quest pipeline startup caches (takers / objective POIs /
     // giver entries — one-time SQL, same pattern as the travel hub cache).
-    if (sPlayerbotAIConfig.questEnabled)
-        PlayerQuestMgr::Load();
+    // L3: unconditional — the cache is the quest DATA layer; the quest ACTIONS
+    // (sweep/accept) stay gated by questEnabled. Load() is a no-op re-run guard.
+    PlayerQuestMgr::Load();
 
     // 3- Load usable account ID
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
