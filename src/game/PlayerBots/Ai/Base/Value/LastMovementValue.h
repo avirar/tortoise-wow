@@ -1,13 +1,24 @@
-#ifndef _PLAYERBOT_LASTMOVEMENTVALUE_H
-#define _PLAYERBOT_LASTMOVEMENTVALUE_H
+/*
+ * Faithful port of AC mod-playerbots LastMovementValue
+ * (azerothcore-wotlk modules/mod-playerbots src/Ai/Base/Value/LastMovementValue.h).
+ *
+ * Vanilla 1.18.1 reductions (documented in bot-master-plan.md R7):
+ * - AC WorldPosition (mapId+x,y,z) -> plain x,y,z floats: short moves are same-map.
+ * - WotLK walking-travel fields (TravelPath lastPath, std::future) removed;
+ *   walking travel is the R6 TravelSystem port.
+ * - taxiNodes/taxiMaster kept: taxi flight exists in this core (MoveTaxiFlight).
+ */
+
+#ifndef _PLAYERBOT_LAST_MOVEMENT_VALUE_H
+#define _PLAYERBOT_LAST_MOVEMENT_VALUE_H
 
 #include "Value.h"
-#include "Timer.h"
+#include "ObjectGuid.h"
+#include <vector>
 
-class PlayerBotAI;
 class Unit;
 
-// High priority movement can override the previous low priority one
+// AC pattern: higher-priority movement overrides lower-priority pending waits.
 enum class MovementPriority
 {
     MOVEMENT_IDLE,
@@ -20,46 +31,31 @@ enum class MovementPriority
 class LastMovement
 {
 public:
-    LastMovement() { clear(); }
+    LastMovement();
 
-    void clear()
-    {
-        lastMoveToMapId = 0;
-        lastMoveToX = 0;
-        lastMoveToY = 0;
-        lastMoveToZ = 0;
-        lastMoveToOri = 0;
-        lastFollow = nullptr;
-        msTime = 0;
-        priority = MovementPriority::MOVEMENT_NORMAL;
-    }
+    void clear();
+    void Set(uint32 mapId, float x, float y, float z, float ori, float delayTime,
+             MovementPriority priority = MovementPriority::MOVEMENT_NORMAL);
+    void Set(Unit* follow);
+    void setShort(float x, float y, float z);
 
-    void Set(Unit* follow)
-    {
-        Set(0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-        lastFollow = follow;
-    }
-
-    void Set(uint32 mapId, float x, float y, float z, float ori, float delayTime, MovementPriority pri = MovementPriority::MOVEMENT_NORMAL)
-    {
-        lastMoveToMapId = mapId;
-        lastMoveToX = x;
-        lastMoveToY = y;
-        lastMoveToZ = z;
-        lastMoveToOri = ori;
-        lastFollow = nullptr;
-        msTime = getMSTime();
-        priority = pri;
-    }
-
+    std::vector<uint32> taxiNodes;   // reserved: taxi path (R6)
+    ObjectGuid taxiMaster;
+    Unit* lastFollow;
+    uint32 lastAreaTrigger;
+    time_t lastFlee;
     uint32 lastMoveToMapId;
     float lastMoveToX;
     float lastMoveToY;
     float lastMoveToZ;
     float lastMoveToOri;
-    Unit* lastFollow;
+    float lastdelayTime;
+    float lastMoveShortX;
+    float lastMoveShortY;
+    float lastMoveShortZ;
     uint32 msTime;
     MovementPriority priority;
+    time_t nextTeleport;
 };
 
 class LastMovementValue : public ManualSetValue<LastMovement&>
@@ -69,6 +65,12 @@ public:
 
 private:
     LastMovement data;
+};
+
+class StayTimeValue : public ManualSetValue<time_t>
+{
+public:
+    StayTimeValue(PlayerBotAI* botAI) : ManualSetValue<time_t>(botAI, 0) {}
 };
 
 #endif

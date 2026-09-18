@@ -10,6 +10,11 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     maxWaitForMove = 10000;
     dynamicReactDelay = false;
 
+    // R7 L1: movement (AC defaults)
+    pathFinderDis = 70.0f;        // AC NewRpgBaseAction.h:68
+    moveStuckTime = 90 * 1000;    // AC NewRpgBaseAction.h:76 (stuckTime = 90s)
+    maxMovementSearchTime = 3;    // AC AiPlayerbot.MaxMovementSearchTime
+
     // Combat distances
     sightDistance = 150.f;
     spellDistance = 30.f;
@@ -53,6 +58,15 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     travelCityChancePct = 25;                 // AC probTeleToBankers 0.25
     travelPoiChancePct = 50;                  // R5e POI cache: 50% of local travel → quest POI
     staleCombatSeconds = 600;                 // R5e: 10 min of combat = stuck (typical kills are 30s-3min)
+    // R7: quest sweep OFF by default — ProcessBot is the rejected teleport
+    // pipeline (L1 walking movement is built; L2-L5 AI state machine that
+    // walks to quest givers/POIs is not wired yet). Enable only once the
+    // walking quest actions replace the sweep.
+    questEnabled = false;
+    questAcceptRadius = 80;                   // R7: nearby quest-giver scan range (yd)
+    questPoiMaxDist = 1500;                   // R7: max POI distance (AC: 1500yd same map+zone)
+    questNoProgressSeconds = 300;             // R7: 5 min at a POI with no progress → abandon
+    questLogMinFreeSlots = 2;                 // R7: AC OrganizeQuestLog free-slots trigger
     debugScoreDump = false;                   // R3a P1: one-time item score dump (first few bots)
 
     // Random
@@ -86,6 +100,9 @@ bool PlayerbotAIConfig::Initialize()
     expireActionTime = sConfig.GetIntDefault("PlayerBot.ExpireActionTime", expireActionTime);
     reactDelay = sConfig.GetIntDefault("PlayerBot.ReactDelay", reactDelay);
     maxWaitForMove = sConfig.GetIntDefault("PlayerBot.MaxWaitForMove", maxWaitForMove);
+    pathFinderDis = sConfig.GetFloatDefault("PlayerBot.PathFinderDis", pathFinderDis);
+    moveStuckTime = sConfig.GetIntDefault("PlayerBot.MoveStuckTime", moveStuckTime);
+    maxMovementSearchTime = sConfig.GetIntDefault("PlayerBot.MaxMovementSearchTime", maxMovementSearchTime);
     dynamicReactDelay = sConfig.GetBoolDefault("PlayerBot.DynamicReactDelay", dynamicReactDelay);
 
     sightDistance = (float)sConfig.GetIntDefault("PlayerBot.SightDistance", (int)sightDistance);
@@ -124,6 +141,11 @@ bool PlayerbotAIConfig::Initialize()
     travelCityChancePct = sConfig.GetIntDefault("PlayerBot.TravelCityChancePct", travelCityChancePct);
     travelPoiChancePct = sConfig.GetIntDefault("PlayerBot.TravelPoiChancePct", travelPoiChancePct);
     staleCombatSeconds = sConfig.GetIntDefault("PlayerBot.StaleCombatSeconds", staleCombatSeconds);
+    questEnabled = sConfig.GetBoolDefault("PlayerBot.QuestEnabled", questEnabled);
+    questAcceptRadius = sConfig.GetIntDefault("PlayerBot.QuestAcceptRadius", questAcceptRadius);
+    questPoiMaxDist = sConfig.GetIntDefault("PlayerBot.QuestPoiMaxDist", questPoiMaxDist);
+    questNoProgressSeconds = sConfig.GetIntDefault("PlayerBot.QuestNoProgressSeconds", questNoProgressSeconds);
+    questLogMinFreeSlots = sConfig.GetIntDefault("PlayerBot.QuestLogMinFreeSlots", questLogMinFreeSlots);
     debugScoreDump = sConfig.GetBoolDefault("PlayerBot.DebugScoreDump", debugScoreDump);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 

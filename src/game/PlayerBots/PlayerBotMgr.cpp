@@ -16,6 +16,7 @@
 #include "Bot/PlayerbotFactory.h"
 #include "Util/ServerFacade.h"
 #include "Util/PlayerTravelMgr.h"
+#include "Util/PlayerQuestMgr.h"
 #include "AiObjectContext.h"
 #include "Value/Value.h"
 #include "Bot/PlayerbotAIBase.h"
@@ -169,6 +170,11 @@ void PlayerBotMgr::Load()
         sWorld.ShutdownServ(1, SHUTDOWN_MASK_RESTART, SHUTDOWN_EXIT_CODE);
         return;
     }
+
+    // 2.6- R7: quest pipeline startup caches (takers / objective POIs /
+    // giver entries — one-time SQL, same pattern as the travel hub cache).
+    if (sPlayerbotAIConfig.questEnabled)
+        PlayerQuestMgr::Load();
 
     // 3- Load usable account ID
     LOG_DEBUG("playerbots", "[3ENGINE] PlayerBotMgr::Load() querying MAX(id)");
@@ -437,6 +443,27 @@ void PlayerBotMgr::Update(uint32 diff)
         PrintStats();
     }
 
+    /* R7: quest pipeline (every 30s) — town→accept→objective-POI→turn-in
+       loop (AC base quest layer + NewRPG state machine, rewritten: no
+       WorldPacketTrigger in this port, so PrepareQuestMenu polling +
+       proximity-gated CMSG replay). The existing grinding strategy does the
+       quest kills at the POI; this mgr only decides where to be and when to
+       talk. Skipped by the sweeps below while a bot chases a quest. */
+    m_lastQuestSweep += diff;
+    if (sPlayerbotAIConfig.questEnabled && m_lastQuestSweep >= 30000)
+    {
+        m_lastQuestSweep = 0;
+        for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
+        {
+            if (i->second->state != PB_STATE_ONLINE)
+                continue;
+            Player* bot = ObjectAccessor::FindPlayer(i->first);
+            if (!bot)
+                continue;
+            PlayerQuestMgr::ProcessBot(bot);
+        }
+    }
+
     /* R5d: idle-relocation sweep (every 30s) — bots marooned where nothing
        is XP-viable self-heal by teleporting back to a level-appropriate band
        spawn. Root cause it fixes: bots die, revive at a graveyard serving a
@@ -453,6 +480,11 @@ void PlayerBotMgr::Update(uint32 diff)
         {
             PlayerBotEntry* e = i->second;
             if (e->state != PB_STATE_ONLINE)
+                continue;
+
+            // R7: quest-active bots have a reason to be where they are —
+            // the quest no-progress abandon (5 min) is their self-heal.
+            if (PlayerQuestMgr::HasActiveQuest(i->first))
                 continue;
 
             Player* bot = ObjectAccessor::FindPlayer(i->first);
@@ -487,6 +519,8 @@ void PlayerBotMgr::Update(uint32 diff)
             if (!bot)
                 continue;
             std::map<uint32, time_t>::iterator cs = s_combatSince.find(i->first);
+            if (PlayerQuestMgr::HasActiveQuest(i->first))
+                continue; // R7: let the quest abandon (5 min) beat the breaker (10 min)
             if (bot->IsInCombat() && !bot->IsBeingTeleported())
             {
                 if (cs == s_combatSince.end())
@@ -527,6 +561,8 @@ void PlayerBotMgr::Update(uint32 diff)
                 continue;
 
             std::map<uint32, uint64_t>::iterator t = m_nextTravel.find(i->first);
+            if (PlayerQuestMgr::HasActiveQuest(i->first))
+                continue; // R7: quest chase owns the movement (travel fires when idle)
             uint64_t nowMs = m_elapsedTime;
             if (t == m_nextTravel.end())
             {

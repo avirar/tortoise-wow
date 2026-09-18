@@ -44,4 +44,5 @@ void BuildSharedBaseAiObjectContext(PlayerBotAI* botAI, AiObjectContext* context
     context->AddValue(new HasManaValue(botAI), "has mana");
     context->AddValue(new IsDeadValue(botAI), "dead");
     context->AddValue(new LastMovementValue(botAI), "last movement");
+    context->AddValue(new StayTimeValue(botAI), "stay time");
 }

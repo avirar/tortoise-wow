@@ -210,6 +210,8 @@ set (game_SRCS
     PlayerBots/Util/PlayerbotAIConfig.cpp
     PlayerBots/Util/PlayerTravelMgr.h
     PlayerBots/Util/PlayerTravelMgr.cpp
+    PlayerBots/Util/PlayerQuestMgr.h
+    PlayerBots/Util/PlayerQuestMgr.cpp
     PlayerBots/Util/Helpers.h
     PlayerBots/Util/Helpers.cpp
     PlayerBots/Util/PerfMonitor.h
@@ -331,6 +333,9 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/StatsValues.h
     PlayerBots/Ai/Base/Value/StatsValues.cpp
     PlayerBots/Ai/Base/Value/LastMovementValue.h
+    PlayerBots/Ai/Base/Value/LastMovementValue.cpp
+    PlayerBots/Ai/World/PlayerRpgInfo.h
+    PlayerBots/Ai/World/PlayerRpgInfo.cpp
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.h
     PlayerBots/Ai/Base/Strategy/UseFoodStrategy.cpp
     PlayerBots/Ai/Base/Strategy/WaitForAttackStrategy.h
@@ -730,6 +735,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Strategy
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Trigger
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Base/Value
+  ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/World
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warrior/Strategy
   ${CMAKE_CURRENT_SOURCE_DIR}/PlayerBots/Ai/Class/Warlock

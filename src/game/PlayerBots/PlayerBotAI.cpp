@@ -757,13 +757,44 @@ bool PlayerBotAI::CanMove()
     if (!me)
         return false;
 
+    // AC PlayerbotAI::CanMove (Bot/PlayerbotAI.cpp:6006) port; vanilla-reduced
+    // (no vehicle check — this core has no Unit::GetVehicle; no Spirit of
+    // Redemption check). AC's MM controlled-slot check -> explicit
+    // controlled-generator-type check on this core's MotionMaster.
     // AC: most common checks: confused, stunned, fleeing
     if (me->HasUnitState(UNIT_STAT_CONFUSED) || me->HasUnitState(UNIT_STAT_STUNNED) ||
-        me->HasUnitState(UNIT_STAT_FLEEING))
+        me->HasUnitState(UNIT_STAT_FLEEING) || me->HasUnitState(UNIT_STAT_LOST_CONTROL))
         return false;
 
     // Death state (w/o spirit release)
     if (me->IsDead() && !me->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+        return false;
+
+    // Common CC effects, ordered by frequency: rooted > charmed > frozen > polymorphed
+    if (me->IsRooted() || me->IsCharmed())
+        return false;
+    if (me->IsFrozen() || me->IsPolymorphed())
+        return false;
+
+    // MM-controlled movement (feared/confused/fleeing/home/assistance/charge)
+    switch (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
+    {
+        case CONFUSED_MOTION_TYPE:
+        case FLEEING_MOTION_TYPE:
+        case HOME_MOTION_TYPE:
+        case TIMED_FLEEING_MOTION_TYPE:
+        case ASSISTANCE_MOTION_TYPE:
+        case ASSISTANCE_DISTRACT_MOTION_TYPE:
+        case CHARGE_MOTION_TYPE:
+            return false;
+        default:
+            break;
+    }
+
+    // Traveling state: taxi flight and being teleported
+    if (me->HasUnitState(UNIT_STAT_TAXI_FLIGHT) ||
+        me->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE ||
+        me->IsBeingTeleported())
         return false;
 
     return true;

@@ -3,6 +3,7 @@
 
 #include "PlayerAI.h"
 #include "WorldSession.h"
+#include "PlayerRpgInfo.h"
 #include <map>
 #include <queue>
 
@@ -66,6 +67,9 @@ class PlayerBotAI: public PlayerAI
         uint32 _gearMaxDiff = 9;
         uint32 GetHighestKnownSpell(uint32 spellId) const;
         bool TargetHasAuraFromChain(Unit* target, uint32 spellId) const;
+
+        // AC NewRpgInfo (per-bot RPG state machine + MoveFarTo stuck tracking)
+        PlayerRpgInfo rpgInfo;
 
         PlayerbotAIBase* engine;
 };

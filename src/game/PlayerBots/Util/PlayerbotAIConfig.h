@@ -24,6 +24,18 @@ public:
     uint32 maxWaitForMove;
     bool dynamicReactDelay;
 
+    // R7 L1: movement (AC mod-playerbots MovementAction/NewRpgBaseAction)
+    // AC pathFinderDis (NewRpgBaseAction.h:68): straight-walk distance; beyond
+    // this MoveFarTo asks the pathfinder for a route.
+    float pathFinderDis;
+    // AC stuckTime (NewRpgBaseAction.h:76): no 5yd improvement toward the
+    // far destination for this long -> stuck-recovery teleport (the only
+    // sanctioned teleport in the RPG flow).
+    uint32 moveStuckTime;
+    // AC AiPlayerbot.MaxMovementSearchTime (default 3): SearchForBestPath
+    // z-modification search budget.
+    uint32 maxMovementSearchTime;
+
     // Combat distances
     float sightDistance;
     float spellDistance;
@@ -91,6 +103,14 @@ public:
     uint32 travelCityChancePct;
     uint32 travelPoiChancePct;   // non-city travel: quest-POI vs inn/flight/bank hub split
     uint32 staleCombatSeconds;   // R5e: combat longer than this is broken (stuck on unkillable mobs)
+
+    // R7: quest pipeline — town→accept→objective-POI→turn-in loop (AC base
+    // quest layer + NewRPG quest state machine, rewritten for our chassis).
+    bool questEnabled;
+    uint32 questAcceptRadius;      // yd — nearby quest-giver scan range
+    uint32 questPoiMaxDist;        // yd — max POI distance (same map + zone)
+    uint32 questNoProgressSeconds; // at a POI with zero objective progress → abandon
+    uint32 questLogMinFreeSlots;   // below this free-slot count the log is organized
 
     // R3a P1: one-time item score dump for the first few bots (verifies the
     // StatsWeightCalculator pipeline: base stats / item spells / green suffixes)
