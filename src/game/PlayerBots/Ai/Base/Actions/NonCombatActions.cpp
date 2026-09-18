@@ -93,7 +93,7 @@ bool EatAction::Execute(Event /*event*/)
     float hp = bot->GetHealthPercent();
     botAI->SetNextCheckDelay(std::max(10000u, static_cast<uint32>(27000.0f * (100 - hp) / 100.0f)));
 
-    LOG_DEBUG("playerbots", "%s [EatAction] using item %u '%s' (%.0f%% hp)", bot->GetName(), foodItem->GetEntry(), foodItem->GetProto()->Name1, hp);
+    LOG_DEBUG("playerbots", "%s [EatAction] using item %u '%s' (%.0f%% hp)", bot->GetName(), foodItem->GetEntry(), foodItem->GetProto()->Name1.c_str(), hp);
     return true;
 }
 
@@ -156,7 +156,7 @@ bool DrinkAction::Execute(Event /*event*/)
     float mp = bot->GetPowerPercent(POWER_MANA);
     botAI->SetNextCheckDelay(std::max(10000u, static_cast<uint32>(27000.0f * (100 - mp) / 100.0f)));
 
-    LOG_DEBUG("playerbots", "%s [DrinkAction] using item %u '%s' (%.0f%% mana)", bot->GetName(), drinkItem->GetEntry(), drinkItem->GetProto()->Name1, mp);
+    LOG_DEBUG("playerbots", "%s [DrinkAction] using item %u '%s' (%.0f%% mana)", bot->GetName(), drinkItem->GetEntry(), drinkItem->GetProto()->Name1.c_str(), mp);
     return true;
 }
 

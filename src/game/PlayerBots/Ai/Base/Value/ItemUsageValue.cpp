@@ -36,7 +36,7 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemPrototype const* proto)
     if (canUse != EQUIP_ERR_OK)
     {
         LOG_DEBUG("playerbots", "ItemUsage: %s CanUseItem failed for %u '%s' result=%d",
-            bot->GetName(), proto->ItemId, proto->Name1, canUse);
+            bot->GetName(), proto->ItemId, proto->Name1.c_str(), canUse);
         return ITEM_USAGE_NONE;
     }
 
@@ -75,7 +75,7 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemPrototype const* proto)
     if (itemScore <= 0.0f)
     {
         LOG_DEBUG("playerbots", "ItemUsage: %s score=%.2f for %u '%s' ilvl=%u quality=%u",
-            bot->GetName(), itemScore, proto->ItemId, proto->Name1, proto->ItemLevel, proto->Quality);
+            bot->GetName(), itemScore, proto->ItemId, proto->Name1.c_str(), proto->ItemLevel, proto->Quality);
         return ITEM_USAGE_NONE;
     }
 

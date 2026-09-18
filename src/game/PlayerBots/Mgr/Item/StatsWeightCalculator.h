@@ -5,6 +5,7 @@
 #include "Common.h"
 
 class Player;
+class Item;
 
 // Vanilla hit caps (raw percentages)
 enum HitCap
@@ -21,6 +22,9 @@ public:
     ~StatsWeightCalculator() { delete collector_; }
     void Reset();
     float CalculateItem(uint32 itemId, int32 randomPropertyId = 0);
+    // Instance-accurate: uses the item's already-rolled green suffix
+    // (Item::GetItemRandomPropertyId) instead of the class average
+    float CalculateItem(Item* item);
 
     // Role detection (vanilla: class-based, no formal spec system)
     static bool IsMelee(Player* player);
@@ -34,6 +38,7 @@ public:
 
 private:
     void GenerateWeights(Player* player);
+    float ScoreItem(ItemPrototype const* proto, int32 instanceSuffixId);
 
     Player* player_;
     CollectorType type_;

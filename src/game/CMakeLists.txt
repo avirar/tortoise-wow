@@ -314,6 +314,8 @@ set (game_SRCS
     PlayerBots/Ai/Base/Value/InCombatValue.cpp
     PlayerBots/Mgr/Item/StatsCollector.h
     PlayerBots/Mgr/Item/StatsCollector.cpp
+    PlayerBots/Mgr/Item/RandomSuffixCache.h
+    PlayerBots/Mgr/Item/RandomSuffixCache.cpp
     PlayerBots/Mgr/Item/StatsWeightCalculator.h
     PlayerBots/Mgr/Item/StatsWeightCalculator.cpp
     PlayerBots/Mgr/Item/LootObjectStack.h

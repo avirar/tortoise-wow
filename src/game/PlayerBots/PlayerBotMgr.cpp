@@ -24,6 +24,68 @@
 #include "Anticheat.h"
 #include "Log.h"
 #include "Logging.h"
+#include "Item.h"
+#include "ItemPrototype.h"
+#include "Mgr/Item/StatsWeightCalculator.h"
+#include <set>
+
+// ---------------------------------------------------------------------------
+// R3a P1: one-time item score dump (PlayerBot.DebugScoreDump)
+//
+// Verifies the StatsWeightCalculator pipeline end-to-end on live data:
+// base item stats, item-spell auras (flat % hit/crit, MOD_STAT index),
+// and green suffixes (chance-weighted class average; instance-exact when
+// the suffix is already rolled). Dumps the first 5 bots: up to 8 bag
+// items each (instance scoring) + 3 reference items (proto scoring):
+//   727    Notched Shortsword (ilvl 10, green, suffix class 5168)
+//   10030  Admiral's Hat      (ilvl 48, broken effect-35 spell — NEGATIVE
+//           control: should score floor-only, the engine applies nothing)
+//   20130  Diamond Flask      (ilvl 52, on-use +49 STR — 0.15x multiplier)
+//   3341   Gauntlets of Ogre Strength (ilvl 32 q2, +16 AP equip spell)
+//   3841   Golden Scale Shoulders     (ilvl 35 q3, +1% haste equip spell)
+// ---------------------------------------------------------------------------
+namespace
+{
+    std::set<std::string> s_scoreDumpedBots;
+
+    void DumpItemScores(Player* bot)
+    {
+        StatsWeightCalculator calculator(bot);
+        char const* name = bot->GetName();
+
+        sLog.outInfo("playerbots: scores: %s (lvl %u class %u) collector=%u",
+            name, bot->GetLevel(), bot->GetClass(), uint32(calculator.GetCollectorType()));
+
+        // Bag items (instance-accurate suffix scoring), max 8
+        uint32 dumped = 0;
+        for (uint8 bag = 0; bag < INVENTORY_SLOT_BAG_END && dumped < 8; ++bag)
+        {
+            for (uint8 slot = 0; slot < MAX_BAG_SIZE && dumped < 8; ++slot)
+            {
+                Item* item = bot->GetItemByPos(bag, slot);
+                if (!item)
+                    continue;
+                ItemPrototype const* proto = item->GetProto();
+                sLog.outInfo("playerbots: scores: %s bag %u '%s' (ilvl %u q%u) suffix=%d score=%.1f",
+                    name, proto->ItemId, proto->Name1.c_str(), proto->ItemLevel, proto->Quality,
+                    item->GetItemRandomPropertyId(), calculator.CalculateItem(item));
+                ++dumped;
+            }
+        }
+
+        // Reference items (proto-level, class-average suffixes)
+        static const uint32 refItems[] = { 727, 10030, 20130, 3341, 3841 };
+        for (size_t i = 0; i < sizeof(refItems) / sizeof(refItems[0]); ++i)
+        {
+            ItemPrototype const* proto = sObjectMgr.GetItemPrototype(refItems[i]);
+            if (!proto)
+                continue;
+            sLog.outInfo("playerbots: scores: %s ref %u '%s' (ilvl %u q%u) score=%.1f",
+                name, proto->ItemId, proto->Name1.c_str(), proto->ItemLevel, proto->Quality,
+                calculator.CalculateItem(proto->ItemId));
+        }
+    }
+}
 
 // Forward declaration (defined in CharacterHandler.cpp)
 class LoginQueryHolder;
@@ -259,6 +321,11 @@ void PlayerBotMgr::OnPlayerInWorld(Player* player)
         e->ai->SetPlayer(player);
         e->ai->OnPlayerLogin();
         LOG_DEBUG("playerbots", "[OnPlayerInWorld] AI initialized for bot '%s'", player->GetName());
+
+        // R3a P1: one-time score dump (first 5 bots) — PlayerBot.DebugScoreDump
+        if (sPlayerbotAIConfig.debugScoreDump && s_scoreDumpedBots.size() < 5 &&
+            s_scoreDumpedBots.insert(player->GetName()).second)
+            DumpItemScores(player);
     }
     else
     {

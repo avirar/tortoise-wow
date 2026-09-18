@@ -287,7 +287,7 @@ bool StoreLootAction::Execute(Event event)
 
         if (lootStrategy && !lootStrategy->CanLoot(proto))
         {
-            LOG_DEBUG("playerbots", "%s [StoreLootAction] skipped item %u '%s' (quality=%u)", bot->GetName(), iter->itemid, proto->Name1, proto->Quality);
+            LOG_DEBUG("playerbots", "%s [StoreLootAction] skipped item %u '%s' (quality=%u)", bot->GetName(), iter->itemid, proto->Name1.c_str(), proto->Quality);
             continue;
         }
 
@@ -303,7 +303,7 @@ bool StoreLootAction::Execute(Event event)
         bot->GetSession()->HandleAutostoreLootItemOpcode(pkt);
 
         LOG_DEBUG("playerbots", "StoreLoot: %s storing item %u '%s' count=%u",
-            bot->GetName(), iter->itemid, proto->Name1, iter->count);
+            bot->GetName(), iter->itemid, proto->Name1.c_str(), iter->count);
 
         // P2-3: no direct is_looted mutation — the opcode handler marks the
         // item looted server-side; trust the authoritative result.
@@ -387,7 +387,7 @@ bool EquipUpgradesAction::Execute([[maybe_unused]] Event event)
                     {
                         bot->EquipItem(dest, bagItem, true);
                         LOG_DEBUG("playerbots", "EquipUpgrades: %s equipped %u '%s' (score %.1f > %.1f)",
-                            bot->GetName(), bagProto->ItemId, bagProto->Name1, bagScore, currentScore);
+                            bot->GetName(), bagProto->ItemId, bagProto->Name1.c_str(), bagScore, currentScore);
                         ++equippedCount;
                         break;
                     }

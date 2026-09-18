@@ -92,6 +92,10 @@ public:
     uint32 travelPoiChancePct;   // non-city travel: quest-POI vs inn/flight/bank hub split
     uint32 staleCombatSeconds;   // R5e: combat longer than this is broken (stuck on unkillable mobs)
 
+    // R3a P1: one-time item score dump for the first few bots (verifies the
+    // StatsWeightCalculator pipeline: base stats / item spells / green suffixes)
+    bool debugScoreDump;
+
     // Random
     uint32 randomChangeMultiplier;
 

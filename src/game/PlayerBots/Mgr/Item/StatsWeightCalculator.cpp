@@ -1,6 +1,7 @@
 #include "StatsWeightCalculator.h"
 #include "../../Util/SpecDetect.h"
 #include "ItemPrototype.h"
+#include "Item.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "SharedDefines.h"
@@ -175,12 +176,29 @@ void StatsWeightCalculator::Reset()
         statsWeights_[i] = 0.0f;
 }
 
-float StatsWeightCalculator::CalculateItem(uint32 itemId, int32 /*randomPropertyId*/)
+float StatsWeightCalculator::CalculateItem(uint32 itemId, int32 randomPropertyId)
 {
     ItemPrototype const* proto = sObjectMgr.GetItemPrototype(itemId);
     if (!proto)
         return 0.0f;
 
+    // vanilla: a non-zero suffix id means an already-rolled instance suffix
+    // (ITEM_FIELD_RANDOM_PROPERTIES_ID) — score it exactly; otherwise the
+    // chance-weighted class average is used inside ScoreItem
+    return ScoreItem(proto, randomPropertyId);
+}
+
+float StatsWeightCalculator::CalculateItem(Item* item)
+{
+    ItemPrototype const* proto = item ? item->GetProto() : nullptr;
+    if (!proto)
+        return 0.0f;
+
+    return ScoreItem(proto, item->GetItemRandomPropertyId());
+}
+
+float StatsWeightCalculator::ScoreItem(ItemPrototype const* proto, int32 instanceSuffixId)
+{
     Reset();
 
     // Collect base stats from item
@@ -189,8 +207,12 @@ float StatsWeightCalculator::CalculateItem(uint32 itemId, int32 /*randomProperty
     // Collect stats from item spells (ON_EQUIP, ON_HIT, ON_USE)
     collector_->CollectItemSpells(proto);
 
-    // Collect random suffix stats (if any)
-    collector_->CollectRandomSuffix(proto);
+    // Collect random suffix stats: instance-accurate when the rolled
+    // suffix is known, else chance-weighted class average
+    if (instanceSuffixId > 0)
+        collector_->CollectRandomSuffixInstance(instanceSuffixId);
+    else
+        collector_->CollectRandomSuffix(proto);
 
     // Generate weights based on class/spec
     GenerateWeights(player_);
@@ -199,14 +221,16 @@ float StatsWeightCalculator::CalculateItem(uint32 itemId, int32 /*randomProperty
     for (uint32 i = 0; i < STATS_TYPE_MAX; ++i)
         weight_ += statsWeights_[i] * collector_->stats[i];
 
-    // Base score fallback: any equippable item has some value
-    // AC pattern: item level + quality provide minimum score
-    // This ensures low-level items (ilvl 1-5) with no stats still get equipped
-    if (weight_ <= 0.0f)
-    {
-        weight_ = proto->ItemLevel * 10.0f; // Base value from item level
-        weight_ += (proto->Quality + 1) * 5.0f; // Bonus from quality
-    }
+    // Score floor: any equippable item must score > 0 (ItemUsageValue
+    // treats score <= 0 as "never equip"), so low-level statless gray gear
+    // still gets equipped. Deliberately SMALL and ilvl-weak: the stat/
+    // armor/weapon-DPS weights must dominate. The old ilvl×10 REPLACE
+    // fallback drowned real stat scores at higher levels (a +9 INT hat
+    // scored 18 vs 490 for a statless hat of the same ilvl) and degenerated
+    // the whole calculator back to crude ilvl ranking.
+    float floor = 1.0f + float(proto->Quality) * 0.5f + float(proto->ItemLevel) * 0.05f;
+    if (weight_ < floor)
+        weight_ = floor;
 
     // Apply quality multiplier
     switch (proto->Quality)

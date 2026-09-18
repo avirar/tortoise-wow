@@ -53,6 +53,7 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     travelCityChancePct = 25;                 // AC probTeleToBankers 0.25
     travelPoiChancePct = 50;                  // R5e POI cache: 50% of local travel → quest POI
     staleCombatSeconds = 600;                 // R5e: 10 min of combat = stuck (typical kills are 30s-3min)
+    debugScoreDump = false;                   // R3a P1: one-time item score dump (first few bots)
 
     // Random
     randomChangeMultiplier = 1;
@@ -123,6 +124,7 @@ bool PlayerbotAIConfig::Initialize()
     travelCityChancePct = sConfig.GetIntDefault("PlayerBot.TravelCityChancePct", travelCityChancePct);
     travelPoiChancePct = sConfig.GetIntDefault("PlayerBot.TravelPoiChancePct", travelPoiChancePct);
     staleCombatSeconds = sConfig.GetIntDefault("PlayerBot.StaleCombatSeconds", staleCombatSeconds);
+    debugScoreDump = sConfig.GetBoolDefault("PlayerBot.DebugScoreDump", debugScoreDump);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

@@ -57,26 +57,46 @@ class StatsCollector
 public:
     StatsCollector(CollectorType type, uint8 cls = 0);
     void Reset();
-    
+
     // Collect stats from item prototype (base stats + armor + weapon DPS)
     void CollectItemStats(ItemPrototype const* proto);
-    
+
     // Collect stats from item spells (ON_EQUIP, ON_HIT, ON_USE)
     void CollectItemSpells(ItemPrototype const* proto);
-    
-    // Collect stats from random suffix (+X Strength green text)
+
+    // Collect green-suffix stats for a proto-only item: chance-weighted
+    // average over the item_enchantment_template roll class (instances
+    // roll one suffix, so the expected value is the mean — see
+    // RandomSuffixCache.h for the full vanilla suffix chain).
     void CollectRandomSuffix(ItemPrototype const* proto);
-    
-    // Collect stats from socket bonus
+
+    // Collect green-suffix stats for a concrete instance: the rolled
+    // suffix id (Item::GetItemRandomPropertyId), scored exactly.
+    void CollectRandomSuffixInstance(int32 randomPropertyId);
+
+    // Collect stats from one enchantment (suffix enchants and, later,
+    // applied perm enchants share this path).
+    void CollectEnchantStats(uint32 enchantId, float multiplier = 1.0f);
+
+    // Socket bonus: NO-OP by design — this data has no socket columns
+    // (item_template / ItemPrototype both lack them; vanilla socket DBC
+    // fields were not ported). Kept for signature parity.
     void CollectSocketBonus(ItemPrototype const* proto);
 
     float stats[STATS_TYPE_MAX];
 
 private:
     void CollectByItemStatType(uint32 itemStatType, int32 val);
-    void CollectSpellStats(uint32 spellId, float multiplier = 1.0f);
-    void CollectAuraStats(int32 auraType, int32 value, float multiplier);
-    
+    void CollectSpellStats(uint32 spellId, float multiplier);
+    void CollectAuraStats(int32 auraType, int32 value, int32 miscValue, float multiplier);
+
+    // Collector-type routing for hit/crit (primary family full weight,
+    // cross families at 0.2 — e.g. a survival hunter still gets partial
+    // credit for spell-hit gear rather than zero)
+    bool IsMeleeCollector() const;
+    bool IsRangedCollector() const;
+    bool IsCasterCollector() const;
+
     CollectorType type_;
     uint8 cls_;
 };
