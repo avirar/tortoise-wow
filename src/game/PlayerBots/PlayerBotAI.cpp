@@ -88,6 +88,38 @@ void PlayerBotAI::ChangeEngine(uint8 state)
         engine->ChangeEngine(static_cast<BotState>(state));
 }
 
+// AC PlayerbotAI::ChangeStrategy/ClearStrategies (mod-playerbots
+// Bot/PlayerbotAI.cpp:1583/1592) — forward to the per-state Engine.
+void PlayerBotAI::ChangeStrategy(std::string const& names, uint8 state)
+{
+    if (!engine)
+        return;
+    Engine* e = engine->GetEngine(static_cast<BotState>(state));
+    if (!e)
+        return;
+    e->ChangeStrategy(names);
+}
+
+void PlayerBotAI::ClearStrategies(uint8 state)
+{
+    if (!engine)
+        return;
+    Engine* e = engine->GetEngine(static_cast<BotState>(state));
+    if (!e)
+        return;
+    e->RemoveAllStrategies();
+}
+
+std::string PlayerBotAI::ListStrategies(uint8 state)
+{
+    if (!engine)
+        return "no engine";
+    Engine* e = engine->GetEngine(static_cast<BotState>(state));
+    if (!e)
+        return "no engine";
+    return e->ListStrategies();
+}
+
 void PlayerBotAI::HandlePacket(WorldPacket const& packet)
 {
     uint16 opcode = packet.GetOpcode();

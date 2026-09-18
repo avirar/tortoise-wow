@@ -466,6 +466,81 @@ bool Engine::RemoveStrategy(std::string const& name, bool init)
     return true;
 }
 
+// AC Engine::ChangeStrategy (mod-playerbots Bot/Engine/Engine.cpp): split on
+// ',' and dispatch on the prefix char. Rebuilds triggers via Init() so the
+// change takes effect immediately (the trigger list is derived from the
+// strategies map).
+void Engine::ChangeStrategy(std::string const& names)
+{
+    std::vector<std::string> tokens;
+    std::string cur;
+    for (std::string::const_iterator i = names.begin(); i != names.end(); ++i)
+    {
+        if (*i == ',')
+        {
+            if (!cur.empty()) { tokens.push_back(cur); cur.clear(); }
+            continue;
+        }
+        cur += *i;
+    }
+    if (!cur.empty())
+        tokens.push_back(cur);
+
+    for (size_t i = 0; i < tokens.size(); ++i)
+    {
+        std::string const& t = tokens[i];
+        if (t.empty())
+            continue;
+        switch (t[0])
+        {
+            case '+':
+                AddStrategy(t.substr(1));
+                break;
+            case '-':
+                RemoveStrategy(t.substr(1));
+                break;
+            case '~':
+                ToggleStrategy(t.substr(1));
+                break;
+            case '?':
+                // listing handled by the caller (ListStrategies)
+                break;
+            default:
+                AddStrategy(t);
+                break;
+        }
+    }
+}
+
+void Engine::ToggleStrategy(std::string const& name)
+{
+    if (!RemoveStrategy(name))
+        AddStrategy(name);
+}
+
+void Engine::RemoveAllStrategies()
+{
+    strategies.clear();
+    strategiesByType.clear();
+    Init();
+}
+
+std::string Engine::ListStrategies() const
+{
+    if (strategies.empty())
+        return "strategies: (none)";
+    std::string s = "strategies: ";
+    bool first = true;
+    for (std::map<std::string, Strategy*>::const_iterator i = strategies.begin(); i != strategies.end(); ++i)
+    {
+        if (!first)
+            s += ", ";
+        s += i->first;
+        first = false;
+    }
+    return s;
+}
+
 bool Engine::HasStrategy(uint32 type) const
 {
     for (std::map<std::string, Strategy*>::const_iterator i = strategies.begin(); i != strategies.end(); ++i)

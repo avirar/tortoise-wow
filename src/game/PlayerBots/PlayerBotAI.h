@@ -56,6 +56,13 @@ class PlayerBotAI: public PlayerAI
         // Engine state switching (called from actions, matches AC pattern)
         void ChangeEngine(uint8 state);
 
+        // AC PlayerbotAI::ChangeStrategy/ClearStrategies (mod-playerbots
+        // Bot/PlayerbotAI.cpp:1583) — runtime strategy add/remove/toggle for a
+        // given engine state, driven by the agent interface.
+        void ChangeStrategy(std::string const& names, uint8 state);
+        void ClearStrategies(uint8 state);
+        std::string ListStrategies(uint8 state);
+
         bool SpawnNewPlayer(WorldSession* sess, uint8 _class, uint32 _race, uint32 mapId, uint32 instanceId, float dx, float dy, float dz, float o);
         PlayerBotEntry* botEntry;
     protected:

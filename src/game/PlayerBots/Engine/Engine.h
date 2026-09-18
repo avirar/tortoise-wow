@@ -63,6 +63,15 @@ public:
 
     std::map<std::string, Strategy*> const& GetStrategies() const { return strategies; }
 
+    // AC Engine::ChangeStrategy — parse a comma list of +name / -name /
+    // ~name / ?name tokens and add/remove/toggle strategies at runtime,
+    // rebuilding the trigger list (Init) so the bot's behaviour changes
+    // immediately. Driven by the agent interface (adds/rms/toggles/clear).
+    void ChangeStrategy(std::string const& names);
+    void ToggleStrategy(std::string const& name);
+    void RemoveAllStrategies();
+    std::string ListStrategies() const;
+
 protected:
     ActionNode* CreateActionNode(std::string const& name);
     Action* InitializeAction(ActionNode* actionNode);

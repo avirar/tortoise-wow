@@ -13,6 +13,13 @@
  *    say <text>                   chat
  *    stop                         clear movement + target
  *    engine <0|1|2>               force engine state (debug)
+ *    strategies [state]           list a bot's strategies (AC ?name)
+ *    adds <n[,n...]> [state]      add strategies (AC +name)
+ *    rms <n[,n...]> [state]       remove strategies (AC -name)
+ *    toggles <n[,n...]> [state]   toggle strategies (AC ~name)
+ *    clear [all|state]            clear strategies (AC ClearStrategies)
+ *    teleport <x> <y> <z> [map]   manual placement (GM path; console is
+ *                                 unavailable for headless bots)
  *    bots                         compact all-bots JSON
  *
  *  Port context: AC mod-ollama-bot-buddy's BotBuddyAI (api.cpp) executes
@@ -58,6 +65,11 @@ private:
     static std::string CmdSay(Player* bot, const std::string& text);
     static std::string CmdStop(Player* bot);
     static std::string CmdEngine(Player* bot, const std::string& stateStr);
+    // AC mod-ollama-bot-buddy strategy control (adds/rms/toggles/strategies/clear)
+    static std::string CmdStrategies(Player* bot, const std::vector<std::string>& a);
+    static std::string CmdChangeStrategies(Player* bot, char prefix, const std::string& verb, const std::vector<std::string>& a);
+    static std::string CmdClearStrategies(Player* bot, const std::vector<std::string>& a);
+    static std::string CmdTeleport(Player* bot, const std::vector<std::string>& a);
 };
 
 #endif

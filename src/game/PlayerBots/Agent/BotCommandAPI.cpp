@@ -17,6 +17,8 @@
 #include "MovementGenerator.h"
 #include "ObjectAccessor.h"
 #include "Maps/Map.h"
+#include "Maps/MapManager.h"
+#include "GridMap.h"
 #include "Maps/CellImpl.h"
 #include "WorldSession.h"
 #include "Spells/Spell.h"
@@ -471,9 +473,26 @@ std::string BotCommandAPI::CmdAcceptTurnIn(Player* bot, const std::string& verb,
     // would be mis-read as HIGHGUID_PLAYER).
     pkt << c->GetObjectGuid() << questId;
     if (verb == "accept")
+    {
         session->HandleQuestgiverAcceptQuestOpcode(pkt);
+    }
     else
-        session->HandleQuestgiverCompleteQuest(pkt);
+    {
+        // turnin (vanilla server flow, two meaningful steps):
+        //   CMSG_QUESTGIVER_REQUEST_REWARD -> CompleteQuest + offer-reward
+        //   CMSG_QUESTGIVER_CHOOSE_REWARD  -> RewardQuest (grants XP/gold/items)
+        // (CMSG_QUESTGIVER_COMPLETE_QUEST only opens the hand-in-items dialog —
+        //  no state change — so it is not needed for the server-side replay.)
+        WorldPacket pktReward;
+        pktReward.SetOpcode(CMSG_QUESTGIVER_REQUEST_REWARD);
+        pktReward << c->GetObjectGuid() << questId;
+        session->HandleQuestgiverRequestRewardOpcode(pktReward);
+
+        WorldPacket pktChoose;
+        pktChoose.SetOpcode(CMSG_QUESTGIVER_CHOOSE_REWARD);
+        pktChoose << c->GetObjectGuid() << questId << uint32(0); // reward choice 0
+        session->HandleQuestgiverChooseRewardOpcode(pktChoose);
+    }
     return verb + " " + std::to_string(questId) + " sent (check quest state)";
 }
 
@@ -520,6 +539,142 @@ std::string BotCommandAPI::CmdEngine(Player* bot, const std::string& stateStr)
         return "usage: engine <0=combat|1=noncombat|2=dead>";
     e->ai->engine->ChangeEngine((BotState)s);
     return std::string("engine set to ") + stateStr;
+}
+
+// AC mod-ollama-bot-buddy strategy control (direct.cpp:204-260): the agent
+// can add/remove/toggle a bot's strategies at runtime. Removing the
+// movement strategies (wander/grind/loot) makes the bot stand still, so a
+// controlled test (or the LLM) can place it and drive a single action.
+namespace
+{
+    BotState ParseAgentBotState(std::string const& word, BotState def = BOT_STATE_NON_COMBAT)
+    {
+        std::string w = word;
+        std::transform(w.begin(), w.end(), w.begin(), ::tolower);
+        if (w == "combat" || w == "co" || w == "0") return BOT_STATE_COMBAT;
+        if (w == "noncombat" || w == "nc" || w == "1") return BOT_STATE_NON_COMBAT;
+        if (w == "dead" || w == "2") return BOT_STATE_DEAD;
+        return def;
+    }
+
+    char const* AgentBotStateWord(BotState st)
+    {
+        return st == BOT_STATE_COMBAT ? "combat" : (st == BOT_STATE_DEAD ? "dead" : "noncombat");
+    }
+
+    // Optional trailing state word (noncombat|nc|combat|co|dead|0|1|2) is
+    // stripped from the strategy-name token list.
+    void ExtractStateWord(std::vector<std::string>& tokens, BotState& st)
+    {
+        st = BOT_STATE_NON_COMBAT;
+        if (tokens.empty())
+            return;
+        std::string l = tokens.back();
+        std::transform(l.begin(), l.end(), l.begin(), ::tolower);
+        if (l == "noncombat" || l == "nc" || l == "combat" || l == "co" || l == "dead" || l == "0" || l == "1" || l == "2")
+        {
+            st = ParseAgentBotState(l);
+            tokens.pop_back();
+        }
+    }
+}
+
+std::string BotCommandAPI::CmdStrategies(Player* bot, const std::vector<std::string>& a)
+{
+    PlayerBotEntry* e = sPlayerBotMgr.GetBot(bot->GetObjectGuid().GetCounter());
+    if (!e || !e->ai)
+        return "not a bot";
+    BotState st = BOT_STATE_NON_COMBAT;
+    if (a.size() >= 2)
+        st = ParseAgentBotState(a[1], st);
+    return e->ai->ListStrategies(st);
+}
+
+std::string BotCommandAPI::CmdChangeStrategies(Player* bot, char prefix, const std::string& verb, const std::vector<std::string>& a)
+{
+    // a[0] = verb (adds/rms/toggles); the rest = strategy names [+ state word]
+    PlayerBotEntry* e = sPlayerBotMgr.GetBot(bot->GetObjectGuid().GetCounter());
+    if (!e || !e->ai)
+        return "not a bot";
+    std::vector<std::string> tokens(a.begin() + 1, a.end());
+    BotState st;
+    ExtractStateWord(tokens, st);
+    // Flatten: split each space-token on ',' so "wander,grind,loot" becomes 3
+    // names, then prefix EACH — otherwise only the first token would carry
+    // the +/~/- ("-wander,grind,loot" parses as remove wander + add grind +
+    // add loot).
+    std::vector<std::string> flat;
+    for (size_t i = 0; i < tokens.size(); ++i)
+    {
+        std::string cur;
+        for (std::string::const_iterator c = tokens[i].begin(); c != tokens[i].end(); ++c)
+        {
+            if (*c == ',') { if (!cur.empty()) flat.push_back(cur); cur.clear(); continue; }
+            cur += *c;
+        }
+        if (!cur.empty())
+            flat.push_back(cur);
+    }
+    if (flat.empty())
+        return verb + ": usage: " + verb + " <name[,name...]> [noncombat|combat|dead]";
+    std::string names, cmd;
+    for (size_t i = 0; i < flat.size(); ++i)
+    {
+        if (i) { names += ","; cmd += ","; }
+        names += flat[i];
+        cmd += std::string(1, prefix) + flat[i];
+    }
+    e->ai->ChangeStrategy(cmd, st);
+    std::string verbNoun = (prefix == '+') ? "added" : (prefix == '-' ? "removed" : "toggled");
+    return std::string(bot->GetName()) + ": " + verbNoun + " '" + names + "' in " + AgentBotStateWord(st) + " | " + e->ai->ListStrategies(st);
+}
+
+std::string BotCommandAPI::CmdClearStrategies(Player* bot, const std::vector<std::string>& a)
+{
+    PlayerBotEntry* e = sPlayerBotMgr.GetBot(bot->GetObjectGuid().GetCounter());
+    if (!e || !e->ai)
+        return "not a bot";
+    if (a.size() < 2 || a[1] == "all")
+    {
+        e->ai->ClearStrategies(BOT_STATE_COMBAT);
+        e->ai->ClearStrategies(BOT_STATE_NON_COMBAT);
+        e->ai->ClearStrategies(BOT_STATE_DEAD);
+        return std::string(bot->GetName()) + ": ALL strategies cleared (bot will do nothing until re-added)";
+    }
+    BotState st = ParseAgentBotState(a[1], BOT_STATE_NON_COMBAT);
+    e->ai->ClearStrategies(st);
+    return std::string(bot->GetName()) + ": cleared " + AgentBotStateWord(st) + " strategies";
+}
+
+// Manual placement (the world console is unavailable for headless bots, so
+// the agent interface is the GM path). Same guards as the relocation code:
+// real ground height + IsValidMapCoord before TeleportTo (throws on bad
+// coords).
+std::string BotCommandAPI::CmdTeleport(Player* bot, const std::vector<std::string>& a)
+{
+    if (a.size() < 4)
+        return "usage: teleport <x> <y> <z> [map]";
+    float x = (float)atof(a[1].c_str());
+    float y = (float)atof(a[2].c_str());
+    float z = (float)atof(a[3].c_str());
+    uint32 map = a.size() >= 5 ? (uint32)atol(a[4].c_str()) : bot->GetMapId();
+    if (std::isnan(x) || std::isnan(y) || std::isnan(z))
+        return "bad coordinates";
+    Map* targetMap = sMapMgr.FindMap(map);
+    if (targetMap)
+    {
+        float ground = targetMap->GetHeight(x, y, z);
+        z = (ground <= INVALID_HEIGHT) ? (z + 0.05f) : (ground + 0.05f);
+    }
+    if (!MapManager::IsValidMapCoord(map, x, y, z))
+        return "invalid coordinates for map " + std::to_string(map);
+    bot->GetMotionMaster()->Clear();
+    if (PlayerBotEntry* e = sPlayerBotMgr.GetBot(bot->GetObjectGuid().GetCounter()))
+        if (e->ai && e->ai->GetAiObjectContext())
+            e->ai->GetAiObjectContext()->GetValue<Unit*>("current target")->Set(nullptr);
+    if (!bot->TeleportTo(map, x, y, z, 0.0f))
+        return "teleport failed";
+    return std::string("teleported to map ") + std::to_string(map) + " (" + a[1] + "," + a[2] + "," + a[3] + ")";
 }
 
 // ------------------------------------------------------------------ dispatch
@@ -602,6 +757,27 @@ std::string BotCommandAPI::Execute(Player* bot, const std::string& cmdText)
         result = a.size() >= 2 ? CmdEngine(bot, a[1]) : "usage: engine <0|1|2>";
         Record(gl, cmd, result.find("usage") == std::string::npos && result.find("not a bot") == std::string::npos, result);
     }
+    else if (verb == "strategies")
+    {
+        result = CmdStrategies(bot, a);
+        Record(gl, cmd, result.find("not a bot") == std::string::npos, result);
+    }
+    else if (verb == "adds" || verb == "rms" || verb == "toggles")
+    {
+        char prefix = verb == "adds" ? '+' : (verb == "rms" ? '-' : '~');
+        result = CmdChangeStrategies(bot, prefix, verb, a);
+        Record(gl, cmd, result.find("usage") == std::string::npos && result.find("not a bot") == std::string::npos, result);
+    }
+    else if (verb == "clear")
+    {
+        result = CmdClearStrategies(bot, a);
+        Record(gl, cmd, result.find("not a bot") == std::string::npos, result);
+    }
+    else if (verb == "teleport")
+    {
+        result = CmdTeleport(bot, a);
+        Record(gl, cmd, result.find("bad") == std::string::npos && result.find("invalid") == std::string::npos && result.find("failed") == std::string::npos && result.find("usage") == std::string::npos, result);
+    }
     else if (verb == "bots")
     {
         result = BotStateSnapshot::BuildBotsListJson();
@@ -610,7 +786,7 @@ std::string BotCommandAPI::Execute(Player* bot, const std::string& cmdText)
     }
     else
     {
-        result = "unknown command: " + verb + " (state|move to|attack|cast|loot|interact|accept|turnin|drop|say|stop|engine|bots)";
+        result = "unknown command: " + verb + " (state|move to|attack|cast|loot|interact|accept|turnin|drop|say|stop|engine|strategies|adds|rms|toggles|clear|teleport|bots)";
         Record(gl, cmd, false, result);
     }
 
