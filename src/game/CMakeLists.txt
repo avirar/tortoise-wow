@@ -31,6 +31,8 @@ set (game_SRCS
     GMTicketMgr.cpp
     HeadlessSessionMgr.cpp
     HeadlessSessionMgr.h
+    ACSoap/ACSoap.cpp
+    ACSoap/ACSoap.h
     GossipDef.cpp
     PerformanceMonitor.cpp
     HardcodedEvents.cpp
@@ -831,6 +833,8 @@ source_group("HttpApi"
 )
 
 
+add_subdirectory(ACSoap/gsoap)
+
 add_library(game STATIC
   ${game_SRCS}
 )
@@ -841,6 +845,7 @@ SET_TARGET_PROPERTIES(game PROPERTIES FOLDER "Game Libs")
 target_link_libraries(game
   shared
   Detour
+  gsoap
 )
 
 if(WIN32)

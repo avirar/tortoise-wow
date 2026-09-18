@@ -6,6 +6,7 @@
 #include "Log.h"
 #include "Logging.h"
 #include "ObjectMgr.h"
+#include "Config/Config.h"
 #include "Player.h"
 #include "SharedDefines.h"
 #include "WorldSession.h"
@@ -645,23 +646,23 @@ void PlayerbotFactory::CleanupOldBots(std::string const& prefix)
 }
 
 // ============================================================================
-// Level distribution: weighted random from 1-60
-// ============================================================================
-// Distribution: more mid-level bots (20-40), fewer extreme levels
-// Brackets: 1-10 (10%), 11-20 (20%), 21-30 (25%), 31-40 (25%), 41-50 (15%), 51-60 (5%)
+// Level distribution: configurable range (default 1-1 = all level 1)
 // ============================================================================
 
 uint8 PlayerbotFactory::PickRandomLevel()
 {
-    // R5: distribute bots across the full 1-60 range so the world has
-    // level-1..60 players of every class. Mild low-level bias (exponent 1.6)
-    // for a natural population shape; ceil keeps 60 as a real top-of-range
-    // bucket (not a single-needle roll).
-    double r = (double)urand(0, 99999) / 99999.0;   // [0, 0.99999]
-    uint32 level = (uint32)std::ceil(60.0 * pow(r, 1.6));
-    if (level < 1)   level = 1;
-    if (level > 60)  level = 60;
-    return (uint8)level;
+    // R7 (2026-09-20, user direction): seed bots in a configurable level range
+    // so the world can start at the bottom and quest-level up. Default 1-1
+    // (all level 1) — the simple low-level kill/collect quests (L4/L5) drive
+    // progression. Widen via PlayerBot.FactoryLevelMin/Max (clamped to 1-60).
+    // (Replaces the old weighted 1-60 distribution.)
+    int32 minLvl = sConfig.GetIntDefault("PlayerBot.FactoryLevelMin", 1);
+    int32 maxLvl = sConfig.GetIntDefault("PlayerBot.FactoryLevelMax", minLvl);
+    if (minLvl < 1)   minLvl = 1;
+    if (minLvl > 60)  minLvl = 60;
+    if (maxLvl < minLvl) maxLvl = minLvl;
+    if (maxLvl > 60)  maxLvl = 60;
+    return (uint8)urand((uint32)minLvl, (uint32)maxLvl);
 }
 
 // R5e: band table hoisted to file scope so PickSpawnPosition (factory spawn)

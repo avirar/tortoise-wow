@@ -122,7 +122,6 @@ class PlayerBotMgr
         uint32 m_lastBotsRefresh;
         uint32 m_lastUpdate;
         uint32 m_lastStatsPrint;
-        uint32 m_lastIdleSweep = 0;
         uint32 m_lastCombatSweep = 0;   // R5e: stale-combat breaker 30s gate
         uint32 m_lastQuestSweep = 0;    // R7: quest pipeline 30s gate
         uint32 m_lastStateDump = 0;     // R6.1: agent state-file dump 30s gate

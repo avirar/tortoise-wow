@@ -52,8 +52,6 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     xpLevelPenalty = 4.0f;                    // R5c: y/level below bot (XP quality)
     contentionPenalty = 5.0f;                 // R5c: y per bot already on the target
     maxTargetLevelDiff = 4;                   // AC parity: never grind >+4 levels above us
-    relocateIdleEnabled = true;               // R5d: self-heal marooned bots
-    relocateIdleSeconds = 300;                // R5d/e: idle threshold (>= typical 2-5 min respawn so bots wait out dead spots instead of relocating)
 
     // R5e: real travel (AC RandomPlayerbotMgr: min/max 1-5h random travel)
     travelEnabled = true;
@@ -152,8 +150,6 @@ bool PlayerbotAIConfig::Initialize()
     xpLevelPenalty = sConfig.GetFloatDefault("PlayerBot.XPLevelPenalty", xpLevelPenalty);
     contentionPenalty = sConfig.GetFloatDefault("PlayerBot.ContentionPenalty", contentionPenalty);
     maxTargetLevelDiff = sConfig.GetIntDefault("PlayerBot.MaxTargetLevelDiff", maxTargetLevelDiff);
-    relocateIdleEnabled = sConfig.GetBoolDefault("PlayerBot.RelocateIdleEnabled", relocateIdleEnabled);
-    relocateIdleSeconds = sConfig.GetIntDefault("PlayerBot.RelocateIdleSeconds", relocateIdleSeconds);
     travelEnabled = sConfig.GetBoolDefault("PlayerBot.TravelEnabled", travelEnabled);
     travelMinSeconds = sConfig.GetIntDefault("PlayerBot.TravelMinSeconds", travelMinSeconds);
     travelMaxSeconds = sConfig.GetIntDefault("PlayerBot.TravelMaxSeconds", travelMaxSeconds);

@@ -45,6 +45,7 @@
 #include "Config/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "CliRunnable.h"
+#include "ACSoap/ACSoap.h"
 #include "Util.h"
 #include "MassMailMgr.h"
 #include "DBCStores.h"
@@ -222,6 +223,19 @@ int Master::Run()
     {
         ///- Launch CliRunnable thread
         cliThread = new std::thread(CliRunnable());
+    }
+
+    // R6.1 (2026-09-20): SOAP realtime command transport (AC ACSOAP port). HTTP
+    // SOAP endpoint exposing executeCommand(command) with account auth (username/
+    // password + rank >= SOAP.MinRank); commands queue to the world thread and the
+    // call awaits the result (realtime request/response). Gated by SOAP.Enabled
+    // (default 0); binds a separate port (SOAP.IP:SOAP.Port).
+    std::thread* soapThread = nullptr;
+    if (sConfig.GetBoolDefault("SOAP.Enabled", false))
+    {
+        std::string soapHost = sConfig.GetStringDefault("SOAP.IP", "127.0.0.1");
+        uint16 soapPort = (uint16)sConfig.GetIntDefault("SOAP.Port", 7878);
+        soapThread = new std::thread(ACSoapThread, soapHost, soapPort);
     }
 
     ///- Handle affinity for multiple processors and process priority on Windows

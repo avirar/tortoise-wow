@@ -523,41 +523,11 @@ void PlayerBotMgr::Update(uint32 diff)
         }
     }
 
-    /* R5d: idle-relocation sweep (every 30s) — bots marooned where nothing
-       is XP-viable self-heal by teleporting back to a level-appropriate band
-       spawn. Root cause it fixes: bots die, revive at a graveyard serving a
-       wide level range, and everything nearby is gray (IsHonorOrXPTarget
-       filters all) -> they idle stacked at the GY forever. Also covers
-       wandered-into-gray-zone cases. The clock only advances while the bot
-       is alive, on an overworld map, and its grind scans run and fail —
-       fighting/dead/instanced bots are never relocated. */
-    m_lastIdleSweep += diff;
-    if (sPlayerbotAIConfig.relocateIdleEnabled && m_lastIdleSweep >= 30000)
-    {
-        m_lastIdleSweep = 0;
-        for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
-        {
-            PlayerBotEntry* e = i->second;
-            if (e->state != PB_STATE_ONLINE)
-                continue;
-
-            // R7: quest-active bots have a reason to be where they are —
-            // the quest no-progress abandon (5 min) is their self-heal.
-            if (PlayerQuestMgr::HasActiveQuest(i->first))
-                continue;
-
-            Player* bot = ObjectAccessor::FindPlayer(i->first);
-            if (!bot || !bot->IsAlive() || bot->IsInCombat() || bot->IsBeingTeleported())
-                continue;
-            Map* bmap = bot->GetMap();
-            if (!bmap || bmap->IsDungeon() || bot->InBattleGround())
-                continue;
-            if (ServerFacade::SecondsWithoutViableGrindTarget(bot) < sPlayerbotAIConfig.relocateIdleSeconds)
-                continue;
-
-            RelocateBotToGrindSpot(bot, e, "idle");
-        }
-    }
+    // R5d idle-relocation sweep REMOVED (2026-09-20, user direction): it
+    // teleported bots after N seconds idle — invented behavior AC mod-playerbots
+    // does not do (AC bots WALK; teleport = stuck-recovery only, handled by the
+    // L1 MoveFarTo stuck rule + the stale-combat breaker below). Bots now rely
+    // on walking (R7 L2/L4/L5) + the travel system to reach viable spots.
 
     /* R5e: stale-combat breaker (every 30s) — bots locked in combat for
        staleCombatSeconds+ (unkillable city guards, elite camps, mob swarms

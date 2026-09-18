@@ -99,10 +99,28 @@ bool OpenLootAction::Execute([[maybe_unused]] Event event)
         return false;
     }
 
-    if (go && go->GetGoState() == GO_STATE_READY)
+    if (go)
     {
-        go->UseDoorOrButton();
-        return true;
+        GameObjectInfo const* info = go->GetGOInfo();
+        // R7 (2026-09-20): a ready chest with a loot template — open it via
+        // SendLoot (populates go->loot + sets the loot guid so StoreLootAction
+        // can autostore). UseDoorOrButton alone only animates (no loot).
+        if (info && info->type == GAMEOBJECT_TYPE_CHEST && info->GetLootId() > 0 &&
+            go->getLootState() == GO_READY && go->isSpawned())
+        {
+            bot->SendLoot(go->GetObjectGuid(), LOOT_CORPSE);
+            LOG_DEBUG("playerbots", "OpenLoot: %s looting GO chest entry %u (guid %s)",
+                bot->GetName(), go->GetEntry(), go->GetObjectGuid().GetString().c_str());
+            botAI->SetNextCheckDelay(sPlayerbotAIConfig.lootDelay);
+            return true;
+        }
+        // doors / buttons: animate only
+        if (go->GetGoState() == GO_STATE_READY)
+        {
+            go->UseDoorOrButton();
+            return true;
+        }
+        return false;
     }
 
     return false;
@@ -494,16 +512,39 @@ bool AddAllLootAction::Execute([[maybe_unused]] Event event)
         void Visit(PlayerMapType &m) {}
         void Visit(CorpseMapType &) {}
         void Visit(CameraMapType &) {}
-        void Visit(GameObjectMapType &) {}
+        void Visit(GameObjectMapType &m)
+        {
+            // R7 (2026-09-20): open-world chest looting. Any ready chest with a
+            // loot template that's in range + not too far above our level. This
+            // core's SendLoot (GO branch) does not enforce a chest lock, so
+            // locked (key/lockpick) chests are lootable too; a dedicated
+            // key/lockpick + gathering (mine/herb/skin) layer is a later phase.
+            for (GameObjectMapType::iterator itr = m.begin(); itr != m.end(); ++itr)
+            {
+                GameObject* go = itr->getSource();
+                if (!go) continue;
+                ++scanned;
+                GameObjectInfo const* info = go->GetGOInfo();
+                if (!info || info->type != GAMEOBJECT_TYPE_CHEST) { ++notLootable; continue; }
+                if (info->GetLootId() == 0) { ++notLootable; continue; }
+                if (go->getLootState() != GO_READY || !go->isSpawned()) { ++notLootable; continue; }
+                // skip chests way above our level (vanilla ~+10 norm; generous cap)
+                if (info->chest.level > 0 && info->chest.level > player->GetLevel() + 15) { ++tooFar; continue; }
+                float dist = player->GetDistance2d(go);
+                if (dist > scanRange) { ++tooFar; continue; }
+                lootStack->Add(go->GetGUID());
+                ++added;
+            }
+        }
         void Visit(DynamicObjectMapType &) {}
     } visitor(bot, stack, scanRange);
 
-    CellPair p(MaNGOS::ComputeCellPair(bot->GetPositionX(), bot->GetPositionY()));
-    Cell cell(p);
-    cell.SetNoCreate();
-
-    TypeContainerVisitor<LootableCorpseVisitor, WorldTypeMapContainer> world_vis(visitor);
-    cell.Visit(p, world_vis, *map, *bot, scanRange);
+    // R7 (2026-09-20): visit the GRID objects (AllGridObjectTypes = GameObject,
+    // Creature, DynamicObject, Corpse) so the chest GO visitor fires. The previous
+    // WorldTypeMapContainer visit only covered world objects (Player/Creature/
+    // Corpse/Camera) and never called Visit(GameObjectMapType), so open-world
+    // chests were never added to the loot stack (GO looting was dead).
+    Cell::VisitGridObjects(bot, visitor, scanRange, true);
 
     if (visitor.scanned > 0)
         LOG_DEBUG("playerbots", "AddAllLoot: %s scanned=%u alive=%u dead=%u notLootable=%u tooFar=%u added=%u",

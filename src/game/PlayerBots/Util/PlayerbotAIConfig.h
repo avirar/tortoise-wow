@@ -99,12 +99,6 @@ public:
     // 4 = AC parity (red mobs +5.. slaughter fresh low-level bots).
     uint32 maxTargetLevelDiff;
 
-    // R5d: self-healing relocation — bots with no viable grind target for
-    // this many seconds (alive, overworld, not fighting) teleport back to a
-    // level-appropriate band spawn. Fixes graveyard-stacked idlers.
-    bool relocateIdleEnabled;
-    uint32 relocateIdleSeconds;
-
     // R5e: real travel (AC RandomPlayerbotMgr pattern) — periodic random
     // travel to real innkeeper/flight/bank hubs, every 1-5h. 25% chance to
     // a city/banker (refreshes the homebind there).
