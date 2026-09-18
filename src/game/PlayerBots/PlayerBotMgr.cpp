@@ -1,4 +1,5 @@
 #include "Common.h"
+#include <time.h>
 #include "Policies/SingletonImp.h"
 #include "PlayerBotMgr.h"
 #include "Logging.h"
@@ -14,6 +15,7 @@
 #include "PlayerBotAI.h"
 #include "Bot/PlayerbotFactory.h"
 #include "Util/ServerFacade.h"
+#include "Util/PlayerTravelMgr.h"
 #include "AiObjectContext.h"
 #include "Value/Value.h"
 #include "Bot/PlayerbotAIBase.h"
@@ -264,6 +266,68 @@ void PlayerBotMgr::OnPlayerInWorld(Player* player)
     }
 }
 
+// R5e.2: emergency relocation — teleport a bot to a level/faction-matched
+// TOWN (the same destination pool as scheduled travel: 25% city / 50% quest
+// POI / rest inn-flight-bank hubs). R5e.2 retired the old mob-anchored
+// relocation (land next to a hostile mob's spawn) after the night-verify: a
+// lvl-12 bot was dropped into a Venture Co lvl-14-17 camp and ping-ponged.
+// The town pool is level-matched (±5/±2 brackets) so the ambient mobs around
+// the landing are grindable. Last-resort fallback: band anchor + ±150 +
+// real ground height. Clears the stale "current target" via the shared
+// context (NEVER Engine::Reset — it deletes strategies/triggers) and resets
+// the relocation grace clock at the new spot.
+static bool RelocateBotToGrindSpot(Player* bot, PlayerBotEntry* e, const char* why, bool allowCity = true)
+{
+    PlayerTravelMgr::TravelDest dest;
+    if (PlayerTravelMgr::PickDestination(bot, dest, allowCity))
+    {
+        float x = dest.x + (float)((int)urand(0, 60) - 30);
+        float y = dest.y + (float)((int)urand(0, 60) - 30);
+        float z = dest.z;
+        Map* targetMap = sMapMgr.FindMap(dest.map);
+        if (targetMap)
+            z = targetMap->GetHeight(x, y, dest.z);
+        if (!MapManager::IsValidMapCoord(dest.map, x, y, z))
+            return false; // never crash in TeleportTo (throws on bad coords)
+        if (!bot->TeleportTo(dest.map, x, y, z, 0.0f))
+            return false;
+        if (e->ai)
+            if (AiObjectContext* ctx = e->ai->GetAiObjectContext())
+                ctx->GetValue<Unit*>("current target")->Set(nullptr);
+        ServerFacade::MarkViableGrindTargetSeen(bot);  // fresh grace window at the new spot
+        sLog.outInfo("playerbots: relocated %s bot %s (lvl %u) to %s %u (map %u %.0f,%.0f,%.0f)",
+            why, bot->GetName(), bot->GetLevel(), dest.reason, dest.entry, dest.map, x, y, z);
+        return true;
+    }
+
+    // No level-matched town (band gap) — last resort: band anchor + real
+    // ground height (a table z is only valid at the anchor).
+    PlayerbotFactory::BotSpawnPoint sp = PlayerbotFactory::PickSpawnPosition(bot->GetLevel(), bot->GetRace());
+    uint32 tMap = sp.map;
+    float x = sp.x + (float)irand(-150, 150);
+    float y = sp.y + (float)irand(-150, 150);
+    float z = sp.z;
+    Map* targetMap = sMapMgr.FindMap(tMap);
+    if (targetMap)
+        z = targetMap->GetHeight(x, y, sp.z);
+    if (!MapManager::IsValidMapCoord(tMap, x, y, z))
+        return false;
+    if (!bot->TeleportTo(tMap, x, y, z, 0.0f))
+        return false;
+    if (e->ai)
+        if (AiObjectContext* ctx = e->ai->GetAiObjectContext())
+            ctx->GetValue<Unit*>("current target")->Set(nullptr);
+    ServerFacade::MarkViableGrindTargetSeen(bot);
+    sLog.outInfo("playerbots: relocated %s bot %s (lvl %u) to band spawn (map %u %.0f,%.0f,%.0f)",
+        why, bot->GetName(), bot->GetLevel(), tMap, x, y, z);
+    return true;
+}
+
+// R5e stale-combat breaker clock: seconds since each bot entered its current
+// combat streak. File-scope like ServerFacade's idle clock; pruned against
+// m_bots so it can't outlive the population.
+static std::map<uint32, time_t> s_combatSince;
+
 void PlayerBotMgr::Update(uint32 diff)
 {
     // Bots temporaires
@@ -333,26 +397,91 @@ void PlayerBotMgr::Update(uint32 diff)
             if (ServerFacade::SecondsWithoutViableGrindTarget(bot) < sPlayerbotAIConfig.relocateIdleSeconds)
                 continue;
 
-            PlayerbotFactory::BotSpawnPoint sp = PlayerbotFactory::PickSpawnPosition(bot->GetLevel(), bot->GetRace());
-            float x = sp.x + (float)irand(-400, 400);
-            float y = sp.y + (float)irand(-400, 400);
-            if (bot->TeleportTo(sp.map, x, y, sp.z, 0.0f))
-            {
-                // Clear the stale "current target": a bot teleported away from
-                // an unreachable target would keep chasing it and never rescan
-                // (ping-pong relocation). Do NOT call Engine::Reset() here —
-                // it deletes all strategies/triggers and leaves the engine
-                // bricked until Init() re-runs (our 3-engine port). The shared
-                // context value clear is sufficient and safe (same thing
-                // DropTargetAction does).
-                if (e->ai)
-                    if (AiObjectContext* ctx = e->ai->GetAiObjectContext())
-                        ctx->GetValue<Unit*>("current target")->Set(nullptr);
-                ServerFacade::MarkViableGrindTargetSeen(bot);  // fresh grace window at the new spot
-                sLog.outInfo("playerbots: relocated idle bot %s (lvl %u) to band spawn (map %u %.0f,%.0f,%.0f)",
-                    bot->GetName(), bot->GetLevel(), sp.map, x, y, sp.z);
-            }
+            RelocateBotToGrindSpot(bot, e, "idle");
         }
+    }
+
+    /* R5e: stale-combat breaker (every 30s) — bots locked in combat for
+       staleCombatSeconds+ (unkillable city guards, elite camps, mob swarms
+       pulled by a travel landing) never leave the COMBAT engine, and that
+       blocks BOTH the idle-relocation sweep (IsInCombat guard) and travel
+       (IsInCombat guard in DoTravel). Break them: drop target via the shared
+       context + teleport to a grind spot. Typical kills are 30s-3min, so
+       the threshold is safely above a normal fight (default 600s). */
+    if (sPlayerbotAIConfig.staleCombatSeconds > 0 && m_lastCombatSweep >= 30000)
+    {
+        m_lastCombatSweep = 0;
+        time_t now = time(nullptr);
+        for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
+        {
+            if (i->second->state != PB_STATE_ONLINE)
+                continue;
+            Player* bot = ObjectAccessor::FindPlayer(i->first);
+            if (!bot)
+                continue;
+            std::map<uint32, time_t>::iterator cs = s_combatSince.find(i->first);
+            if (bot->IsInCombat() && !bot->IsBeingTeleported())
+            {
+                if (cs == s_combatSince.end())
+                {
+                    s_combatSince[i->first] = now; // combat streak starts
+                    continue;
+                }
+                uint32 combatSecs = (uint32)(now - cs->second);
+                if (combatSecs < sPlayerbotAIConfig.staleCombatSeconds)
+                    continue;
+                sLog.outInfo("playerbots: breaking stale combat (%us) for bot %s (lvl %u)",
+                    combatSecs, bot->GetName(), bot->GetLevel());
+                if (RelocateBotToGrindSpot(bot, i->second, "stale-combat", /*allowCity=*/false))
+                    s_combatSince.erase(cs); // fresh start; on failure retry next sweep
+            }
+            else
+                s_combatSince.erase(cs); // combat ended — clear the clock
+        }
+        for (std::map<uint32, time_t>::iterator cs = s_combatSince.begin(); cs != s_combatSince.end();)
+            if (!m_bots.count(cs->first))
+                cs = s_combatSince.erase(cs);
+            else
+                ++cs;
+    }
+
+    /* R5e: real travel (AC RandomPlayerbotMgr pattern) — per-bot random
+       travel every 1-5h to a real innkeeper/flight/bank hub (25% to a
+       city + homebind refresh). Runs on the 30s cadence; DoTravel
+       re-checks all guards on fire and reports deferrals (retry in 30s). */
+    if (sPlayerbotAIConfig.travelEnabled)
+    {
+        for (std::map<uint32, PlayerBotEntry*>::iterator i = m_bots.begin(); i != m_bots.end(); ++i)
+        {
+            if (i->second->state != PB_STATE_ONLINE)
+                continue;
+            Player* bot = ObjectAccessor::FindPlayer(i->first);
+            if (!bot)
+                continue;
+
+            std::map<uint32, uint64_t>::iterator t = m_nextTravel.find(i->first);
+            uint64_t nowMs = m_elapsedTime;
+            if (t == m_nextTravel.end())
+            {
+                // Newly online bot → schedule first travel 1-5h out.
+                m_nextTravel[i->first] = (uint64_t)nowMs + (uint64_t)irand(
+                    (int)(sPlayerbotAIConfig.travelMinSeconds * 1000),
+                    (int)(sPlayerbotAIConfig.travelMaxSeconds * 1000));
+                continue;
+            }
+            if (nowMs < t->second)
+                continue;
+            bool done = PlayerTravelMgr::DoTravel(bot);
+            uint32 delaySec = done
+                ? (uint32)irand((int)sPlayerbotAIConfig.travelMinSeconds, (int)sPlayerbotAIConfig.travelMaxSeconds)
+                : 30; // deferred (combat/BG/group/anti-cam/no hub) → retry next sweep
+            m_nextTravel[i->first] = (uint64_t)nowMs + (uint64_t)delaySec * 1000;
+        }
+        for (std::map<uint32, uint64_t>::iterator t = m_nextTravel.begin(); t != m_nextTravel.end();)
+            if (!m_bots.count(t->first))
+                t = m_nextTravel.erase(t);
+            else
+                ++t;
     }
 
     if (!((m_elapsedTime - m_lastUpdate) > confUpdateDiff))

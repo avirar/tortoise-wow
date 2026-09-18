@@ -27,6 +27,20 @@ public:
     struct BotSpawnPoint { uint32 map; float x, y, z; };
     static BotSpawnPoint PickSpawnPosition(uint8 level, uint8 race);
 
+    // R5e: mob-anchored relocation spots. Each spot is a REAL creature spawn
+    // position near the band anchor — guaranteed on land with a correct z
+    // (spawns are placed on the ground). Teleporting there instead of the
+    // band anchor's fixed-z + jitter prevents the "blind cliff" ping-pong:
+    // fixed-z ±400-800u jitter strands bots on hilltops where every
+    // IsWithinLOS raycast fails -> scans fail 180s -> re-relocate -> same
+    // blind band (observed 2026-09-17: 215/300 bots relocating in a loop).
+    struct GrindSpot { uint32 map; float x, y, z; };
+    static const uint32 GRIND_SPOT_NONE = 0xFFFFFFFFu;
+    static GrindSpot PickGrindSpot(uint8 level, uint8 race);
+    static void EnsureGrindSpotsLoaded();
+    static std::vector<GrindSpot> s_grindSpots[6][2]; // [band index][0=EK / 1=KM]
+    static bool s_grindSpotsReady;
+
 private:
     static uint32 CreateBotAccount(uint32 index, std::string const& prefix);
     static uint32 CreateBotCharacter(uint32 accountId, uint8 race, uint8 class_, uint8 gender, uint8 level);

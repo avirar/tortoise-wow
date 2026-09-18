@@ -208,6 +208,8 @@ set (game_SRCS
     PlayerBots/Util/ServerFacade.cpp
     PlayerBots/Util/PlayerbotAIConfig.h
     PlayerBots/Util/PlayerbotAIConfig.cpp
+    PlayerBots/Util/PlayerTravelMgr.h
+    PlayerBots/Util/PlayerTravelMgr.cpp
     PlayerBots/Util/Helpers.h
     PlayerBots/Util/Helpers.cpp
     PlayerBots/Util/PerfMonitor.h

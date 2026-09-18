@@ -44,7 +44,15 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     contentionPenalty = 5.0f;                 // R5c: y per bot already on the target
     maxTargetLevelDiff = 4;                   // AC parity: never grind >+4 levels above us
     relocateIdleEnabled = true;               // R5d: self-heal marooned bots
-    relocateIdleSeconds = 180;                // R5d: idle threshold (respawns take 2-5 min)
+    relocateIdleSeconds = 300;                // R5d/e: idle threshold (>= typical 2-5 min respawn so bots wait out dead spots instead of relocating)
+
+    // R5e: real travel (AC RandomPlayerbotMgr: min/max 1-5h random travel)
+    travelEnabled = true;
+    travelMinSeconds = 3600;                  // AC: 1h
+    travelMaxSeconds = 18000;                 // AC: 5h
+    travelCityChancePct = 25;                 // AC probTeleToBankers 0.25
+    travelPoiChancePct = 50;                  // R5e POI cache: 50% of local travel → quest POI
+    staleCombatSeconds = 600;                 // R5e: 10 min of combat = stuck (typical kills are 30s-3min)
 
     // Random
     randomChangeMultiplier = 1;
@@ -109,6 +117,12 @@ bool PlayerbotAIConfig::Initialize()
     maxTargetLevelDiff = sConfig.GetIntDefault("PlayerBot.MaxTargetLevelDiff", maxTargetLevelDiff);
     relocateIdleEnabled = sConfig.GetBoolDefault("PlayerBot.RelocateIdleEnabled", relocateIdleEnabled);
     relocateIdleSeconds = sConfig.GetIntDefault("PlayerBot.RelocateIdleSeconds", relocateIdleSeconds);
+    travelEnabled = sConfig.GetBoolDefault("PlayerBot.TravelEnabled", travelEnabled);
+    travelMinSeconds = sConfig.GetIntDefault("PlayerBot.TravelMinSeconds", travelMinSeconds);
+    travelMaxSeconds = sConfig.GetIntDefault("PlayerBot.TravelMaxSeconds", travelMaxSeconds);
+    travelCityChancePct = sConfig.GetIntDefault("PlayerBot.TravelCityChancePct", travelCityChancePct);
+    travelPoiChancePct = sConfig.GetIntDefault("PlayerBot.TravelPoiChancePct", travelPoiChancePct);
+    staleCombatSeconds = sConfig.GetIntDefault("PlayerBot.StaleCombatSeconds", staleCombatSeconds);
     randomChangeMultiplier = sConfig.GetIntDefault("PlayerBot.RandomChangeMultiplier", randomChangeMultiplier);
 
     logInGroupOnly = sConfig.GetBoolDefault("PlayerBot.LogInGroupOnly", logInGroupOnly);

@@ -115,6 +115,11 @@ class PlayerBotMgr
         uint32 m_lastUpdate;
         uint32 m_lastStatsPrint;
         uint32 m_lastIdleSweep = 0;
+        uint32 m_lastCombatSweep = 0;   // R5e: stale-combat breaker 30s gate
+
+        // R5e: real travel — per-bot next-travel time (ms, m_elapsedTime
+        // based). AC RandomPlayerbotMgr's 1-5h random teleport schedule.
+        std::map<uint32 /*pl guid*/, uint64_t /*ms*/> m_nextTravel;
         uint32 totalChance;
         uint32 _maxAccountId;
 

@@ -82,6 +82,16 @@ public:
     bool relocateIdleEnabled;
     uint32 relocateIdleSeconds;
 
+    // R5e: real travel (AC RandomPlayerbotMgr pattern) — periodic random
+    // travel to real innkeeper/flight/bank hubs, every 1-5h. 25% chance to
+    // a city/banker (refreshes the homebind there).
+    bool travelEnabled;
+    uint32 travelMinSeconds;
+    uint32 travelMaxSeconds;
+    uint32 travelCityChancePct;
+    uint32 travelPoiChancePct;   // non-city travel: quest-POI vs inn/flight/bank hub split
+    uint32 staleCombatSeconds;   // R5e: combat longer than this is broken (stuck on unkillable mobs)
+
     // Random
     uint32 randomChangeMultiplier;
 
