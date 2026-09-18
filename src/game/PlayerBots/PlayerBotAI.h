@@ -7,6 +7,7 @@
 #include "Event.h"
 #include <map>
 #include <queue>
+#include <unordered_set>
 
 struct PlayerBotEntry;
 class WorldSession;
@@ -84,6 +85,9 @@ class PlayerBotAI: public PlayerAI
 
         // AC NewRpgInfo (per-bot RPG state machine + MoveFarTo stuck tracking)
         PlayerRpgInfo rpgInfo;
+        // AC PlayerbotAI::lowPriorityQuest — quests abandoned for no progress
+        // (do-quest state machine avoids re-selecting them).
+        std::unordered_set<uint32> rpgLowPriorityQuest;
 
         PlayerbotAIBase* engine;
 };

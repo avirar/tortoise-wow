@@ -15,17 +15,26 @@
  *     is commented out in AC — it relies on this weighted-random, so we do too.
  *   - CheckRpgStatusAvailable(status): per-status gate (AC :1229-1283):
  *     WANDER needs a nearby grind target, GO_GRIND needs a grind spot, IDLE/REST
- *     always. DO_QUEST is deferred (L3+: needs the quest POI pipeline).
+ *     always. DO_QUEST (L4/L5) needs an active quest with a reachable POI.
+ *
+ * R7 L4/L5: the quest helpers (AC NewRpgBaseAction::SearchQuestGiverAndAcceptOr
+ * Reward / HasQuestToAcceptOrReward / ChooseNpcOrGameObjectToInteract + the
+ * AcceptQuest/RewardQuest primitives) are added here so the GO_GRIND / WANDER /
+ * DO_QUEST actions can pick up new quests + turn in completed ones while milling.
  *
  * Vanilla reductions (bot-master-plan.md R7, L2): GoCamp/WanderNpc/TravelFlight/
- * OutdoorPvP/DoQuest statuses omitted — only GO_GRIND / WANDER_RANDOM / IDLE /
- * REST are auto-selected. Movement itself (walking) is the L1 MovementAction base.
+ * OutdoorPvP statuses omitted — GO_GRIND / WANDER_RANDOM / IDLE / REST / DO_QUEST
+ * are auto-selected. Movement itself (walking) is the L1 MovementAction base.
  */
 #ifndef _PLAYERBOT_RPG_BASE_ACTION_H
 #define _PLAYERBOT_RPG_BASE_ACTION_H
 
 #include "MovementActions.h"
 #include "PlayerRpgInfo.h"
+
+class Quest;
+class WorldObject;
+class Creature;
 
 class RpgBaseAction : public MovementAction
 {
@@ -40,10 +49,31 @@ public:
     // Per-status availability gate (AC NewRpgBaseAction::CheckRpgStatusAvailable).
     bool CheckRpgStatusAvailable(PlayerRpgStatus status);
 
+    // AC NewRpgBaseAction::SearchQuestGiverAndAcceptOrReward — the do-quest
+    // entry point. Finds a nearby quest-giver with a quest to accept/reward
+    // (<=questAcceptRadius yd); if in interaction range, does the accept/turn-in
+    // (CMSG replay) + a short wait; else walks to the giver. Returns true when it
+    // consumed the tick (interacted or started walking to a giver).
+    bool SearchQuestGiverAndAcceptOrReward();
+
 protected:
     // Fill botAI->rpgInfo.data with a random grind spot (same map, level band,
     // <=2500yd) via PlayerGrindMgr. Returns true when a spot was found.
     bool SelectRandomGrindPos();
+
+    // AC NewRpgBaseAction::HasQuestToAcceptOrReward — PrepareQuestMenu + scan:
+    // any COMPLETE+CanReward (turn-in) or NONE+WorthAccepting (accept) quest.
+    bool HasQuestToAcceptOrReward(WorldObject* object);
+    // AC ChooseNpcOrGameObjectToInteract (quests only) — nearest nearby giver
+    // (giver-entries cell scan) with a quest to accept/reward.
+    bool ChooseGiverToInteract(WorldObject*& outObject, float distLimit);
+    // Accept/turn-in primitives (direct Player calls; AC AddQuest/RewardQuest).
+    bool InteractWithGiverForQuest(WorldObject* giver);
+    bool AcceptQuestAtGiver(Creature* giver, Quest const* quest);
+    bool TurnInQuestAtGiver(Creature* giver, Quest const* quest);
+    uint32 BestRewardIndex(Quest const* quest);
+    // Pick an active quest (in the log) with a reachable POI (AC DO_QUEST case).
+    bool SelectDoQuestQuest(uint32& outQuestId);
 };
 
 #endif

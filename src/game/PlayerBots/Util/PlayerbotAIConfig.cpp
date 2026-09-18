@@ -77,10 +77,10 @@ PlayerbotAIConfig::PlayerbotAIConfig()
     // Per-status auto-selection weight, indexed by RpgStatus:
     //   RPG_IDLE=0, GO_GRIND=1, WANDER_RANDOM=3, DO_QUEST=5, REST=7 (rest=2)
     rpgStatusProbWeight[RPG_IDLE] = 0.0f;
-    rpgStatusProbWeight[RPG_GO_GRIND] = 50.0f;
-    rpgStatusProbWeight[RPG_WANDER_RANDOM] = 30.0f;
-    rpgStatusProbWeight[RPG_DO_QUEST] = 0.0f;   // deferred to L3+
-    rpgStatusProbWeight[RPG_REST] = 10.0f;
+    rpgStatusProbWeight[RPG_GO_GRIND] = 15.0f;   // AC AiPlayerbot.RpgStatusProbWeight.GoGrind=15
+    rpgStatusProbWeight[RPG_WANDER_RANDOM] = 15.0f;  // AC .WanderRandom=15
+    rpgStatusProbWeight[RPG_DO_QUEST] = 60.0f;    // AC .DoQuest=60 (dominant; only when a quest is available)
+    rpgStatusProbWeight[RPG_REST] = 5.0f;        // AC .Rest=5
     rpgWanderRandomStatusMaxDuration = 300;      // AC: 5 min
     rpgRestStatusMaxDuration = 30;               // AC: 30 s
     rpgDoQuestStatusMaxDuration = 1800;          // AC: 30 min

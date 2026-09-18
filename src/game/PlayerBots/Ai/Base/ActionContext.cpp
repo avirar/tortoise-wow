@@ -49,6 +49,7 @@ public:
         creators["heal self"] = &ActionContext::CreateSelfHealAction;
         // R7 L2: RPG state machine
         creators["rpg status update"] = &ActionContext::CreateRpgStatusUpdateAction;
+        creators["rpg do quest"] = &ActionContext::CreateRpgDoQuestAction;
         creators["rpg go grind"] = &ActionContext::CreateRpgGoGrindAction;
         creators["rpg wander random"] = &ActionContext::CreateRpgWanderRandomAction;
         // === Warlock class actions ===
@@ -167,6 +168,7 @@ private:
     static Action* CreateSelfHealAction(PlayerBotAI* botAI) { return new SelfHealAction(botAI); }
     // R7 L2: RPG state machine
     static Action* CreateRpgStatusUpdateAction(PlayerBotAI* botAI) { return new RpgStatusUpdateAction(botAI); }
+    static Action* CreateRpgDoQuestAction(PlayerBotAI* botAI) { return new RpgDoQuestAction(botAI); }
     static Action* CreateRpgGoGrindAction(PlayerBotAI* botAI) { return new RpgGoGrindAction(botAI); }
     static Action* CreateRpgWanderRandomAction(PlayerBotAI* botAI) { return new RpgWanderRandomAction(botAI); }
 

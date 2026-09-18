@@ -14,7 +14,7 @@ PlayerRpgInfo::PlayerRpgInfo() :
     nearestMoveFarDis(FLT_MAX),
     stuckTs(0), stuckAttempts(0),
     moveFarMapId(0), moveFarX(0.0f), moveFarY(0.0f), moveFarZ(0.0f),
-    startT(0)
+    startT(0), lastQuestInteract(0)
 {
 }
 
@@ -65,6 +65,7 @@ void PlayerRpgInfo::Reset()
 {
     status = RPG_IDLE;
     startT = getMSTime();
+    lastQuestInteract = 0;
 }
 
 void PlayerRpgInfo::SetMoveFarTo(uint32 mapId, float x, float y, float z)

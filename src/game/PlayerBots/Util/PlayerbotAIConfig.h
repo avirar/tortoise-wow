@@ -117,8 +117,9 @@ public:
 
     // R7 L2: RPG state machine (AC NewRpgInfo / NewRpgBaseAction::RandomChangeStatus).
     // Per-status auto-selection weight, indexed by RpgStatus (see PlayerRpgInfo.h).
-    // 0 = never auto-selected. Defaults: GO_GRIND 50 / WANDER_RANDOM 30 /
-    // REST 10 / IDLE 10 / DO_QUEST 0 (deferred to L3+). Sum ~100.
+    // 0 = never auto-selected. Defaults (AC AiPlayerbot.RpgStatusProbWeight):
+    // DO_QUEST 60 (dominant — only selectable when a quest is available) /
+    // GO_GRIND 15 / WANDER_RANDOM 15 / REST 5 / IDLE 0. Sum ~95.
     float rpgStatusProbWeight[RPG_MAX_STATUS];
     // Max time in each status before the state machine returns to IDLE and
     // re-picks (AC NewRpgBaseAction defaults: wander 300s=5min, rest 30s,

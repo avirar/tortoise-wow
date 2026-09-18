@@ -896,3 +896,92 @@ void PlayerQuestMgr::GetNearbyGivers(Player* bot, std::vector<QuestDest>& out)
     }
     std::sort(out.begin(), out.end(), QuestDestDistCmp(bot->GetPositionX(), bot->GetPositionY()));
 }
+
+// L4/L5: nearest incomplete kill-objective POI for a specific quest (AC
+// GetQuestPOIPosAndObjectiveIdx, toComplete=false, nearest-POI simplification).
+bool PlayerQuestMgr::GetQuestObjectivePoi(Player* bot, uint32 questId, QuestDest& poi, uint8& objIdx)
+{
+    if (!IsLoaded())
+        return false;
+    QuestStatusMap const& qmap = bot->getQuestStatusMap();
+    QuestStatusMap::const_iterator it = qmap.find(questId);
+    if (it == qmap.end() || it->second.m_status != QUEST_STATUS_INCOMPLETE)
+        return false;
+    Quest const* quest = sObjectMgr.GetQuestTemplate(questId);
+    if (!quest)
+        return false;
+    std::map<uint32, std::map<uint8, std::vector<QuestDest> > >::const_iterator q =
+        s_objectives.find(questId);
+    if (q == s_objectives.end())
+        return false;
+    float maxDist = (float)sPlayerbotAIConfig.questPoiMaxDist;
+    uint32 botMap = bot->GetMap() ? bot->GetMap()->GetId() : 0;
+    float bx = bot->GetPositionX(), by = bot->GetPositionY(), bz = bot->GetPositionZ();
+    // Nearest-first among the still-to-do kill objectives (skip done ones).
+    float bestD = 0.0f;
+    bool found = false;
+    for (std::map<uint8, std::vector<QuestDest> >::const_iterator obj = q->second.begin();
+         obj != q->second.end(); ++obj)
+    {
+        uint8 idx = obj->first;
+        if (!(quest->ReqCreatureOrGOId[idx] > 0 &&
+              quest->ReqCreatureOrGOCount[idx] > it->second.m_creatureOrGOcount[idx]))
+            continue;  // objective already done
+        for (std::vector<QuestDest>::const_iterator i = obj->second.begin(); i != obj->second.end(); ++i)
+        {
+            QuestDest const& d = *i;
+            if (!PoiMatchesZone(d.map, d.x, d.y, d.z, maxDist, botMap, bx, by, bz))
+                continue;
+            float dx = d.x - bx, dy = d.y - by;
+            float dist = std::sqrt(dx * dx + dy * dy);
+            if (!found || dist < bestD)
+            {
+                found = true;
+                bestD = dist;
+                poi = d;
+                objIdx = idx;
+            }
+        }
+    }
+    return found;
+}
+
+// L4/L5: nearest taker POI for a specific COMPLETE (not yet rewarded) quest.
+bool PlayerQuestMgr::GetQuestTakerPoi(Player* bot, uint32 questId, QuestDest& poi)
+{
+    if (!IsLoaded())
+        return false;
+    QuestStatusMap const& qmap = bot->getQuestStatusMap();
+    QuestStatusMap::const_iterator it = qmap.find(questId);
+    if (it == qmap.end() || it->second.m_status != QUEST_STATUS_COMPLETE || it->second.m_rewarded)
+        return false;
+    std::map<uint32, std::vector<QuestDest> >::const_iterator t = s_takers.find(questId);
+    if (t == s_takers.end() || t->second.empty())
+        return false;
+    float maxDist = (float)sPlayerbotAIConfig.questPoiMaxDist;
+    uint32 botMap = bot->GetMap() ? bot->GetMap()->GetId() : 0;
+    float bx = bot->GetPositionX(), by = bot->GetPositionY(), bz = bot->GetPositionZ();
+    float bestD = 0.0f;
+    bool found = false;
+    for (std::vector<QuestDest>::const_iterator i = t->second.begin(); i != t->second.end(); ++i)
+    {
+        QuestDest const& d = *i;
+        if (!PoiMatchesZone(d.map, d.x, d.y, d.z, maxDist, botMap, bx, by, bz))
+            continue;
+        float dx = d.x - bx, dy = d.y - by;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (!found || dist < bestD)
+        {
+            found = true;
+            bestD = dist;
+            poi = d;
+        }
+    }
+    return found;
+}
+
+bool PlayerQuestMgr::IsWorthAccepting(Player const* bot, Quest const* quest)
+{
+    return WorthAccepting(bot, quest);
+}
+

@@ -73,6 +73,7 @@ public:
     float moveFarZ;
 
     uint32 startT;  // start timestamp of the current status
+uint32 lastQuestInteract;  // ms timestamp of the last quest accept/turn-in interaction (AC ForceToWait pacing)
 private:
     PlayerRpgStatus status;
 };

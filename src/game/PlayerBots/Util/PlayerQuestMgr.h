@@ -69,6 +69,8 @@ public:
     static uint32 GetTakerCount() { return (uint32)s_takers.size(); }
     static uint32 GetObjectiveQuestCount() { return (uint32)s_objectives.size(); }
     static uint32 GetGiverEntryCount() { return (uint32)s_giverEntries.size(); }
+    // The giver creature entries (for the do-quest giver cell scan, L4/L5).
+    static const std::set<uint32>& GetGiverEntries() { return s_giverEntries; }
 
     // --- L3: AI-facing quest data (exposed as values; AC QuestValues parity).
     // Free quest-log slots (0..MAX_QUEST_LOG_SIZE).
@@ -80,6 +82,17 @@ public:
     static void GetActiveTakers(Player* bot, std::vector<QuestDest>& out);
     // Nearby live givers offering a WorthAccepting quest (questAcceptRadius), nearest-first.
     static void GetNearbyGivers(Player* bot, std::vector<QuestDest>& out);
+
+    // --- L4/L5: per-quest POI (the Rpg DO_QUEST state machine; AC
+    //     GetQuestPOIPosAndObjectiveIdx, nearest-POI simplification).
+    // Nearest incomplete kill-objective POI (same map+zone+questPoiMaxDist);
+    // out objIdx = the objective index (0-3) for the progress check.
+    static bool GetQuestObjectivePoi(Player* bot, uint32 questId, QuestDest& poi, uint8& objIdx);
+    // Nearest taker POI (same filter). Used once the quest is COMPLETE.
+    static bool GetQuestTakerPoi(Player* bot, uint32 questId, QuestDest& poi);
+    // Public quest-worthiness (reuses WorthAccepting; AC IsQuestWorthDoing +
+    // IsQuestCapableDoing). Used by the Rpg do-quest giver scan.
+    static bool IsWorthAccepting(Player const* bot, Quest const* quest);
 
     // Per-bot decision step (30s cadence from PlayerBotMgr::Update).
     // Full pipeline: validate state → COMPLETE→taker/turn-in →
